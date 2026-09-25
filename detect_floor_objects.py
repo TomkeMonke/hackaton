@@ -76,16 +76,31 @@ PRINT_EVERY = 0.5
 TARGET_PRESETS = {
     # bez filtrowania wymiarow - wszystko, co wystaje nad podloge
     "any": {},
-    # sosna 4-8 cm, swierk do ~16 cm; grubosc 2-7 cm
+    # Wartosci ZMIERZONE na sztucznej trawie 2026-09-25, kamera poziomo 10 cm
+    # nad ziemia, szyszki 0.5-0.8 m przed obiektywem: wychodzily 3-4 cm dlugosci,
+    # 1-2 cm szerokosci i tylko ~2 cm wysokosci nad plaszczyzna.
+    #
+    # Wysokosc jest mniejsza niz sama szyszka, bo plaszczyzna klada sie na
+    # WIERZCHOLKACH zdzbel sztucznej trawy, a szyszka czesciowo w nie wtapia.
+    # Pierwsza wersja miala min_height 2 cm i przez to scinala je do paska tak
+    # cienkiego, ze otwarcie morfologiczne kasowalo go do zera - detekcja nie
+    # zglaszala nawet odrzucenia, bo klaster w ogole nie powstawal.
+    # Prog szerokosci jest nisko swiadomie: ten sam obiekt mierzy sie tym wezej,
+    # im dalej lezy (mniej pikseli, wiecej rozmycia glebi). Szyszka z 0.5 m
+    # wychodzila 1.1 cm, ta sama klasa obiektu z 0.76 m juz 0.6 cm.
     "szyszka": {
-        "min_width": 0.02,
-        "max_width": 0.07,
-        "min_length": 0.03,
+        "min_width": 0.005,
+        "max_width": 0.06,
+        "min_length": 0.02,
         "max_length": 0.16,
-        "min_height": 0.02,
+        # 0.8 cm nad plaszczyzna. Nizej niz sie wydaje, bo plaszczyzna lezy na
+        # wierzcholkach zdzbel, a szyszka z 0.76 m dawala plasterek tak cienki,
+        # ze przy progu 1.2 cm znikala. Sprawdzone na tej murawie: przy 0.8 cm
+        # sama trawa nie generuje ani jednej falszywej detekcji.
+        "min_height": 0.008,
         "max_height": 0.09,
-        "min_fill": 0.45,
-        "min_area_px": 150,
+        "min_fill": 0.40,
+        "min_area_px": 50,
     },
 }
 
@@ -473,6 +488,10 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--load-plane", help="wczytaj plaszczyzne z pliku JSON")
     p.add_argument("--save-plane", help="zapisz dopasowana plaszczyzne do JSON")
     p.add_argument("--log", help="zapis wykrytych obiektow do CSV")
+    p.add_argument(
+        "--snapshot",
+        help="zapisz jedna klatke z opisanymi detekcjami (dziala tez bez podgladu)",
+    )
     p.add_argument("--no-preview", action="store_true")
     p.add_argument("--seconds", type=float, help="zakoncz po N sekundach")
     return p.parse_args()
@@ -643,6 +662,15 @@ def main() -> None:
                          f"{obj['length_m']:.4f}", f"{obj['angle_deg']:.1f}",
                          f"{obj['fill']:.3f}", obj["area_px"]]
                     )
+
+            if args.snapshot and frames_seen > 5:
+                color_image = np.asanyarray(frames.get_color_frame().get_data())
+                cv2.imwrite(
+                    args.snapshot,
+                    draw(color_image.copy(), objects, detector.last_mask, False),
+                )
+                print(f"zapisano {args.snapshot} ({len(objects)} detekcji)")
+                args.snapshot = None  # tylko pierwsza pasujaca klatka
 
             if preview:
                 color_image = np.asanyarray(frames.get_color_frame().get_data())

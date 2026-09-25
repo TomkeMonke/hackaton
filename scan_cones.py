@@ -65,7 +65,12 @@ def parse_args() -> argparse.Namespace:
         default=0.0,
         help="o ile kamera wystaje przed punkt odniesienia platformy [m]",
     )
-    p.add_argument("--max-distance", type=float, default=1.2, help="zasieg skanu [m]")
+    p.add_argument(
+        "--max-distance",
+        type=float,
+        default=1.0,
+        help="zasieg skanu [m]; ustalone 0.3-1.0 m, dalej rozrzut szybko rosnie",
+    )
     p.add_argument("--min-distance", type=float, default=0.3)
     p.add_argument("--max-side", type=float, default=0.6)
     p.add_argument("--json", help="zapisz znalezione cele do pliku JSON")
@@ -95,17 +100,25 @@ def scan(pipeline, align, detector, frames_count):
     tracks: list[dict] = []
     last_frames = None
 
-    for _ in range(frames_count):
+    for index in range(frames_count):
         frames = align.process(pipeline.wait_for_frames())
         last_frames = frames
         for obj in detector.detect(frames):
             position = np.array([obj["forward_m"], obj["lateral_m"]])
             for track in tracks:
+                # Jeden slad moze dostac najwyzej jedna detekcje z danej klatki.
+                # Bez tego dwa sasiadujace klastry z tej samej klatki wpadaja do
+                # tego samego sladu i licznik "widziana w N/M klatkach" pokazuje
+                # wiecej trafien niz bylo klatek - a to jest miara, na ktorej
+                # opiera sie zaufanie do pomiaru.
+                if track["frames"] and track["frames"][-1] == index:
+                    continue
                 if np.linalg.norm(position - track["anchor"]) < MATCH_RADIUS:
                     track["hits"].append(obj)
+                    track["frames"].append(index)
                     break
             else:
-                tracks.append({"anchor": position, "hits": [obj]})
+                tracks.append({"anchor": position, "hits": [obj], "frames": [index]})
 
     results = []
     for track in tracks:
