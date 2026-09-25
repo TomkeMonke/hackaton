@@ -249,6 +249,7 @@ class FloorObjectDetector:
         mode="depth",
         color_gate=None,
         open_kernel=5,
+        filters=None,
         seed=0,
     ):
         self.min_distance = min_distance
@@ -274,6 +275,8 @@ class FloorObjectDetector:
         self.mode = mode
         self.color_gate = color_gate or COLOR_GATE
         self.open_kernel = open_kernel
+        # Lista filtrow rs stosowana do ramki glebi przed deprojekcja.
+        self.filters = filters or []
         self.rng = np.random.default_rng(seed)
         # Ile klastrow odpadlo i na czym - bez tego strojenie progow to zgadywanie.
         self.rejected = {"area": 0, "width": 0, "length": 0, "fill": 0, "tall": 0}
@@ -319,6 +322,8 @@ class FloorObjectDetector:
 
     def _cloud(self, frames):
         depth_frame = frames.get_depth_frame()
+        for rs_filter in self.filters:
+            depth_frame = rs_filter.process(depth_frame)
         depth_image = np.asanyarray(depth_frame.get_data())
         if self.grid is None:
             intrinsics = depth_frame.profile.as_video_stream_profile().intrinsics
@@ -548,6 +553,12 @@ def parse_args() -> argparse.Namespace:
         help="moc projektora IR 0-360; podniesienie pomaga na jednolitej murawie",
     )
     p.add_argument(
+        "--filters",
+        action="store_true",
+        help="filtry glebi (przestrzenny + czasowy); czasowy pomaga NA POSTOJU, "
+        "w ruchu rozmazuje",
+    )
+    p.add_argument(
         "--open-kernel",
         type=int,
         default=5,
@@ -569,6 +580,50 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--no-preview", action="store_true")
     p.add_argument("--seconds", type=float, help="zakoncz po N sekundach")
     return p.parse_args()
+
+
+def make_filters():
+    """
+    Filtry doczyszczajace glebie. Wlaczane jawnie, nie domyslnie.
+
+    Temporalny jest tu najmocniejszy, bo skan robimy NA POSTOJU: kolejne klatki
+    pokazuja te sama scene, wiec filtr uzupelnia dziury pomiarami z sasiednich
+    klatek. Przy platformie w ruchu jest odwrotnie - rozmazuje, bo usrednia
+    rozne sceny.
+
+    Przestrzenny wygladza z zachowaniem krawedzi.
+
+    CELOWO NIE MA hole_filling_filter. On nie uzupelnia dziur pomiarami, tylko
+    ZMYSLA glebie z sasiadow - a ten pipeline decyduje "obiekt czy nie obiekt"
+    dokladnie na podstawie tego, czy cos wystaje nad plaszczyzne. Zmyslone
+    piksele produkowalyby zmyslone szyszki.
+
+    ZMIERZONE 2026-09-25, zanim ktos wlaczy to domyslnie:
+
+    Pokrycie glebia rosnie i to jest pewne - mierzone PARAMI na tych samych
+    klatkach (zeby dryf sceny sie zniosl): 22.30% -> 24.44% w pasie 0.3-1.0 m,
+    poprawa w 30 klatkach na 30.
+
+    Liczba wykrytych szyszek na tym nie zyskuje, a czasem traci. Ta sama scena,
+    po cztery skany: BEZ filtrow 5 szyszek w 4 przebiegach na 4; Z filtrami
+    spadek do 4 w 2 przebiegach na 4 - za kazdym razem gubiona byla najblizsza
+    (0.372 m). Efekt jest PRZERYWANY, nie deterministyczny, ale idzie tylko w
+    jedna strone i nigdy nie zaobserwowano, zeby filtry dolozyly wykrycie.
+
+    Stad domyslnie wylaczone: wygladzanie zjada male obiekty, tak samo jak za
+    duze jadro otwarcia. Wiecej pikseli glebi nie znaczy wiecej szyszek, a to
+    drugie jest tym, po co tu jestesmy.
+    """
+    spatial = rs.spatial_filter()
+    spatial.set_option(rs.option.filter_magnitude, 2)
+    spatial.set_option(rs.option.filter_smooth_alpha, 0.5)
+    spatial.set_option(rs.option.filter_smooth_delta, 20)
+
+    temporal = rs.temporal_filter()
+    temporal.set_option(rs.option.filter_smooth_alpha, 0.4)
+    temporal.set_option(rs.option.filter_smooth_delta, 20)
+
+    return [spatial, temporal]
 
 
 def start_pipeline(width: int, height: int, fps: int, laser_power: float | None = None):
@@ -674,6 +729,7 @@ def main() -> None:
             {**COLOR_GATE, "v_max": args.v_max} if args.v_max is not None else None
         ),
         open_kernel=args.open_kernel,
+        filters=make_filters() if args.filters else None,
         **params,
     )
     detector.set_depth_scale(depth_scale)

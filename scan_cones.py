@@ -37,6 +37,7 @@ from detect_floor_objects import (
     TARGET_PRESETS,
     FloorObjectDetector,
     draw,
+    make_filters,
     start_pipeline,
 )
 
@@ -85,6 +86,12 @@ def parse_args() -> argparse.Namespace:
         "--laser-power",
         type=float,
         help="moc projektora IR 0-360; podniesienie pomaga na jednolitej murawie",
+    )
+    p.add_argument(
+        "--filters",
+        action="store_true",
+        help="filtry glebi; ZMIERZONE: dokladaja 2.1 pkt pokrycia, ale gubia "
+        "najblizsze szyszki - patrz komentarz przy uzyciu",
     )
     p.add_argument("--json", help="zapisz znalezione cele do pliku JSON")
     p.add_argument("--snapshot", help="zapisz klatke z zaznaczonymi celami")
@@ -233,6 +240,12 @@ def main() -> None:
         color_gate=(
             {**COLOR_GATE, "v_max": args.v_max} if args.v_max is not None else None
         ),
+        # DOMYSLNIE WYLACZONE, mimo ze skan jest na postoju i filtr czasowy
+        # powinien tu teoretycznie zyskiwac. Pomiar mowi co innego - szczegoly
+        # i liczby w docstringu make_filters(). W skrocie: pokrycie glebia rosnie
+        # pewnie i powtarzalnie, ale liczba wykrytych szyszek na tym nie zyskuje,
+        # a w polowie przebiegow gubiona byla najblizsza szyszka.
+        filters=make_filters() if args.filters else None,
         **params,
     )
     detector.set_depth_scale(depth_scale)
