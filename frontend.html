@@ -78,6 +78,23 @@
   .param { margin-bottom: 14px; }
   .param input[type="range"] { width: 100%; }
   .param-desc { font-size: 11px; color: var(--muted); margin-top: 4px; line-height: 1.4; }
+  .rec-btn {
+    width: 100%; padding: 14px; background: #2c313c; color: #fff; border: none;
+    border-radius: 8px; font-size: 15px; font-weight: 600; cursor: pointer;
+  }
+  .rec-btn.active { background: var(--bad); }
+  .rec-row {
+    display: flex; align-items: center; justify-content: space-between;
+    background: #22262f; border-radius: 8px; padding: 10px 12px; margin-bottom: 6px;
+  }
+  .rec-row-name { font-size: 13px; }
+  .rec-row-dur { font-size: 11px; color: var(--muted); margin-left: 6px; }
+  .rec-row-btns button {
+    background: #2c313c; color: #fff; border: none; border-radius: 6px;
+    padding: 6px 10px; font-size: 12px; cursor: pointer; margin-left: 6px;
+  }
+  .rec-row-btns button.play { background: var(--accent); }
+  .rec-row-btns button.del { background: var(--bad); }
 </style>
 </head>
 <body>
@@ -177,6 +194,16 @@
   </div>
   <div class="mode-text" id="mode-text"></div>
 
+  <div class="panel">
+    <div class="panel-title">NAGRYWANIE RUCHÓW</div>
+    <input type="text" id="record-name" placeholder="nazwa nagrania" style="width:100%; padding:10px; border-radius:8px; border:1px solid #2c313c; background:#22262f; color:var(--text); margin-bottom:10px; box-sizing:border-box;" />
+    <button class="rec-btn" id="record-btn">● NAGRAJ</button>
+    <div class="hint" id="record-status" style="margin-top:8px;"></div>
+
+    <div id="recordings-list" style="margin-top: 14px;"></div>
+    <div class="hint">nagraj jadąc na WASD, potem odtwórz jako kolejny tryb auto. Odtwarzanie kończy się i wraca do manuala samo.</div>
+  </div>
+
 <script>
 const WS_URL = `ws://${location.hostname}:8765`;
 let ws = null;
@@ -240,7 +267,13 @@ function connect() {
     covBtn.classList.toggle('active', mode === 'coverage');
     if (mode === 'figure8') modeText.textContent = 'tryb: OSEMKA (auto)';
     else if (mode === 'coverage') modeText.textContent = `tryb: POKRYCIE (auto) — faza: ${data.cov_phase}`;
+    else if (mode === 'playback') modeText.textContent = `tryb: ODTWARZANIE — ${data.playback_name}`;
     else modeText.textContent = 'tryb: manualny';
+
+    recordBtn.classList.toggle('active', data.recording);
+    recordBtn.textContent = data.recording ? `■ STOP (${data.record_seconds}s)` : '● NAGRAJ';
+    recordStatus.textContent = data.recording ? 'nagrywam — jedź WASD' : '';
+    renderRecordings(data.recordings || {}, mode === 'playback' ? data.playback_name : null);
     if (!speedScaleSlider.matches(':active')) {
       speedScaleSlider.value = Math.round(data.speed_scale * 100);
     }
@@ -330,9 +363,62 @@ for (const el of paramEls) {
 
 document.getElementById('stop-btn').addEventListener('click', () => {
   for (const k of Object.keys(keys)) keys[k] = false;
+  if (isRecording) {
+    ws.send(JSON.stringify({ type: 'stop_record', name: recordNameInput.value }));
+    isRecording = false;
+  }
   sendMode('manual');
   sendKeys();
 });
+
+let isRecording = false;
+const recordBtn = document.getElementById('record-btn');
+const recordNameInput = document.getElementById('record-name');
+const recordStatus = document.getElementById('record-status');
+const recordingsList = document.getElementById('recordings-list');
+
+recordBtn.addEventListener('click', () => {
+  if (!ws || ws.readyState !== WebSocket.OPEN) return;
+  if (!isRecording) {
+    isRecording = true;
+    ws.send(JSON.stringify({ type: 'start_record' }));
+  } else {
+    isRecording = false;
+    ws.send(JSON.stringify({ type: 'stop_record', name: recordNameInput.value }));
+  }
+});
+
+let lastRecordingsSig = null;
+function renderRecordings(recordings, playbackName) {
+  const sig = JSON.stringify(recordings) + '|' + playbackName;
+  if (sig === lastRecordingsSig) return;
+  lastRecordingsSig = sig;
+
+  const names = Object.keys(recordings);
+  if (names.length === 0) {
+    recordingsList.innerHTML = '<div class="hint">brak zapisanych nagrań</div>';
+    return;
+  }
+  recordingsList.innerHTML = names.map(name => `
+    <div class="rec-row">
+      <span class="rec-row-name">${name}<span class="rec-row-dur">${recordings[name]}s</span></span>
+      <span class="rec-row-btns">
+        <button class="play" data-action="play" data-name="${name}" ${playbackName === name ? 'disabled' : ''}>${playbackName === name ? 'GRA' : '▶'}</button>
+        <button class="del" data-action="del" data-name="${name}">✕</button>
+      </span>
+    </div>
+  `).join('');
+  for (const btn of recordingsList.querySelectorAll('button')) {
+    btn.addEventListener('click', () => {
+      const name = btn.dataset.name;
+      if (btn.dataset.action === 'play') {
+        ws.send(JSON.stringify({ type: 'play_record', name }));
+      } else {
+        ws.send(JSON.stringify({ type: 'delete_record', name }));
+      }
+    });
+  }
+}
 </script>
 </body>
 </html>

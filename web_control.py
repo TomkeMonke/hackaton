@@ -62,6 +62,7 @@ PARAM_LIMITS = {
 }
 
 STATIC_DIR = Path(__file__).parent
+RECORDINGS_DIR = STATIC_DIR / "recordings"
 
 
 def step_toward(current, target, step):
@@ -72,6 +73,30 @@ def step_toward(current, target, step):
     return current
 
 
+def load_recordings():
+    recordings = {}
+    if RECORDINGS_DIR.exists():
+        for f in RECORDINGS_DIR.glob("*.json"):
+            try:
+                recordings[f.stem] = json.loads(f.read_text())
+            except (json.JSONDecodeError, OSError):
+                pass
+    return recordings
+
+
+def save_recording_to_disk(name, samples):
+    RECORDINGS_DIR.mkdir(exist_ok=True)
+    safe_name = "".join(c for c in name if c.isalnum() or c in "-_") or "recording"
+    (RECORDINGS_DIR / f"{safe_name}.json").write_text(json.dumps(samples))
+    return safe_name
+
+
+def delete_recording_from_disk(name):
+    f = RECORDINGS_DIR / f"{name}.json"
+    if f.exists():
+        f.unlink()
+
+
 class RobotState:
     def __init__(self):
         self.keys = {"w": False, "a": False, "s": False, "d": False}
@@ -80,13 +105,22 @@ class RobotState:
         self.ser = None
         self.serial_error = None
         self.clients = set()
-        self.mode = "manual"  # "manual" | "figure8" | "coverage"
+        self.mode = "manual"  # "manual" | "figure8" | "coverage" | "playback"
         self.fig8_direction = 1
         self.fig8_half_start = time()
         self.cov_phase = "forward"  # "forward" | "turn1" | "lane" | "turn2"
         self.cov_phase_start = time()
         self.speed_scale = 1.0  # 0..1, multiplies both manual and figure8 speed targets
         self.params = dict(DEFAULT_PARAMS)
+
+        self.recording = False
+        self.record_buffer = []  # list of [t_offset, speed, steer]
+        self.record_start = 0.0
+        self.recordings = load_recordings()  # name -> list of [t_offset, speed, steer]
+
+        self.playback_name = None
+        self.playback_start = 0.0
+        self.playback_index = 0
 
     def connect_serial(self):
         try:
@@ -128,12 +162,16 @@ async def ws_handler(websocket):
             elif data.get("type") == "set_mode":
                 new_mode = data.get("mode")
                 if new_mode in ("manual", "figure8", "coverage"):
+                    if state.recording and new_mode != "manual":
+                        state.recording = False
+                        state.record_buffer = []
                     if new_mode == "figure8" and state.mode != "figure8":
                         state.fig8_direction = 1
                         state.fig8_half_start = time()
                     if new_mode == "coverage" and state.mode != "coverage":
                         state.cov_phase = "forward"
                         state.cov_phase_start = time()
+                    state.playback_name = None
                     state.mode = new_mode
                     if new_mode == "manual":
                         state.keys = {"w": False, "a": False, "s": False, "d": False}
@@ -150,6 +188,32 @@ async def ws_handler(websocket):
                             state.params[key] = max(lo, min(hi, float(values[key])))
                         except (TypeError, ValueError):
                             pass
+            elif data.get("type") == "start_record":
+                state.mode = "manual"
+                state.keys = {"w": False, "a": False, "s": False, "d": False}
+                state.recording = True
+                state.record_buffer = []
+                state.record_start = time()
+            elif data.get("type") == "stop_record":
+                if state.recording:
+                    state.recording = False
+                    name = str(data.get("name") or "nagranie").strip()
+                    if state.record_buffer:
+                        safe_name = save_recording_to_disk(name, state.record_buffer)
+                        state.recordings[safe_name] = state.record_buffer
+                    state.record_buffer = []
+            elif data.get("type") == "play_record":
+                name = data.get("name")
+                if name in state.recordings and state.recordings[name]:
+                    state.mode = "playback"
+                    state.playback_name = name
+                    state.playback_start = time()
+                    state.playback_index = 0
+            elif data.get("type") == "delete_record":
+                name = data.get("name")
+                if name in state.recordings:
+                    del state.recordings[name]
+                    delete_recording_from_disk(name)
     finally:
         state.clients.discard(websocket)
 
@@ -207,6 +271,21 @@ async def control_loop():
 
             state.speed = step_toward(state.speed, speed_target, p["accel_step"])
             state.steer = step_toward(state.steer, steer_target, p["accel_step"])
+        elif state.mode == "playback":
+            samples = state.recordings.get(state.playback_name) or []
+            elapsed = time() - state.playback_start
+            idx = state.playback_index
+            while idx + 1 < len(samples) and samples[idx + 1][0] <= elapsed:
+                idx += 1
+            state.playback_index = idx
+            if idx >= len(samples) - 1 and (not samples or elapsed >= samples[-1][0]):
+                state.speed = 0.0
+                state.steer = 0.0
+                state.mode = "manual"
+                state.playback_name = None
+            else:
+                state.speed = samples[idx][1]
+                state.steer = samples[idx][2]
         else:
             speed_target = (1.0 if state.keys["w"] else 0.0) - (1.0 if state.keys["s"] else 0.0)
             speed_target *= state.speed_scale
@@ -214,6 +293,9 @@ async def control_loop():
             steer_target *= state.speed_scale
             state.speed = step_toward(state.speed, speed_target, p["accel_step"])
             state.steer = step_toward(state.steer, steer_target, p["accel_step"])
+
+        if state.recording:
+            state.record_buffer.append([round(time() - state.record_start, 3), state.speed, state.steer])
 
         pwm_speed = int(state.speed * MAX_PWM)
         pwm_steer = int(state.steer * MAX_STEER)
@@ -240,6 +322,13 @@ async def control_loop():
                 "speed_scale": round(state.speed_scale, 2),
                 "params": state.params,
                 "port": PORT_SERIAL,
+                "recording": state.recording,
+                "record_seconds": round(time() - state.record_start, 1) if state.recording else 0,
+                "recordings": {
+                    name: round(samples[-1][0], 1) if samples else 0.0
+                    for name, samples in state.recordings.items()
+                },
+                "playback_name": state.playback_name,
             }
         )
 
