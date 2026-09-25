@@ -59,8 +59,9 @@ Pytania do użytkownika na starcie następnej sesji (nie zgaduj):
   odległości/orientacji od niej (do transformaty)?
 - Czy wchodzimy w odłożone przypadki: inne obiekty na torze (liście,
   patyki), detekcja w trakcie jazdy, zasięg powyżej 1 m?
-- Czy testy będą za dnia? O zmierzchu pokrycie głębią na sztucznej
-  trawie spada z 87% do 31% (patrz pułapki).
+- Czy włączać filtry głębi (`--filters`)? Poprawiają pokrycie, ale w
+  połowie przebiegów gubiły najbliższą szyszkę (patrz pułapki) — zostały
+  domyślnie wyłączone, decyzja do rewizji przy innych obiektach.
 - Czy jest ramię leader SO-101 (teleop / nagrywanie demonstracji)?
 - Czy robimy plan B z uczeniem (ACT) — jest GPU do treningu?
 - Pi 5: jaka rola (centralny kontroler wszystkiego czy tylko
@@ -222,10 +223,29 @@ Pytania do użytkownika na starcie następnej sesji (nie zgaduj):
   dopasować. Podbicie lasera tego NIE naprawia (9.8% → 4.4%) — brakuje
   drugiego punktu widzenia, nie światła. Nie celować w obiekt lewą
   krawędzią kadru.
-- **Sztuczna trawa o zmierzchu gubi głębię.** To samo miejsce: 87%
-  pokrycia po południu, 31% o zmierzchu. Murawa nie ma własnej tekstury.
-  Projektor IR stoi domyślnie na 150 z 360 — podbicie do 360 dało
-  31.0% → 35.8%. Warto, ale nie ratuje sytuacji; testujcie za dnia.
+- **Niskie pokrycie głębią przy ziemi to GEOMETRIA, nie ciemność.**
+  Najpierw wyszło mi, że zmrok psuje głębię (87% → 31%) — to był błąd
+  pomiaru: porównywałem środkowe kolumny całej wysokości kadru z samym
+  dolnym pasem, a ten przy kamerze 10 cm nad ziemią patrzy na podłoże
+  bliżej niż 0.3 m, czyli w martwą strefę. Rzetelny pomiar, wiersz po
+  wierszu: 78.7% przy medianie 0.39 m, 74.6% przy 0.33 m, 47.2% przy
+  0.27 m, **2.4% niżej**. W środkowych kolumnach łącznie 71.3%.
+  Rozstrzygające: `gain` sensora głębi stoi na **16 przy zakresie
+  16–248**, czyli auto-ekspozycja zeszła na absolutne minimum
+  wzmocnienia — sensor ma nadmiar światła, nie niedobór. **Nie trzeba
+  czekać na dzień.** Projektor IR domyślnie 150 z 360; podbicie pomaga
+  (31.0% → 35.8% na murawie), ale to nie jest to, co ogranicza.
+- **Filtry głębi poprawiają pokrycie i pogarszają detekcję.** Mierzone
+  parami na tych samych klatkach (żeby dryf sceny się zniósł): filtr
+  przestrzenny + czasowy dają 22.30% → 24.44% pokrycia w pasie
+  0.3–1.0 m, poprawa w 30 klatkach na 30 — ten efekt jest pewny. Ale
+  liczba wykrytych szyszek na tym nie zyskuje: ta sama nieruchoma scena,
+  po cztery skany, bez filtrów 5 szyszek w 4/4 przebiegach, z filtrami
+  spadek do 4 w 2/4 — i zawsze gubiona była NAJBLIŻSZA (0.372 m).
+  Wygładzanie zjada małe obiekty. **Więcej pikseli głębi nie znaczy
+  więcej wykrytych obiektów.** `hole_filling_filter` odpada z definicji
+  — on nie uzupełnia dziur pomiarami, tylko zmyśla głębię z sąsiadów, a
+  detekcja decyduje „obiekt czy nie" dokładnie na tych danych.
 - **Otwarcie morfologiczne jądrem 5×5 zjada małe obiekty.** Ta sama
   szyszka mierzy 2.2 cm wysokości przy progu 0.6 cm i 1.0 cm przy progu
   0.8 cm — nie dlatego, że zmierzono ją inaczej, tylko dlatego, że z
