@@ -148,6 +148,23 @@ Pytania do użytkownika na starcie następnej sesji (nie zgaduj):
   --only-binary`): są `mujoco`, `roboticstoolbox-python`, `open3d 0.20`,
   `ultralytics`, `torch`; NIE MA `pin` (pinocchio, więc wbudowane w lerobot
   `RobotKinematics`/placo nie działa), `pybullet`, `pyroki`.
+- **`opencv-python` + `opencv-python-headless` zainstalowane razem** =
+  `cv2.imshow` pada (`The function is not implemented. Rebuild the
+  library with Windows, GTK+ 2.x or Cocoa support`), bo headless
+  nadpisuje binaria GUI w tym samym namespace `cv2`. Fix: odinstalować
+  oba i postawić od nowa tylko `opencv-python` (lerobot ciągnie
+  `opencv-python-headless` jako zależność — konflikt nawracający przy
+  `pip install lerobot`, sprawdzać po każdym takim instalu).
+- **D415 znika z `rs.context().query_devices()` po nieczystym zamknięciu
+  procesu** (crash przed `pipeline.stop()`, albo proces zabity przez
+  `taskkill`) — Windows/librealsense zostawia uchwyt USB w złym stanie.
+  Objaw: `RuntimeError: No device connected` albo `HResult 0x800703e3`
+  przy `pipeline.start()`, mimo że kamera fizycznie podłączona. Fix:
+  sprawdzić `tasklist | grep python` i dobić wiszące `python.exe`
+  (zombie trzymają handle nawet gdy skrypt "już wyszedł" wg statusu
+  procesu-wrappera); jeśli to nie pomoże — fizyczny replug USB. Zawsze
+  zamykać stream przez `finally: pipeline.stop()`, nigdy Ctrl+C na
+  goło/kill -9.
 
 ## Log sesji
 
@@ -217,3 +234,26 @@ Pytania do użytkownika na starcie następnej sesji (nie zgaduj):
   uruchomienie padło w `go_home` na zgubionym pakiecie — od tego czasu
   jest retry, nieprzetestowany). `gong` i `straight` nieprzetestowane
   fizycznie (brak potwierdzenia od użytkownika).
+
+### 2026-09-25 — sesja Claude (podgląd na żywo RealSense D415)
+
+- Cel: prosty live preview (`rs_preview.py`) color+depth side-by-side
+  z `pyrealsense2` + `cv2.imshow`, do wizualnej kontroli co widzi kamera.
+  RealSense Viewer (osobna appka Intela) NIE jest zainstalowany i nie
+  jest potrzebny — `pyrealsense2` ma librealsense wbudowane.
+- Napisany `rs_preview.py`: color+depth align, colormapa JET, FPS co 30
+  klatek w konsoli, wyjście `q`/ESC, `pipeline.stop()` w `finally`.
+- Napotkane i naprawione po drodze (patrz pułapki): konflikt
+  `opencv-python` / `opencv-python-headless` (reinstall samego
+  `opencv-python`); D415 znikająca z enumeracji USB po zombie procesach
+  pythona (`taskkill` wiszących `python.exe`).
+- Potwierdzone: kamera wykrywana (`rs.context().query_devices()` → 1,
+  D415, serial 105422060821), skrypt odpala się bez wyjątku po
+  posprzątaniu procesów.
+- **Nie zrobione / niepotwierdzone**: użytkownik nie potwierdził jeszcze
+  wizualnie że okno faktycznie pokazuje obraz (proces działał bez
+  crasha, ale brak feedbacku "widzę obraz" na koniec sesji) — na
+  starcie następnej sesji zapytać czy `rs_preview.py` faktycznie
+  pokazuje live podgląd, czy nadal łapie `No device connected` po
+  replugu (jeśli tak, sprawdzić Menedżer Urządzeń / port USB, może hub
+  zamiast bezpośredniego portu USB3).
