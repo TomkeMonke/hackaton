@@ -1,0 +1,19 @@
+{
+  "_uwaga": "WARTOSCI DOMYSLNE SA ZGADNIETE I NIEZMIERZONE. Zmierz je miarka (python drive_to_target.py --calibrate --port COMx), wpisz tutaj i ustaw measured na true. Do tego czasu dojazd jest tylko symulacja.",
+  "measured": false,
+  "drive": {
+    "speed": 0.06,
+    "meters_per_second": 0.12,
+    "measured": false,
+    "_uwaga": "droga zmierzona miarka / (hold_seconds + ramp_seconds)"
+  },
+  "turn": {
+    "steer": 0.075,
+    "degrees_per_second": 40.0,
+    "measured": false,
+    "_uwaga": "kat zmierzony / (hold_seconds + ramp_seconds), obrot w miejscu"
+  },
+  "ramp_seconds": 0.4,
+  "settle_seconds": 0.5,
+  "surface": "niezmierzone - wpisz na czym kalibrowano (beton, dywan, parkiet)"
+}
