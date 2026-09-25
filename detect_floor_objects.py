@@ -51,8 +51,11 @@ import pyrealsense2 as rs
 
 WIDTH, HEIGHT, FPS = 640, 480, 30
 
-# Obszar roboczy ramienia - punkty poza nim nie wchodza ani do RANSAC, ani do detekcji.
-MIN_DISTANCE = 0.3  # m; blizej D415 i tak nie mierzy
+# Obszar roboczy - punkty poza nim nie wchodza ani do RANSAC, ani do detekcji.
+# 0.31 m to zmierzone minimum glebi D415 w trybie 640x480; blizej sa same zera,
+# co jest tez powodem, dla ktorego cel trzeba zapamietac ZANIM sie do niego
+# podjedzie - na dystansie chwytania kamera juz go nie widzi.
+MIN_DISTANCE = 0.3
 MAX_DISTANCE = 2.0  # m
 MAX_SIDE = 1.0  # m; |X| od osi optycznej
 
@@ -89,6 +92,10 @@ TARGET_PRESETS = {
 DETECTION_KEYS = (
     "centroid",  # (x, y, z) w metrach, uklad kamery
     "distance_m",  # odleglosc od kamery w linii prostej
+    "forward_m",  # ile do przodu po ziemi - tyle ma przejechac platforma
+    "lateral_m",  # ile w bok; dodatnie = w prawo
+    "ground_distance_m",  # odleglosc po ziemi, bez skladowej pionowej
+    "bearing_deg",  # kat do celu; dodatni = w prawo
     "height_m",  # wysokosc najwyzszego punktu nad plaszczyzna podlogi
     "width_m",  # krotszy bok prostokata = os chwytania
     "length_m",  # dluzszy bok
@@ -163,15 +170,27 @@ def fit_plane_ransac(points: np.ndarray, iters: int, threshold: float, rng):
     return best_normal, best_d
 
 
-def plane_basis(normal: np.ndarray):
-    """Dwa wektory rozpinajace plaszczyzne, do rzutowania obiektow na podloge."""
-    helper = np.array([1.0, 0.0, 0.0])
-    if abs(normal @ helper) > 0.9:
-        helper = np.array([0.0, 1.0, 0.0])
-    e1 = np.cross(normal, helper)
-    e1 /= np.linalg.norm(e1)
-    e2 = np.cross(normal, e1)
-    return e1, e2 / np.linalg.norm(e2)
+def ground_frame(normal: np.ndarray):
+    """
+    Uklad zwiazany z ziemia: (przod, prawo, gora).
+
+    "Gora" to normalna plaszczyzny. "Przod" to os optyczna kamery (Z) rzutowana
+    na plaszczyzne ziemi - czyli kierunek, w ktorym platforma pojedzie. Dzieki
+    temu, ze bierze sie to z DOPASOWANEJ plaszczyzny, a nie z zalozenia "kamera
+    stoi rowno", lekkie przechylenie uchwytu samo sie kompensuje.
+
+    Gdy kamera patrzy prosto w plaszczyzne (np. w dol z masztu), rzut osi Z
+    znika - wtedy za przod bierzemy kolejna os, zeby uklad byl zawsze okreslony.
+    """
+    up = normal / np.linalg.norm(normal)
+    for axis in ((0.0, 0.0, 1.0), (0.0, 1.0, 0.0), (1.0, 0.0, 0.0)):
+        candidate = np.array(axis) - (np.array(axis) @ up) * up
+        norm = np.linalg.norm(candidate)
+        if norm > 1e-3:
+            forward = candidate / norm
+            break
+    right = np.cross(forward, up)
+    return forward, right / np.linalg.norm(right), up
 
 
 # --- detektor ----------------------------------------------------------------
@@ -319,7 +338,7 @@ class FloorObjectDetector:
         self.last_mask = mask
 
         count, labels, stats, centroids = cv2.connectedComponentsWithStats(mask, 8)
-        e1, e2 = plane_basis(self.normal)
+        forward, right, _ = ground_frame(self.normal)
 
         objects = []
         self.rejected = {"area": 0, "width": 0, "length": 0, "fill": 0, "tall": 0}
@@ -339,7 +358,7 @@ class FloorObjectDetector:
                 continue
 
             # Rzut na plaszczyzne podlogi -> prostokat o najmniejszym polu.
-            flat = np.stack((points @ e1, points @ e2), axis=1).astype(np.float32)
+            flat = np.stack((points @ right, points @ forward), axis=1).astype(np.float32)
             (_, _), (side_a, side_b), angle = cv2.minAreaRect(flat)
             width, length = sorted((float(side_a), float(side_b)))
 
@@ -374,10 +393,19 @@ class FloorObjectDetector:
                 continue
 
             centroid = np.median(points, axis=0)
+            # To, czego potrzebuje dojazd: ile do przodu, ile w bok, pod jakim
+            # katem. Liczone w ukladzie ziemi, wiec niezalezne od tego, czy
+            # uchwyt kamery jest idealnie wypoziomowany.
+            ahead = float(centroid @ forward)
+            side = float(centroid @ right)
             objects.append(
                 {
                     "centroid": tuple(centroid.tolist()),
                     "distance_m": float(np.linalg.norm(centroid)),
+                    "forward_m": ahead,
+                    "lateral_m": side,
+                    "ground_distance_m": float(np.hypot(ahead, side)),
+                    "bearing_deg": float(np.degrees(np.arctan2(side, ahead))),
                     "height_m": top,
                     "width_m": width,
                     "length_m": length,
