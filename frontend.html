@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="UTF-8" />
+<title>Makarena Control</title>
+<style>
+  :root {
+    color-scheme: dark;
+    --bg: #0f1115;
+    --panel: #171a21;
+    --accent: #4f9dff;
+    --ok: #35c759;
+    --bad: #ff453a;
+    --text: #e6e8eb;
+    --muted: #8a8f98;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, Segoe UI, Roboto, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 24px 16px;
+    min-height: 100vh;
+  }
+  h1 { font-size: 18px; font-weight: 600; margin: 0 0 16px; color: var(--muted); }
+  .panel {
+    background: var(--panel);
+    border-radius: 12px;
+    padding: 20px;
+    width: 100%;
+    max-width: 420px;
+    margin-bottom: 16px;
+  }
+  .status-row { display: flex; align-items: center; gap: 8px; font-size: 14px; margin-bottom: 4px; }
+  .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--bad); flex-shrink: 0; }
+  .dot.on { background: var(--ok); }
+  .error { color: var(--bad); font-size: 12px; margin-top: 4px; }
+  .keys {
+    display: grid;
+    grid-template-columns: repeat(3, 56px);
+    grid-template-rows: repeat(2, 56px);
+    gap: 8px;
+    justify-content: center;
+    margin: 16px 0;
+  }
+  .key {
+    display: flex; align-items: center; justify-content: center;
+    background: #22262f; border: 1px solid #2c313c; border-radius: 8px;
+    font-weight: 600; font-size: 16px; color: var(--muted);
+    user-select: none; -webkit-user-select: none; touch-action: none;
+  }
+  .key.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+  #w { grid-column: 2; grid-row: 1; }
+  #a { grid-column: 1; grid-row: 2; }
+  #s { grid-column: 2; grid-row: 2; }
+  #d { grid-column: 3; grid-row: 2; }
+  .bars { display: flex; flex-direction: column; gap: 10px; }
+  .bar-label { display: flex; justify-content: space-between; font-size: 12px; color: var(--muted); margin-bottom: 4px; }
+  .bar-track { height: 10px; background: #22262f; border-radius: 5px; position: relative; overflow: hidden; }
+  .bar-fill { position: absolute; top: 0; bottom: 0; background: var(--accent); left: 50%; width: 0; }
+  .pwm-value { font-variant-numeric: tabular-nums; }
+  .hint { font-size: 12px; color: var(--muted); text-align: center; margin-top: 8px; }
+  .btn-row { display: flex; gap: 8px; width: 100%; max-width: 420px; }
+  .stop-btn, .fig8-btn {
+    flex: 1; padding: 14px;
+    color: #fff; border: none; border-radius: 8px;
+    font-size: 15px; font-weight: 600; cursor: pointer;
+  }
+  .stop-btn { background: var(--bad); }
+  .fig8-btn { background: #2c313c; }
+  .fig8-btn.active { background: var(--accent); }
+  .mode-text { font-size: 12px; color: var(--muted); text-align: center; margin: 8px 0 0; }
+  .panel-title { font-size: 12px; font-weight: 700; letter-spacing: 0.04em; color: var(--muted); margin-bottom: 12px; }
+  .param { margin-bottom: 14px; }
+  .param input[type="range"] { width: 100%; }
+  .param-desc { font-size: 11px; color: var(--muted); margin-top: 4px; line-height: 1.4; }
+</style>
+</head>
+<body>
+  <h1>MAKARENA CONTROL</h1>
+
+  <div class="panel">
+    <div class="status-row"><span class="dot" id="conn-dot"></span><span id="conn-text">łączenie...</span></div>
+    <div class="status-row" id="port-row" style="color: var(--muted)"></div>
+    <div class="error" id="error-text"></div>
+  </div>
+
+  <div class="panel">
+    <div class="keys">
+      <div class="key" id="w">W</div>
+      <div class="key" id="a">A</div>
+      <div class="key" id="s">S</div>
+      <div class="key" id="d">D</div>
+    </div>
+    <div class="hint">klawiatura albo dotyk (przytrzymaj)</div>
+  </div>
+
+  <div class="panel bars">
+    <div>
+      <div class="bar-label"><span>SPEED</span><span class="pwm-value" id="speed-val">0</span></div>
+      <div class="bar-track"><div class="bar-fill" id="speed-bar"></div></div>
+    </div>
+    <div>
+      <div class="bar-label"><span>STEER</span><span class="pwm-value" id="steer-val">0</span></div>
+      <div class="bar-track"><div class="bar-fill" id="steer-bar"></div></div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="bar-label"><span>LIMIT PRĘDKOŚCI</span><span class="pwm-value" id="speed-scale-val">100%</span></div>
+    <input type="range" id="speed-scale" min="0" max="100" value="100" style="width: 100%;" />
+  </div>
+
+  <div class="panel" id="params-panel">
+    <div class="panel-title">STEROWANIE RĘCZNE (WASD)</div>
+    <div class="param" data-key="accel_step" data-min="0.005" data-max="0.3" data-step="0.005" data-unit="pct">
+      <div class="bar-label"><span>jak szybko reaguje na klawisze</span><span class="pwm-value param-val"></span></div>
+      <input type="range" class="param-slider" min="0.005" max="0.3" step="0.005" />
+      <div class="param-desc">mało = łagodny rozpęd, dużo = reaguje niemal od razu</div>
+    </div>
+
+    <div class="panel-title" style="margin-top: 20px;">OSEMKA</div>
+    <div class="param" data-key="fig8_speed" data-min="0" data-max="1" data-step="0.01" data-unit="pct">
+      <div class="bar-label"><span>jak szybko jedzie do przodu</span><span class="pwm-value param-val"></span></div>
+      <input type="range" class="param-slider" min="0" max="1" step="0.01" />
+    </div>
+    <div class="param" data-key="fig8_steer" data-min="0" data-max="1" data-step="0.005" data-unit="pct">
+      <div class="bar-label"><span>jak ostro skręca (promień pętli)</span><span class="pwm-value param-val"></span></div>
+      <input type="range" class="param-slider" min="0" max="1" step="0.005" />
+      <div class="param-desc">za dużo względem prędkości powyżej = robot kręci się w kółko w miejscu zamiast jechać łukiem</div>
+    </div>
+    <div class="param" data-key="fig8_ramp" data-min="0.005" data-max="0.3" data-step="0.005" data-unit="pct">
+      <div class="bar-label"><span>jak płynnie zmienia kierunek skrętu</span><span class="pwm-value param-val"></span></div>
+      <input type="range" class="param-slider" min="0.005" max="0.3" step="0.005" />
+    </div>
+    <div class="param" data-key="fig8_loop_seconds" data-min="0.5" data-max="60" data-step="0.5" data-unit="s">
+      <div class="bar-label"><span>ile jedzie w jedną stronę zanim zawróci</span><span class="pwm-value param-val"></span></div>
+      <input type="range" class="param-slider" min="0.5" max="60" step="0.5" />
+      <div class="param-desc">to jest połowa jednej pętli ósemki</div>
+    </div>
+
+    <div class="panel-title" style="margin-top: 20px;">POKRYCIE (jak kosiarka)</div>
+    <div class="param" data-key="cov_speed" data-min="0" data-max="1" data-step="0.01" data-unit="pct">
+      <div class="bar-label"><span>jak szybko jedzie do przodu</span><span class="pwm-value param-val"></span></div>
+      <input type="range" class="param-slider" min="0" max="1" step="0.01" />
+    </div>
+    <div class="param" data-key="cov_forward_seconds" data-min="0.5" data-max="120" data-step="0.5" data-unit="s">
+      <div class="bar-label"><span>jak długo jedzie prosto w jednym rzędzie</span><span class="pwm-value param-val"></span></div>
+      <input type="range" class="param-slider" min="0.5" max="120" step="0.5" />
+      <div class="param-desc">im dłużej, tym dłuższy pojedynczy przejazd (dopasuj do długości pokoju)</div>
+    </div>
+    <div class="param" data-key="cov_turn_steer" data-min="0" data-max="1" data-step="0.01" data-unit="pct">
+      <div class="bar-label"><span>jak mocno kręci przy zawracaniu</span><span class="pwm-value param-val"></span></div>
+      <input type="range" class="param-slider" min="0" max="1" step="0.01" />
+    </div>
+    <div class="param" data-key="cov_turn_seconds" data-min="0.1" data-max="10" data-step="0.1" data-unit="s">
+      <div class="bar-label"><span>jak długo trwa jeden obrót w miejscu</span><span class="pwm-value param-val"></span></div>
+      <input type="range" class="param-slider" min="0.1" max="10" step="0.1" />
+      <div class="param-desc">dostrój tak, żeby obrót wychodził na ok. 90 stopni; robi to dwa razy pod rząd</div>
+    </div>
+    <div class="param" data-key="cov_lane_seconds" data-min="0" data-max="10" data-step="0.1" data-unit="s">
+      <div class="bar-label"><span>jak duży odstęp między rzędami</span><span class="pwm-value param-val"></span></div>
+      <input type="range" class="param-slider" min="0" max="10" step="0.1" />
+      <div class="param-desc">krótki kawałek jazdy prosto pomiędzy dwoma obrotami — im dłuższy, tym rzędy dalej od siebie</div>
+    </div>
+    <div class="hint">kolejność ruchu: prosto -> obrót ~90° w miejscu -> mały krok -> obrót ~90° (razem 180°) -> prosto w drugą stronę, o rząd dalej. Powtarza w kółko.</div>
+  </div>
+
+  <div class="btn-row">
+    <button class="fig8-btn" id="fig8-btn">OSEMKA</button>
+    <button class="fig8-btn" id="cov-btn">POKRYCIE</button>
+    <button class="stop-btn" id="stop-btn">STOP</button>
+  </div>
+  <div class="mode-text" id="mode-text"></div>
+
+<script>
+const WS_URL = `ws://${location.hostname}:8765`;
+let ws = null;
+let mode = 'manual';
+const keys = { w: false, a: false, s: false, d: false };
+
+const connDot = document.getElementById('conn-dot');
+const connText = document.getElementById('conn-text');
+const portRow = document.getElementById('port-row');
+const errorText = document.getElementById('error-text');
+const speedVal = document.getElementById('speed-val');
+const steerVal = document.getElementById('steer-val');
+const speedBar = document.getElementById('speed-bar');
+const steerBar = document.getElementById('steer-bar');
+
+function formatParam(value, unit) {
+  if (unit === 'pct') return Math.round(value * 100) + '%';
+  if (unit === 's') return value + 's';
+  return String(value);
+}
+
+function setBar(el, valuePct) {
+  // valuePct: -1..1 -> bar grows from center left/right
+  const half = 50;
+  const w = Math.abs(valuePct) * half;
+  el.style.width = w + '%';
+  el.style.left = valuePct >= 0 ? '50%' : (50 - w) + '%';
+}
+
+function sendKeys() {
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify({ type: 'keys', ...keys }));
+  }
+  for (const k of Object.keys(keys)) {
+    document.getElementById(k).classList.toggle('active', keys[k]);
+  }
+}
+
+function connect() {
+  ws = new WebSocket(WS_URL);
+  ws.onopen = () => { connText.textContent = 'WebSocket połączony, czekam na Arduino...'; };
+  ws.onclose = () => {
+    connDot.classList.remove('on');
+    connText.textContent = 'brak połączenia z serwerem, ponawiam...';
+    setTimeout(connect, 1000);
+  };
+  ws.onerror = () => ws.close();
+  ws.onmessage = (ev) => {
+    const data = JSON.parse(ev.data);
+    if (data.type !== 'status') return;
+    connDot.classList.toggle('on', data.connected);
+    connText.textContent = data.connected ? 'Arduino połączone' : 'szukam Arduino...';
+    portRow.textContent = `port: ${data.port}`;
+    errorText.textContent = data.error ? data.error : '';
+    speedVal.textContent = data.pwm_speed;
+    steerVal.textContent = data.pwm_steer;
+    setBar(speedBar, data.speed);
+    setBar(steerBar, data.steer);
+    mode = data.mode;
+    fig8Btn.classList.toggle('active', mode === 'figure8');
+    covBtn.classList.toggle('active', mode === 'coverage');
+    if (mode === 'figure8') modeText.textContent = 'tryb: OSEMKA (auto)';
+    else if (mode === 'coverage') modeText.textContent = `tryb: POKRYCIE (auto) — faza: ${data.cov_phase}`;
+    else modeText.textContent = 'tryb: manualny';
+    if (!speedScaleSlider.matches(':active')) {
+      speedScaleSlider.value = Math.round(data.speed_scale * 100);
+    }
+    speedScaleVal.textContent = Math.round(data.speed_scale * 100) + '%';
+
+    if (data.params) {
+      for (const el of paramEls) {
+        const key = el.dataset.key;
+        const slider = el.querySelector('.param-slider');
+        const val = el.querySelector('.param-val');
+        if (key in data.params) {
+          if (!slider.matches(':active')) slider.value = data.params[key];
+          val.textContent = formatParam(data.params[key], el.dataset.unit);
+        }
+      }
+    }
+  };
+}
+connect();
+
+const keyMap = { KeyW: 'w', KeyA: 'a', KeyS: 's', KeyD: 'd' };
+window.addEventListener('keydown', (e) => {
+  const k = keyMap[e.code];
+  if (k && !keys[k]) { keys[k] = true; sendKeys(); }
+});
+window.addEventListener('keyup', (e) => {
+  const k = keyMap[e.code];
+  if (k && keys[k]) { keys[k] = false; sendKeys(); }
+});
+window.addEventListener('blur', () => {
+  for (const k of Object.keys(keys)) keys[k] = false;
+  sendKeys();
+});
+
+// touch/mouse support on the on-screen keys
+for (const k of ['w', 'a', 's', 'd']) {
+  const el = document.getElementById(k);
+  const down = (e) => { e.preventDefault(); keys[k] = true; sendKeys(); };
+  const up = (e) => { e.preventDefault(); keys[k] = false; sendKeys(); };
+  el.addEventListener('mousedown', down);
+  el.addEventListener('mouseup', up);
+  el.addEventListener('mouseleave', up);
+  el.addEventListener('touchstart', down);
+  el.addEventListener('touchend', up);
+}
+
+const fig8Btn = document.getElementById('fig8-btn');
+const modeText = document.getElementById('mode-text');
+
+function sendMode(newMode) {
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify({ type: 'set_mode', mode: newMode }));
+  }
+}
+
+fig8Btn.addEventListener('click', () => {
+  sendMode(mode === 'figure8' ? 'manual' : 'figure8');
+});
+
+const covBtn = document.getElementById('cov-btn');
+covBtn.addEventListener('click', () => {
+  sendMode(mode === 'coverage' ? 'manual' : 'coverage');
+});
+
+const speedScaleSlider = document.getElementById('speed-scale');
+const speedScaleVal = document.getElementById('speed-scale-val');
+speedScaleSlider.addEventListener('input', () => {
+  const pct = Number(speedScaleSlider.value);
+  speedScaleVal.textContent = pct + '%';
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify({ type: 'set_speed', value: pct / 100 }));
+  }
+});
+
+const paramEls = Array.from(document.querySelectorAll('.param'));
+for (const el of paramEls) {
+  const key = el.dataset.key;
+  const slider = el.querySelector('.param-slider');
+  const val = el.querySelector('.param-val');
+  slider.addEventListener('input', () => {
+    val.textContent = formatParam(Number(slider.value), el.dataset.unit);
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify({ type: 'set_params', values: { [key]: Number(slider.value) } }));
+    }
+  });
+}
+
+document.getElementById('stop-btn').addEventListener('click', () => {
+  for (const k of Object.keys(keys)) keys[k] = false;
+  sendMode('manual');
+  sendKeys();
+});
+</script>
+</body>
+</html>
