@@ -1,0 +1,18 @@
+# Wspolne zaleznosci: platforma (hoverboard) + wizja.
+#
+#     python -m pip install -r requirements.txt -c constraints.txt
+#
+# Ramie SO-101 jest osobno - patrz requirements-arm.txt. Ciagnie za soba
+# lerobot z torchem, wiec nie wchodzi domyslnie: osobie od wizji jest
+# niepotrzebny, a wazy kilka GB.
+
+# Platforma: makarena.py, figure_eight.py, keyboard_control.py, web_control.py
+pyserial>=3.5
+keyboard>=0.13.5      # keyboard_control.py
+pygamepad>=0.2        # makarena.py
+websockets>=12.0      # web_control.py
+
+# Wizja: rs_preview.py, detect_object.py
+pyrealsense2>=2.56
+opencv-python>=4.9
+numpy                 # wersja pilnowana przez constraints.txt
