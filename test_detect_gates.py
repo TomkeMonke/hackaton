@@ -71,6 +71,25 @@ def test_keep_tall_zwraca_oba():
     assert len(found) == 2, f"bez odrzucania oczekiwano 2, jest {len(found)}"
 
 
+def test_dlugi_obiekt_odpada():
+    """
+    Na torze lezal obiekt mierzacy 15.2 x 4.3 cm i przechodzil bramke, bo
+    max_length stalo na 16 cm z ksiazkowych wymiarow szyszki swierkowej.
+    Zmierzone szyszki maja 3-5 cm, wiec dlugie obiekty maja odpadac.
+    """
+    xyz, distance, above = make_scene()
+    # 100 px = 15 cm dlugosci przy M_PER_PX = 0.0015
+    above[50:150, 400:430] = True
+    distance[50:150, 400:430] = 0.05
+
+    detector = make_detector()
+    found = detector.objects_from_cloud(xyz, distance, above)
+    assert detector.rejected["length"] == 1, (
+        f"dlugi obiekt powinien odpasc na dlugosci, odrzucenia: {detector.rejected}"
+    )
+    assert all(o["length_m"] <= 0.10 for o in found), [o["length_m"] for o in found]
+
+
 def test_preset_any_nie_filtruje():
     xyz, distance, above = make_scene()
     detector = FloorObjectDetector.for_target("any")
@@ -90,5 +109,6 @@ if __name__ == "__main__":
         f"dystans {obj['distance_m']:.3f} m"
     )
     test_keep_tall_zwraca_oba()
+    test_dlugi_obiekt_odpada()
     test_preset_any_nie_filtruje()
     print("OK - wszystkie testy przeszly")

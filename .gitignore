@@ -2,3 +2,8 @@ __pycache__/
 *.pyc
 .venv/
 venv/
+
+# Artefakty skanu - powstaja przy kazdym uruchomieniu, nie wersjonujemy ich
+cel.json
+*_snapshot.png
+runs/

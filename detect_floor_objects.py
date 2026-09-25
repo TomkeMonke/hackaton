@@ -92,7 +92,11 @@ TARGET_PRESETS = {
         "min_width": 0.005,
         "max_width": 0.06,
         "min_length": 0.02,
-        "max_length": 0.16,
+        # 10 cm, nie 16. Pierwsza wersja miala 16 cm z ksiazkowych wymiarow
+        # szyszki swierkowej i przepuszczala obiekt mierzacy 15.2 x 4.3 cm,
+        # lezacy na torze obok. Zmierzone szyszki maja 3-5 cm dlugosci, wiec
+        # gorny prog moze byc duzo blizej rzeczywistosci.
+        "max_length": 0.10,
         # 0.8 cm nad plaszczyzna. Nizej niz sie wydaje, bo plaszczyzna lezy na
         # wierzcholkach zdzbel, a szyszka z 0.76 m dawala plasterek tak cienki,
         # ze przy progu 1.2 cm znikala. Sprawdzone na tej murawie: przy 0.8 cm
@@ -102,6 +106,21 @@ TARGET_PRESETS = {
         "min_fill": 0.40,
         "min_area_px": 50,
     },
+}
+
+# Progi koloru ZMIERZONE na torze 2026-09-25 (sample_colors.py), przy
+# automatycznym balansie bieli o zmierzchu. UWAGA: to nie jest "braz na
+# zielonym". W tym swietle murawa rejestruje sie jako sinozielona (H ~90 w skali
+# OpenCV, czyli cyjan), a szyszki jako ciemnofioletowe (H ~148). Odcien sam w
+# sobie ich nie rozdziela - ogony rozkladow zachodza na siebie. Rozdziela je
+# JASNOSC: szyszki V ~94, murawa V ~152.
+#
+# Prog na jasnosc jest z natury kruchy - slonce albo cien go przesuwa. Dlatego
+# tryb "both" trzyma obok niego sprawdzenie geometryczne, a przy zmianie swiatla
+# nalezy przepuscic sample_colors.py jeszcze raz i podmienic te liczby.
+COLOR_GATE = {
+    "v_max": 125,  # ciemniejsze niz murawa (jej 5. percentyl to 127)
+    "s_max": 90,
 }
 
 DETECTION_KEYS = (
@@ -227,6 +246,9 @@ class FloorObjectDetector:
         max_length=None,
         min_fill=None,
         reject_tall=True,
+        mode="depth",
+        color_gate=None,
+        open_kernel=5,
         seed=0,
     ):
         self.min_distance = min_distance
@@ -247,6 +269,11 @@ class FloorObjectDetector:
         # Roznica jest taka, ze noga idzie dalej w gore - klaster dotyka gornej
         # krawedzi pasma. Szyszka konczy sie pod nia.
         self.reject_tall = reject_tall
+        # depth = co wystaje nad ziemie, color = co jest ciemniejsze od murawy,
+        # both = jedno i drugie naraz.
+        self.mode = mode
+        self.color_gate = color_gate or COLOR_GATE
+        self.open_kernel = open_kernel
         self.rng = np.random.default_rng(seed)
         # Ile klastrow odpadlo i na czym - bez tego strojenie progow to zgadywanie.
         self.rejected = {"area": 0, "width": 0, "length": 0, "fill": 0, "tall": 0}
@@ -336,7 +363,27 @@ class FloorObjectDetector:
         xyz, valid = self._cloud(frames)
         distance = xyz @ self.normal + self.offset
         above = valid & (distance > self.min_height) & (distance < self.max_height)
-        return self.objects_from_cloud(xyz, distance, above)
+
+        if self.mode != "depth":
+            dark = self.color_mask(frames)
+            if self.mode == "color":
+                # Sam kolor, ale nadal tylko w zasiegu skanu - inaczej kazdy
+                # ciemny piksel plotu czy drzewa staje sie kandydatem.
+                mask = valid & dark
+            else:
+                mask = above & dark
+        else:
+            mask = above
+
+        return self.objects_from_cloud(xyz, distance, mask)
+
+    def color_mask(self, frames) -> np.ndarray:
+        """Piksele ciemniejsze i mniej nasycone niz murawa - patrz COLOR_GATE."""
+        color = np.asanyarray(frames.get_color_frame().get_data())
+        hsv = cv2.cvtColor(color, cv2.COLOR_BGR2HSV)
+        return (hsv[:, :, 2] <= self.color_gate["v_max"]) & (
+            hsv[:, :, 1] <= self.color_gate["s_max"]
+        )
 
     def objects_from_cloud(self, xyz, distance, above) -> list[dict]:
         """
@@ -347,9 +394,18 @@ class FloorObjectDetector:
         """
         mask = above.astype(np.uint8)
         # Zamkniecie sklei dziury w obiekcie, otwarcie zetnie pojedyncze piksele.
-        kernel = np.ones((5, 5), np.uint8)
-        mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel)
-        mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel)
+        #
+        # Jadro otwarcia 5x5 bywa za duze dla naszych celow (20-50 pikseli) i
+        # potrafi zjesc szyszce wierzcholek: ta sama szyszka raportowala 2.2 cm
+        # wysokosci przy progu 0.6 cm i tylko 1.0 cm przy 0.8 cm - nie dlatego,
+        # ze zmierzono ja inaczej, tylko dlatego, ze z cienszego paska erozja
+        # zostawiala sam dol. Jadro 3 (--open-kernel 3) to odzyskuje, kosztem
+        # wiekszej liczby drobnych, migoczacych wykryc. Domyslne 5 jest
+        # ostrozniejsze i to ono bylo sprawdzone na torze.
+        mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, np.ones((5, 5), np.uint8))
+        mask = cv2.morphologyEx(
+            mask, cv2.MORPH_OPEN, np.ones((self.open_kernel, self.open_kernel), np.uint8)
+        )
         self.last_mask = mask
 
         count, labels, stats, centroids = cv2.connectedComponentsWithStats(mask, 8)
@@ -480,6 +536,24 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--max-length", type=float)
     p.add_argument("--min-fill", type=float, help="0..1, zwartosc bryly")
     p.add_argument(
+        "--mode",
+        choices=["depth", "color", "both"],
+        default="depth",
+        help="co ma znajdowac obiekty: geometria, kolor, albo jedno i drugie",
+    )
+    p.add_argument("--v-max", type=int, help="prog jasnosci dla trybow color/both")
+    p.add_argument(
+        "--laser-power",
+        type=float,
+        help="moc projektora IR 0-360; podniesienie pomaga na jednolitej murawie",
+    )
+    p.add_argument(
+        "--open-kernel",
+        type=int,
+        default=5,
+        help="bok jadra otwarcia; 3 odzyskuje scinane wierzcholki malych obiektow",
+    )
+    p.add_argument(
         "--keep-tall",
         action="store_true",
         help="nie odrzucaj obiektow siegajacych gornej krawedzi pasma wysokosci",
@@ -497,7 +571,7 @@ def parse_args() -> argparse.Namespace:
     return p.parse_args()
 
 
-def start_pipeline(width: int, height: int, fps: int):
+def start_pipeline(width: int, height: int, fps: int, laser_power: float | None = None):
     if len(rs.context().query_devices()) == 0:
         raise SystemExit("Nie widac kamery RealSense. Sprawdz kabel i realsense-viewer.")
     pipeline = rs.pipeline()
@@ -511,7 +585,19 @@ def start_pipeline(width: int, height: int, fps: int):
             f"Nie udalo sie wystartowac {width}x{height}@{fps}: {exc}\n"
             "Kamere moze trzymac inny proces - urzadzenie jest na wylacznosc."
         ) from exc
-    depth_scale = profile.get_device().first_depth_sensor().get_depth_scale()
+    sensor = profile.get_device().first_depth_sensor()
+    if laser_power is not None and sensor.supports(rs.option.laser_power):
+        # Projektor IR dokłada teksture na jednolite powierzchnie. Sztuczna
+        # trawa o zmierzchu prawie nie ma kontrastu wlasnego i stereo gubi
+        # punkty zaczepienia. Zmierzone: moc 150 (domyslna) dawala 31.0%
+        # pokrycia glebia na murawie, moc 360 dala 35.8%. Martwego pasa przy
+        # lewej krawedzi to nie rusza - tam brakuje nie swiatla, tylko drugiego
+        # punktu widzenia.
+        rng = sensor.get_option_range(rs.option.laser_power)
+        value = max(rng.min, min(rng.max, laser_power))
+        sensor.set_option(rs.option.laser_power, value)
+        print(f"Moc projektora IR: {value:.0f} (zakres {rng.min:.0f}-{rng.max:.0f})")
+    depth_scale = sensor.get_depth_scale()
     return pipeline, rs.align(rs.stream.color), depth_scale
 
 
@@ -556,7 +642,9 @@ def main() -> None:
     args = parse_args()
     preview = not args.no_preview
 
-    pipeline, align, depth_scale = start_pipeline(args.width, args.height, args.fps)
+    pipeline, align, depth_scale = start_pipeline(
+        args.width, args.height, args.fps, args.laser_power
+    )
     print(f"Strumien {args.width}x{args.height}@{args.fps}, depth_scale={depth_scale}")
 
     # Preset celu daje wartosci domyslne, jawne flagi je nadpisuja.
@@ -581,6 +669,11 @@ def main() -> None:
         max_side=args.max_side,
         plane_threshold=args.plane_threshold,
         reject_tall=not args.keep_tall,
+        mode=args.mode,
+        color_gate=(
+            {**COLOR_GATE, "v_max": args.v_max} if args.v_max is not None else None
+        ),
+        open_kernel=args.open_kernel,
         **params,
     )
     detector.set_depth_scale(depth_scale)
@@ -626,7 +719,17 @@ def main() -> None:
             print(f"Zapisano plaszczyzne do {args.save_plane}")
 
         while True:
-            frames = align.process(pipeline.wait_for_frames())
+            try:
+                frames = align.process(pipeline.wait_for_frames())
+            except RuntimeError as exc:
+                # Wyciagniete kabla nie jest bledem programu - powiedz to wprost
+                # i wyjdz. Bez tego przechwycenia wyjatek leci przez `finally`,
+                # tam pipeline.stop() rzuca drugim wyjatkiem i uzytkownik dostaje
+                # traceback konczacy sie na "stop() cannot be called before
+                # start()", czyli komunikat nie majacy nic wspolnego z przyczyna.
+                print(f"\nKamera przestala odpowiadac: {exc}")
+                print("Sprawdz kabel USB i czy urzadzenia nie przejal inny proces.")
+                break
             if not frames.get_depth_frame() or not frames.get_color_frame():
                 continue
             frames_seen += 1
@@ -693,7 +796,12 @@ def main() -> None:
     except KeyboardInterrupt:
         pass
     finally:
-        pipeline.stop()
+        # Po odpieciu kamery pipeline jest juz zatrzymany i stop() rzuca
+        # wyjatkiem, ktory przykrylby prawdziwa przyczyne.
+        try:
+            pipeline.stop()
+        except RuntimeError:
+            pass
         if preview:
             cv2.destroyAllWindows()
         if log_file:

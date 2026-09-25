@@ -33,6 +33,7 @@ import numpy as np
 import pyrealsense2 as rs
 
 from detect_floor_objects import (
+    COLOR_GATE,
     TARGET_PRESETS,
     FloorObjectDetector,
     draw,
@@ -73,6 +74,18 @@ def parse_args() -> argparse.Namespace:
     )
     p.add_argument("--min-distance", type=float, default=0.3)
     p.add_argument("--max-side", type=float, default=0.6)
+    p.add_argument(
+        "--mode",
+        choices=["depth", "color", "both"],
+        default="depth",
+        help="co znajduje szyszki: geometria, kolor, albo jedno i drugie naraz",
+    )
+    p.add_argument("--v-max", type=int, help="prog jasnosci dla trybow color/both")
+    p.add_argument(
+        "--laser-power",
+        type=float,
+        help="moc projektora IR 0-360; podniesienie pomaga na jednolitej murawie",
+    )
     p.add_argument("--json", help="zapisz znalezione cele do pliku JSON")
     p.add_argument("--snapshot", help="zapisz klatke z zaznaczonymi celami")
     p.add_argument("--watch", action="store_true", help="skanuj w kolko do Ctrl+C")
@@ -207,13 +220,19 @@ def report(results, offset, detector=None):
 
 def main() -> None:
     args = parse_args()
-    pipeline, align, depth_scale = start_pipeline(args.width, args.height, args.fps)
+    pipeline, align, depth_scale = start_pipeline(
+        args.width, args.height, args.fps, args.laser_power
+    )
 
     params = dict(TARGET_PRESETS["szyszka"])
     detector = FloorObjectDetector(
         min_distance=args.min_distance,
         max_distance=args.max_distance,
         max_side=args.max_side,
+        mode=args.mode,
+        color_gate=(
+            {**COLOR_GATE, "v_max": args.v_max} if args.v_max is not None else None
+        ),
         **params,
     )
     detector.set_depth_scale(depth_scale)
@@ -272,8 +291,17 @@ def main() -> None:
                 break
     except KeyboardInterrupt:
         print("\nPrzerwano.")
+    except RuntimeError as exc:
+        # Najczesciej wyciagniety kabel. Bez tego wyjatek przechodzi przez
+        # `finally`, gdzie pipeline.stop() rzuca kolejnym i prawdziwa przyczyna
+        # znika pod komunikatem "stop() cannot be called before start()".
+        print(f"\nKamera przestala odpowiadac: {exc}")
+        print("Sprawdz kabel USB i czy urzadzenia nie przejal inny proces.")
     finally:
-        pipeline.stop()
+        try:
+            pipeline.stop()
+        except RuntimeError:
+            pass
         if args.preview:
             cv2.destroyAllWindows()
 
