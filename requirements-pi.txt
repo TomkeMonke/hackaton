@@ -1,0 +1,12 @@
+# Raspberry Pi 5 (Linux arm64, Python 3.12 venv made with `uv venv --python 3.12`).
+# Install: uv pip install -r requirements-pi.txt
+# Do NOT use constraints.txt here - it is only for the Windows / Python 3.14 setup.
+# pyrealsense2: try `uv pip install pyrealsense2`; if there is no arm64 wheel,
+# build librealsense from source (see the Pi setup guide).
+lerobot==0.6.1
+pyserial
+websockets
+ikpy
+opencv-python-headless
+adafruit-blinka
+adafruit-circuitpython-bno08x

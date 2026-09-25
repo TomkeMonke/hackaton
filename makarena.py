@@ -7,12 +7,13 @@ Sends lines like "a100 b20\n" over USB serial:
   b<value> -> steer/turn
 """
 
+import os
 from time import sleep, time
 
 import serial
 from pygamepad.gamepads import Gamepad
 
-PORT = "COM9"
+PORT = os.environ.get("ROBOT_DRIVE_PORT", "COM9")
 BAUDRATE = 115200
 
 MAX_PWM = 500

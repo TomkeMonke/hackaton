@@ -257,3 +257,35 @@ Pytania do użytkownika na starcie następnej sesji (nie zgaduj):
   pokazuje live podgląd, czy nadal łapie `No device connected` po
   replugu (jeśli tak, sprawdzić Menedżer Urządzeń / port USB, może hub
   zamiast bezpośredniego portu USB3).
+
+### 2026-09-25 — sesja Claude (Raspberry Pi 5: architektura + setup zdalnego sterowania)
+
+- Decyzje: Pi 5 jedzie na robocie, urządzenia po USB (D415 USB3, ramię
+  CH343, Xiao), operator przez WiFi (panel webowy). Bluetooth odrzucony
+  jako szkielet systemu (za mała przepustowość dla kamery, za duże
+  opóźnienia dla magistrali Feetech). System: Raspberry Pi OS Lite 64-bit
+  na pendrivie USB (brak karty SD), venv z `uv` + Python 3.12, bez Dockera
+  na start, autostart przez systemd, hotspot WiFi z Pi na demo.
+- Poradnik setupu Pi (Claude Doc):
+  https://claude.ai/code/artifact/247e71b9-5b39-4ffb-8170-e355db9fd56b
+  (instalacja, lerobot, RealSense ze źródeł jeśli brak wheela, udev
+  `/dev/robot-arm` i `/dev/robot-drive`, IMU BNO085, systemd, hotspot,
+  checklista, diagnostyka).
+- Kod: porty ze zmiennych `ROBOT_DRIVE_PORT` / `ROBOT_ARM_PORT` (domyślnie
+  `COM9` / `COM10`, Windows bez zmian); `web_control.py` nasłuchuje na
+  `0.0.0.0` (`ROBOT_HOST`); **failsafe operatora**: brak wiadomości z
+  przeglądarki przez 0,5 s (albo zero klientów) = natychmiastowy stop,
+  tryb manual, koniec nagrywania/odtwarzania. Frontend wysyła ping co
+  200 ms i puszcza klawisze przy `visibilitychange`. Nowy
+  `requirements-pi.txt` (NIE używać `constraints.txt` na Pi).
+- Failsafe sprawdzony lokalnie klientem websockets bez Xiao (ping → jedzie,
+  brak pingu → `failsafe=True`, speed 0, manual). **Nie sprawdzony na
+  fizycznym robocie.**
+- GitHub: issue #7 (mapowanie ogrodu RealSense/RTAB-Map, odłożone, najpierw
+  test na laptopie), issue #8 (zasilanie z akumulatora 12 V, osoba od
+  elektroniki; baterie AA 1,5 V nie nadają się do zasilania Pi).
+- Stan na koniec: pendrive Kingston DataTraveler 3.0 64 GB gotowy do
+  wgrania systemu Imagerem. Na Pi nic jeszcze nie jest zainstalowane.
+- Pułapka: przed failsafe'em zerwanie WiFi zostawiało robota jadącego z
+  ostatnią komendą (watchdog Xiao chroni tylko łącze Pi–Xiao, nie
+  operator–Pi). Tryby auto też jechały bez operatora.

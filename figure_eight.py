@@ -8,12 +8,13 @@ the same duration (traces the other circle) -> figure eight.
 Ctrl+C stops immediately and zeroes PWM.
 """
 
+import os
 import sys
 from time import sleep, time
 
 import serial
 
-PORT = "COM9"
+PORT = os.environ.get("ROBOT_DRIVE_PORT", "COM9")
 BAUDRATE = 115200
 
 SPEED_FRAC = 0.06  # forward speed as a fraction of MAX_PWM, constant throughout

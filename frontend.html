@@ -269,6 +269,7 @@ function connect() {
     else if (mode === 'coverage') modeText.textContent = `tryb: POKRYCIE (auto) — faza: ${data.cov_phase}`;
     else if (mode === 'playback') modeText.textContent = `tryb: ODTWARZANIE — ${data.playback_name}`;
     else modeText.textContent = 'tryb: manualny';
+    if (data.failsafe) modeText.textContent = 'STOP: brak sygnału od operatora';
 
     recordBtn.classList.toggle('active', data.recording);
     recordBtn.textContent = data.recording ? `■ STOP (${data.record_seconds}s)` : '● NAGRAJ';
@@ -294,6 +295,11 @@ function connect() {
 }
 connect();
 
+// Heartbeat: the server stops the robot if it hears nothing for 0.5 s.
+setInterval(() => {
+  if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: 'ping' }));
+}, 200);
+
 const keyMap = { KeyW: 'w', KeyA: 'a', KeyS: 's', KeyD: 'd' };
 window.addEventListener('keydown', (e) => {
   const k = keyMap[e.code];
@@ -306,6 +312,13 @@ window.addEventListener('keyup', (e) => {
 window.addEventListener('blur', () => {
   for (const k of Object.keys(keys)) keys[k] = false;
   sendKeys();
+});
+// Phone locked / tab switched: release keys (background tabs also throttle the heartbeat).
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) {
+    for (const k of Object.keys(keys)) keys[k] = false;
+    sendKeys();
+  }
 });
 
 // touch/mouse support on the on-screen keys

@@ -8,13 +8,23 @@ Runs two servers:
   - WebSocket on :8765 -> receives key state from the browser,
     drives the motors, and broadcasts live status back to it.
 
-Open http://localhost:8000 in a browser after starting this script.
+Open http://localhost:8000 in a browser after starting this script (or
+http://<robot-ip>:8000 from another device on the same network).
+
+Configuration via environment variables (defaults suit the Windows dev PC):
+  ROBOT_DRIVE_PORT  serial port of the Xiao (default COM9; on the Pi: /dev/robot-drive)
+  ROBOT_HOST        interface to listen on (default 0.0.0.0 = all, reachable over WiFi)
+
+Safety: if no browser message arrives for HEARTBEAT_TIMEOUT seconds (all tabs
+closed, WiFi dropped, phone locked), the robot stops and drops back to manual
+mode. The frontend sends a ping every 200 ms to keep the link alive.
 """
 
 import asyncio
 import functools
 import http.server
 import json
+import os
 import threading
 from pathlib import Path
 from time import time
@@ -22,9 +32,10 @@ from time import time
 import serial
 import websockets
 
-PORT_SERIAL = "COM9"
+PORT_SERIAL = os.environ.get("ROBOT_DRIVE_PORT", "COM9")
 BAUDRATE = 115200
 
+HOST = os.environ.get("ROBOT_HOST", "0.0.0.0")
 HTTP_PORT = 8000
 WS_PORT = 8765
 
@@ -32,6 +43,10 @@ MAX_PWM = 500
 MAX_STEER = 400
 
 LOOP_DELAY = 0.03  # matches the Arduino's loop delay / well under its 500ms timeout
+
+# Operator dead-man: stop if the browser goes silent this long. The Xiao's own
+# watchdog can't catch a dropped WiFi link, because the Pi keeps sending commands.
+HEARTBEAT_TIMEOUT = 0.5
 
 # Default values for the live-tunable params below (all overridable from the frontend).
 DEFAULT_PARAMS = {
@@ -105,6 +120,8 @@ class RobotState:
         self.ser = None
         self.serial_error = None
         self.clients = set()
+        self.last_client_msg = 0.0  # time() of the last message from any browser
+        self.failsafe = True  # True while stopped for lack of an operator
         self.mode = "manual"  # "manual" | "figure8" | "coverage" | "playback"
         self.fig8_direction = 1
         self.fig8_half_start = time()
@@ -143,7 +160,7 @@ class FrontendHandler(http.server.SimpleHTTPRequestHandler):
 
 def start_http_server():
     handler = functools.partial(FrontendHandler, directory=str(STATIC_DIR))
-    httpd = http.server.ThreadingHTTPServer(("localhost", HTTP_PORT), handler)
+    httpd = http.server.ThreadingHTTPServer((HOST, HTTP_PORT), handler)
     httpd.serve_forever()
 
 
@@ -151,9 +168,12 @@ async def ws_handler(websocket):
     state.clients.add(websocket)
     try:
         async for message in websocket:
+            state.last_client_msg = time()
             try:
                 data = json.loads(message)
             except json.JSONDecodeError:
+                continue
+            if data.get("type") == "ping":
                 continue
             if data.get("type") == "keys":
                 for k in state.keys:
@@ -242,7 +262,21 @@ async def control_loop():
 
         p = state.params
 
-        if state.mode == "figure8":
+        operator_lost = not state.clients or time() - state.last_client_msg > HEARTBEAT_TIMEOUT
+        if state.failsafe != operator_lost:
+            print("Failsafe: no operator heartbeat, stopping." if operator_lost else "Operator heartbeat back.")
+            state.failsafe = operator_lost
+
+        if operator_lost:
+            # Hard stop (no ramp) and drop any auto mode: nobody is watching the robot.
+            state.mode = "manual"
+            state.playback_name = None
+            state.recording = False
+            state.record_buffer = []
+            state.keys = {"w": False, "a": False, "s": False, "d": False}
+            state.speed = 0.0
+            state.steer = 0.0
+        elif state.mode == "figure8":
             if time() - state.fig8_half_start >= p["fig8_loop_seconds"]:
                 state.fig8_direction *= -1
                 state.fig8_half_start = time()
@@ -329,6 +363,7 @@ async def control_loop():
                     for name, samples in state.recordings.items()
                 },
                 "playback_name": state.playback_name,
+                "failsafe": state.failsafe,
             }
         )
 
@@ -337,14 +372,15 @@ async def control_loop():
 
 async def main():
     threading.Thread(target=start_http_server, daemon=True).start()
-    print(f"Frontend: http://localhost:{HTTP_PORT}")
+    print(f"Frontend: http://localhost:{HTTP_PORT} (listening on {HOST})")
     print(f"WebSocket control on ws://localhost:{WS_PORT}")
+    print(f"Drive serial port: {PORT_SERIAL}")
 
     state.connect_serial()
     if state.ser is None:
         print(f"Warning: could not open {PORT_SERIAL} yet ({state.serial_error}). Will keep retrying.")
 
-    async with websockets.serve(ws_handler, "localhost", WS_PORT):
+    async with websockets.serve(ws_handler, HOST, WS_PORT):
         try:
             await control_loop()
         except (KeyboardInterrupt, asyncio.CancelledError):

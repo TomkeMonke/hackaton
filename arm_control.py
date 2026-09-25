@@ -14,6 +14,7 @@ Przeguby (kolejnosc w lancuchu, zgodna z URDF so101_new_calib.urdf):
 from __future__ import annotations
 
 import argparse
+import os
 import random
 import sys
 import time
@@ -21,7 +22,7 @@ import time
 from lerobot.robots.so_follower.so_follower import SO101Follower
 from lerobot.robots.so_follower.config_so_follower import SO101FollowerConfig
 
-ARM_PORT = "COM10"
+ARM_PORT = os.environ.get("ROBOT_ARM_PORT", "COM10")
 ARM_ID = "so101"
 
 JOINT_NAMES = [
