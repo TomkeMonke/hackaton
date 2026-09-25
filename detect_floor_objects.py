@@ -66,12 +66,34 @@ MIN_AREA_PX = 300  # mniejsze plamy odrzucamy
 
 PRINT_EVERY = 0.5
 
+# Bramki wymiarowe celu. Kolor szyszki (braz) pokrywa sie w HSV ze sciolka,
+# drewnem i ziemia, wiec progiem koloru sie jej nie wylowi. Za to rozmiar jest
+# znakiem szczegolnym: szyszka lezaca na podlodze to kilkucentymetrowy walec,
+# a nie noga krzesla ani but.
+TARGET_PRESETS = {
+    # bez filtrowania wymiarow - wszystko, co wystaje nad podloge
+    "any": {},
+    # sosna 4-8 cm, swierk do ~16 cm; grubosc 2-7 cm
+    "szyszka": {
+        "min_width": 0.02,
+        "max_width": 0.07,
+        "min_length": 0.03,
+        "max_length": 0.16,
+        "min_height": 0.02,
+        "max_height": 0.09,
+        "min_fill": 0.45,
+        "min_area_px": 150,
+    },
+}
+
 DETECTION_KEYS = (
     "centroid",  # (x, y, z) w metrach, uklad kamery
+    "distance_m",  # odleglosc od kamery w linii prostej
     "height_m",  # wysokosc najwyzszego punktu nad plaszczyzna podlogi
     "width_m",  # krotszy bok prostokata = os chwytania
     "length_m",  # dluzszy bok
     "angle_deg",  # orientacja dluzszej osi w plaszczyznie podlogi
+    "fill",  # pole maski / pole prostokata; walek ma duzo, patyk malo
     "area_px",
     "pixels",  # (u, v) srodka masy w obrazie
 )
@@ -165,6 +187,12 @@ class FloorObjectDetector:
         min_height=MIN_HEIGHT,
         max_height=MAX_HEIGHT,
         min_area_px=MIN_AREA_PX,
+        min_width=None,
+        max_width=None,
+        min_length=None,
+        max_length=None,
+        min_fill=None,
+        reject_tall=True,
         seed=0,
     ):
         self.min_distance = min_distance
@@ -174,7 +202,20 @@ class FloorObjectDetector:
         self.min_height = min_height
         self.max_height = max_height
         self.min_area_px = min_area_px
+        # Bramka wymiarowa celu; None = wymiar nie filtruje.
+        self.min_width = min_width
+        self.max_width = max_width
+        self.min_length = min_length
+        self.max_length = max_length
+        self.min_fill = min_fill
+        # Pasmo wysokosci wycina obiekt POZIOMO: noga stolu ma w pasmie 2-9 cm
+        # przekroj ~3x3 cm, czyli wymiarami nie do odroznienia od szyszki.
+        # Roznica jest taka, ze noga idzie dalej w gore - klaster dotyka gornej
+        # krawedzi pasma. Szyszka konczy sie pod nia.
+        self.reject_tall = reject_tall
         self.rng = np.random.default_rng(seed)
+        # Ile klastrow odpadlo i na czym - bez tego strojenie progow to zgadywanie.
+        self.rejected = {"area": 0, "width": 0, "length": 0, "fill": 0, "tall": 0}
 
         self.normal = None
         self.offset = None
@@ -236,6 +277,23 @@ class FloorObjectDetector:
     def set_depth_scale(self, depth_scale: float) -> None:
         self.depth_scale = depth_scale
 
+    @staticmethod
+    def _within(value, low, high) -> bool:
+        if low is not None and value < low:
+            return False
+        if high is not None and value > high:
+            return False
+        return True
+
+    @classmethod
+    def for_target(cls, target: str, **overrides):
+        """Detektor z bramka wymiarowa presetu, np. for_target('szyszka')."""
+        if target not in TARGET_PRESETS:
+            raise ValueError(f"nieznany cel '{target}', dostepne: {sorted(TARGET_PRESETS)}")
+        params = dict(TARGET_PRESETS[target])
+        params.update({k: v for k, v in overrides.items() if v is not None})
+        return cls(**params)
+
     def detect(self, frames) -> list[dict]:
         """Lista obiektow nad podloga. Klucze: DETECTION_KEYS."""
         if not self.has_floor:
@@ -243,8 +301,16 @@ class FloorObjectDetector:
 
         xyz, valid = self._cloud(frames)
         distance = xyz @ self.normal + self.offset
-
         above = valid & (distance > self.min_height) & (distance < self.max_height)
+        return self.objects_from_cloud(xyz, distance, above)
+
+    def objects_from_cloud(self, xyz, distance, above) -> list[dict]:
+        """
+        Sama geometria: maska -> klastry -> przefiltrowane obiekty.
+
+        Wydzielone z detect(), zeby dalo sie sprawdzic filtry na wymyslonej
+        scenie, bez kamery i bez czekania, az cos odpowiedniego wejdzie w kadr.
+        """
         mask = above.astype(np.uint8)
         # Zamkniecie sklei dziury w obiekcie, otwarcie zetnie pojedyncze piksele.
         kernel = np.ones((5, 5), np.uint8)
@@ -256,9 +322,11 @@ class FloorObjectDetector:
         e1, e2 = plane_basis(self.normal)
 
         objects = []
+        self.rejected = {"area": 0, "width": 0, "length": 0, "fill": 0, "tall": 0}
         for label in range(1, count):  # 0 to tlo
             area = int(stats[label, cv2.CC_STAT_AREA])
             if area < self.min_area_px:
+                self.rejected["area"] += 1
                 continue
             # Grupujemy po masce PO morfologii, ale geometrie liczymy wylacznie
             # z pikseli, ktore naprawde byly nad podloga. Domkniecie zalepia
@@ -275,13 +343,46 @@ class FloorObjectDetector:
             (_, _), (side_a, side_b), angle = cv2.minAreaRect(flat)
             width, length = sorted((float(side_a), float(side_b)))
 
+            # Bramka wymiarowa - liczona w metrach, wiec dziala tak samo
+            # niezaleznie od tego, jak daleko obiekt lezy.
+            if not self._within(width, self.min_width, self.max_width):
+                self.rejected["width"] += 1
+                continue
+            if not self._within(length, self.min_length, self.max_length):
+                self.rejected["length"] += 1
+                continue
+
+            # Wypelnienie prostokata, liczone w PIKSELACH: zwarta bryla jak
+            # szyszka wypelnia swoj prostokat w duzej czesci, a rozstrzelony
+            # klaster (krawedz dywanu, szum na polysku) prawie wcale. W pikselach,
+            # bo wtedy nie trzeba zakladac nic o pochyleniu powierzchni ani o tym,
+            # jaki kawalek swiata przypada na piksel z tej odleglosci.
+            rows, cols = np.nonzero(member)
+            pixel_points = np.stack((cols, rows), axis=1).astype(np.float32)
+            (_, _), (rect_w, rect_h), _ = cv2.minAreaRect(pixel_points)
+            rect_px = rect_w * rect_h
+            fill = min(1.0, len(points) / rect_px) if rect_px > 1e-6 else 0.0
+            if self.min_fill is not None and fill < self.min_fill:
+                self.rejected["fill"] += 1
+                continue
+
+            # Klaster siegajacy gornej krawedzi pasma to kawalek czegos, co idzie
+            # dalej w gore - noga, sciana, but. Szyszka miesci sie w pasmie cala.
+            top = float(distance[member].max())
+            if self.reject_tall and top >= self.max_height - 0.005:
+                self.rejected["tall"] += 1
+                continue
+
+            centroid = np.median(points, axis=0)
             objects.append(
                 {
-                    "centroid": tuple(np.median(points, axis=0).tolist()),
-                    "height_m": float(distance[member].max()),
+                    "centroid": tuple(centroid.tolist()),
+                    "distance_m": float(np.linalg.norm(centroid)),
+                    "height_m": top,
                     "width_m": width,
                     "length_m": length,
                     "angle_deg": float(angle),
+                    "fill": float(fill),
                     "area_px": area,
                     "pixels": (int(centroids[label][0]), int(centroids[label][1])),
                 }
@@ -323,7 +424,23 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--max-side", type=float, default=MAX_SIDE)
     p.add_argument("--min-height", type=float, default=MIN_HEIGHT, help="m nad podloga")
     p.add_argument("--max-height", type=float, default=MAX_HEIGHT)
-    p.add_argument("--min-area", type=int, default=MIN_AREA_PX)
+    p.add_argument("--min-area", type=int, default=None)
+    p.add_argument(
+        "--target",
+        choices=sorted(TARGET_PRESETS),
+        default="szyszka",
+        help="bramka wymiarowa celu; 'any' = wszystko nad podloga",
+    )
+    p.add_argument("--min-width", type=float, help="m, nadpisuje preset")
+    p.add_argument("--max-width", type=float)
+    p.add_argument("--min-length", type=float)
+    p.add_argument("--max-length", type=float)
+    p.add_argument("--min-fill", type=float, help="0..1, zwartosc bryly")
+    p.add_argument(
+        "--keep-tall",
+        action="store_true",
+        help="nie odrzucaj obiektow siegajacych gornej krawedzi pasma wysokosci",
+    )
     p.add_argument("--plane-threshold", type=float, default=PLANE_THRESHOLD)
     p.add_argument("--load-plane", help="wczytaj plaszczyzne z pliku JSON")
     p.add_argument("--save-plane", help="zapisz dopasowana plaszczyzne do JSON")
@@ -359,8 +476,9 @@ def draw(view, objects, mask, show_mask):
         x, y, z = obj["centroid"]
         cv2.circle(view, (u, v), 6, (0, 0, 255), -1)
         label = (
-            f"#{i} {z:.2f}m h={obj['height_m'] * 100:.0f}cm "
-            f"w={obj['width_m'] * 100:.0f}cm"
+            f"#{i} {obj['distance_m']:.2f}m "
+            f"{obj['length_m'] * 100:.0f}x{obj['width_m'] * 100:.0f}cm "
+            f"h={obj['height_m'] * 100:.0f}cm"
         )
         # Dosuniecie napisu do kadru - przy obiekcie na krawedzi tekst inaczej
         # wychodzi poza obraz i urywa sie dokladnie na szerokosci chwytu.
@@ -394,24 +512,46 @@ def main() -> None:
     pipeline, align, depth_scale = start_pipeline(args.width, args.height, args.fps)
     print(f"Strumien {args.width}x{args.height}@{args.fps}, depth_scale={depth_scale}")
 
+    # Preset celu daje wartosci domyslne, jawne flagi je nadpisuja.
+    params = dict(TARGET_PRESETS[args.target])
+    params.setdefault("min_height", args.min_height)
+    params.setdefault("max_height", args.max_height)
+    params.setdefault("min_area_px", MIN_AREA_PX)
+    for name, value in (
+        ("min_width", args.min_width),
+        ("max_width", args.max_width),
+        ("min_length", args.min_length),
+        ("max_length", args.max_length),
+        ("min_fill", args.min_fill),
+        ("min_area_px", args.min_area),
+    ):
+        if value is not None:
+            params[name] = value
+
     detector = FloorObjectDetector(
         min_distance=args.min_distance,
         max_distance=args.max_distance,
         max_side=args.max_side,
         plane_threshold=args.plane_threshold,
-        min_height=args.min_height,
-        max_height=args.max_height,
-        min_area_px=args.min_area,
+        reject_tall=not args.keep_tall,
+        **params,
     )
     detector.set_depth_scale(depth_scale)
+    if args.target != "any":
+        print(
+            f"Cel '{args.target}': szerokosc {params.get('min_width')}-"
+            f"{params.get('max_width')} m, dlugosc {params.get('min_length')}-"
+            f"{params.get('max_length')} m, wysokosc {params.get('min_height')}-"
+            f"{params.get('max_height')} m, wypelnienie >= {params.get('min_fill')}"
+        )
 
     log_file = log_writer = None
     if args.log:
         log_file = open(args.log, "w", newline="")
         log_writer = csv.writer(log_file)
         log_writer.writerow(
-            ["t", "obj", "x_m", "y_m", "z_m", "height_m", "width_m", "length_m",
-             "angle_deg", "area_px"]
+            ["t", "obj", "distance_m", "x_m", "y_m", "z_m", "height_m", "width_m",
+             "length_m", "angle_deg", "fill", "area_px"]
         )
 
     show_mask = False
@@ -447,15 +587,21 @@ def main() -> None:
             objects = detector.detect(frames)
             now = time.time()
 
-            if objects and now - last_print >= PRINT_EVERY:
-                print(f"--- {len(objects)} obiektow ---")
+            if now - last_print >= PRINT_EVERY:
+                rej = detector.rejected
+                print(
+                    f"--- {len(objects)} obiektow "
+                    f"(odrzucone: pole {rej['area']}, szer {rej['width']}, "
+                    f"dl {rej['length']}, wyp {rej['fill']}, wystaje {rej['tall']}) ---"
+                )
                 for i, obj in enumerate(objects):
                     x, y, z = obj["centroid"]
                     print(
-                        f"  #{i} XYZ = {x:+.3f} {y:+.3f} {z:+.3f} m  "
-                        f"wys {obj['height_m'] * 100:5.1f} cm  "
-                        f"chwyt {obj['width_m'] * 100:5.1f} cm  "
-                        f"kat {obj['angle_deg']:+6.1f} st"
+                        f"  #{i} dystans {obj['distance_m']:.3f} m  "
+                        f"XYZ = {x:+.3f} {y:+.3f} {z:+.3f}  "
+                        f"{obj['length_m'] * 100:4.1f}x{obj['width_m'] * 100:4.1f} cm  "
+                        f"wys {obj['height_m'] * 100:4.1f} cm  "
+                        f"wyp {obj['fill']:.2f}  kat {obj['angle_deg']:+6.1f} st"
                     )
                 last_print = now
 
@@ -463,10 +609,11 @@ def main() -> None:
                 for i, obj in enumerate(objects):
                     x, y, z = obj["centroid"]
                     log_writer.writerow(
-                        [f"{now - t0:.4f}", i, f"{x:.4f}", f"{y:.4f}", f"{z:.4f}",
+                        [f"{now - t0:.4f}", i, f"{obj['distance_m']:.4f}",
+                         f"{x:.4f}", f"{y:.4f}", f"{z:.4f}",
                          f"{obj['height_m']:.4f}", f"{obj['width_m']:.4f}",
                          f"{obj['length_m']:.4f}", f"{obj['angle_deg']:.1f}",
-                         obj["area_px"]]
+                         f"{obj['fill']:.3f}", obj["area_px"]]
                     )
 
             if preview:
