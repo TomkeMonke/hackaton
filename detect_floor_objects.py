@@ -358,10 +358,18 @@ def draw(view, objects, mask, show_mask):
         u, v = obj["pixels"]
         x, y, z = obj["centroid"]
         cv2.circle(view, (u, v), 6, (0, 0, 255), -1)
+        label = (
+            f"#{i} {z:.2f}m h={obj['height_m'] * 100:.0f}cm "
+            f"w={obj['width_m'] * 100:.0f}cm"
+        )
+        # Dosuniecie napisu do kadru - przy obiekcie na krawedzi tekst inaczej
+        # wychodzi poza obraz i urywa sie dokladnie na szerokosci chwytu.
+        (text_w, _), _ = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.5, 2)
+        text_x = min(max(0, u - text_w // 2), max(0, view.shape[1] - text_w))
         cv2.putText(
             view,
-            f"#{i} {z:.2f}m h={obj['height_m'] * 100:.0f}cm w={obj['width_m'] * 100:.0f}cm",
-            (max(0, u - 90), max(20, v - 12)),
+            label,
+            (text_x, max(20, v - 12)),
             cv2.FONT_HERSHEY_SIMPLEX,
             0.5,
             (0, 255, 255),
