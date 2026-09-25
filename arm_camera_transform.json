@@ -1,0 +1,35 @@
+{
+  "_uwaga": "OSZACOWANIE Z MONTAZU, NIE POMIAR. Kalibracja kamera-ramie to osobny task zespolu. Dopoki 'zmierzone' = false, kazdy plan chwytu jest przybliezeniem - approach_and_grasp.py wypisuje to przy kazdym uruchomieniu.",
+  "zmierzone": false,
+  "_uklad_wejsciowy": "punkt z cel.json zrzutowany na ziemie: x = forward_m (w przod), y = -lateral_m (cel.json ma dodatnie w PRAWO, tu os Y idzie w LEWO, zeby uklad byl prawoskretny), z = wysokosc nad ziemia. Poczatek = pionowy rzut kamery na ziemie.",
+  "_uklad_wyjsciowy": "base_link z so101_urdf/so101_new_calib.urdf. Sprawdzone FK: przy zerowych przegubach chwytak stoi w (0.391, 0.000, 0.227) m, czyli X idzie w przod, Z w gore, Y w lewo.",
+  "_wzor": "p_base = R(roll, pitch, yaw) @ p_ziemia + translacja",
+  "_czego_tu_NIE_MA": "wysokosc kamery nad ziemia nie wystepuje w tej transformacie - wizja zrzutowala juz cel na ziemie, wiec liczy sie tylko gdzie ramie stoi wzgledem tego rzutu.",
+  "translacja_m": {
+    "_x": "o ile rzut kamery na ziemie lezy PRZED poczatkiem base_link [m]; oszacowane z montazu, kamera wystaje przed podstawe ramienia",
+    "x": 0.08,
+    "_y": "o ile rzut kamery lezy w LEWO od base_link [m]; zalozone 0, czyli kamera na osi ramienia",
+    "y": 0.0,
+    "_z": "wysokosc base_link nad ziemia ze znakiem minus [m]; 0.06 = podstawa ramienia 6 cm nad ziemia - CZYSTE OSZACOWANIE, do zmierzenia suwmiarka",
+    "z": -0.06
+  },
+  "rotacja_deg": {
+    "_uwaga": "zalozony rownolegly montaz: kamera patrzy tam gdzie ramie. Wszystkie zera to zalozenie, nie pomiar.",
+    "roll": 0.0,
+    "pitch": 0.0,
+    "yaw": 0.0
+  },
+  "przeguby_lerobot": {
+    "_uwaga": "URDF liczy w radianach wzgledem wlasnego zera, lerobot wysyla jednostki znormalizowane PO kalibracji. Znak i offset kazdego przegubu sa NIESPRAWDZONE. Przed pierwszym ruchem: ustaw ramie recznie w pozie ze wypisu, odczytaj 'python arm_control.py status' i popraw te liczby.",
+    "shoulder_pan": {"znak": 1.0, "offset_deg": 0.0},
+    "shoulder_lift": {"znak": 1.0, "offset_deg": 0.0},
+    "elbow_flex": {"znak": 1.0, "offset_deg": 0.0},
+    "wrist_flex": {"znak": 1.0, "offset_deg": 0.0},
+    "wrist_roll": {"znak": 1.0, "offset_deg": 0.0}
+  },
+  "chwytak": {
+    "_uwaga": "przelozenie rozwarcia szczek na komende lerobota 0..100 (0 = zamkniety). Model liniowy jest uproszczeniem - szczeka chodzi po luku, wiec przy szerokim otwarciu odbiega najbardziej.",
+    "_max_rozwarcie": "ZMIERZONE 2026-09-25: szczeki rozwieraja sie luzno na 5 cm. Wczesniej stalo tu 0.035 jako placeholder i odrzucalo szyszki szersze niz 3.1 cm.",
+    "max_rozwarcie_m": 0.05
+  }
+}
