@@ -16,6 +16,13 @@ Uzycie:
     python detect_object.py --tune                      # suwaki HSV, dobranie progu
     python detect_object.py --color green --no-preview  # bez okna, sam log
 
+    python detect_object.py --show-color-options        # zakresy balansu i ekspozycji
+    python detect_object.py --color red --white-balance 4600 --exposure 156
+
+Progi HSV maja sens tylko przy nieplywajacym obrazie: auto-balans bieli przesuwa
+odcien (H), auto-ekspozycja jasnosc (V). Dobierz progi i zamroz obie wartosci
+tymi samymi flagami, wtedy to samo ustawienie trafi w obiekt nastepnego dnia.
+
 Klawisze w podgladzie:
     q / ESC   wyjscie
     m         przelacz widok maski
@@ -64,6 +71,21 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--width", type=int, default=WIDTH)
     p.add_argument("--height", type=int, default=HEIGHT)
     p.add_argument("--fps", type=int, default=FPS)
+    p.add_argument(
+        "--white-balance",
+        type=float,
+        help="zamroz balans bieli na podanej wartosci (D415: 2800..6500, dom. 4600)",
+    )
+    p.add_argument(
+        "--exposure",
+        type=float,
+        help="zamroz ekspozycje (D415: 1..10000, dom. 156)",
+    )
+    p.add_argument(
+        "--show-color-options",
+        action="store_true",
+        help="wypisz zakresy balansu i ekspozycji, po czym wyjdz",
+    )
     p.add_argument("--log", help="zapis wykrytych punktow do pliku CSV")
     p.add_argument("--tune", action="store_true", help="suwaki HSV zamiast presetu")
     p.add_argument("--no-preview", action="store_true", help="bez okna, sam wypis")
@@ -73,8 +95,68 @@ def parse_args() -> argparse.Namespace:
     return p.parse_args()
 
 
+def configure_color_sensor(profile, white_balance=None, exposure=None) -> None:
+    """
+    Zamraza balans bieli / ekspozycje kamery koloru.
+
+    Progi HSV maja sens tylko wtedy, gdy obraz nie plywa. Auto-balans przesuwa
+    odcien (H) miedzy sesjami, a auto-ekspozycja jasnosc (V), wiec progi dobrane
+    raz przestaja trafiac w ten sam obiekt przy innym swietle. Bez tych flag nic
+    nie ruszamy - kamera zostaje na swoich automatach.
+    """
+    sensor = profile.get_device().first_color_sensor()
+
+    def set_fixed(auto_option, value_option, value, label):
+        if not sensor.supports(value_option):
+            print(f"  {label}: nieobslugiwane przez ten sensor")
+            return
+        rng = sensor.get_option_range(value_option)
+        if not rng.min <= value <= rng.max:
+            raise SystemExit(
+                f"{label}={value} poza zakresem {rng.min:.0f}..{rng.max:.0f} "
+                f"(domyslnie {rng.default:.0f})"
+            )
+        if sensor.supports(auto_option):
+            sensor.set_option(auto_option, 0)
+        sensor.set_option(value_option, value)
+        print(f"  {label}: {sensor.get_option(value_option):.0f} (auto wylaczone)")
+
+    if white_balance is not None:
+        set_fixed(
+            rs.option.enable_auto_white_balance,
+            rs.option.white_balance,
+            white_balance,
+            "balans bieli",
+        )
+    if exposure is not None:
+        set_fixed(
+            rs.option.enable_auto_exposure, rs.option.exposure, exposure, "ekspozycja"
+        )
+
+
+def show_color_options(profile) -> None:
+    """Wypisuje zakresy, zeby bylo z czego wybierac wartosci do zamrozenia."""
+    sensor = profile.get_device().first_color_sensor()
+    print("Opcje kamery koloru:")
+    for name in (
+        "white_balance",
+        "enable_auto_white_balance",
+        "exposure",
+        "enable_auto_exposure",
+    ):
+        option = getattr(rs.option, name)
+        if not sensor.supports(option):
+            print(f"  {name:26} nieobslugiwane")
+            continue
+        rng = sensor.get_option_range(option)
+        print(
+            f"  {name:26} teraz={sensor.get_option(option):7.0f} "
+            f"min={rng.min:.0f} max={rng.max:.0f} domyslnie={rng.default:.0f}"
+        )
+
+
 def start_pipeline(width: int, height: int, fps: int):
-    """Uruchamia strumienie i zwraca (pipeline, align, depth_scale)."""
+    """Uruchamia strumienie i zwraca (pipeline, align, depth_scale, profile)."""
     if len(rs.context().query_devices()) == 0:
         raise SystemExit(
             "Nie widac kamery RealSense.\n"
@@ -97,7 +179,7 @@ def start_pipeline(width: int, height: int, fps: int):
         ) from exc
 
     depth_scale = profile.get_device().first_depth_sensor().get_depth_scale()
-    return pipeline, rs.align(rs.stream.color), depth_scale
+    return pipeline, rs.align(rs.stream.color), depth_scale, profile
 
 
 def make_mask(hsv: np.ndarray, ranges: list) -> np.ndarray:
@@ -172,11 +254,18 @@ def main() -> None:
     preview = not args.no_preview
     tune_window = "HSV"
 
-    pipeline, align, depth_scale = start_pipeline(args.width, args.height, args.fps)
+    pipeline, align, depth_scale, profile = start_pipeline(
+        args.width, args.height, args.fps
+    )
     print(
         f"Strumien {args.width}x{args.height}@{args.fps}, "
         f"depth_scale={depth_scale} (jednostka * scale = metry)"
     )
+    if args.show_color_options:
+        show_color_options(profile)
+        pipeline.stop()
+        return
+    configure_color_sensor(profile, args.white_balance, args.exposure)
     if args.tune and preview:
         setup_trackbars(tune_window)
     ranges = COLOR_PRESETS[args.color]
