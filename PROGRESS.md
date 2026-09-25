@@ -4,6 +4,26 @@ Wspólny log sesji na tym repo. Każda nowa sesja/agent dopisuje sekcję na
 dole z datą, co zrobiła i w jakim stanie to zostawiła. Nie nadpisuj
 cudzych wpisów.
 
+## NASTĘPNY KROK (aktualne na 2026-09-25)
+
+Doszło Raspberry Pi 5 — cel: połączyć ramię (SO-101), kamerę (RealSense
+D415) i robota-auto (hoverboard) w jeden spójny system zamiast trzech
+osobnych, niepowiązanych podsystemów na osobnym sprzęcie/sesjach.
+
+Nierozstrzygnięte, do ustalenia z użytkownikiem na starcie nowej sesji
+(nie zgaduj, zapytaj):
+- Jaka rola Pi 5 — centralny kontroler dla wszystkich trzech
+  podsystemów, czy tylko dla jednego (np. kamera+ramię), a auto zostaje
+  na Windows PC?
+- Czy Pi 5 ma już system/sieć/zdalny dostęp skonfigurowany?
+- Czy repo jest już sklonowane na Pi 5?
+- Jak podsystemy mają się komunikować — jeden proces, czy osobne
+  serwisy gadające przez sieć (np. web_control.py analogicznie do
+  hoverboarda, ale dla całego systemu)?
+- Status faktycznej pracy `arm_control.py` i `detect_object.py` na
+  prawdziwym sprzęcie nie był w tej sesji zweryfikowany fizycznie —
+  sprawdź zanim założysz że działają.
+
 ## Sprzęt
 
 - **Robot-hoverboard**: 2x silnik hoverboardu, sterownik H-bridge (PWM+DIR)
