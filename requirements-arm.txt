@@ -1,0 +1,11 @@
+# Ramie SO-101: arm_control.py + IK na URDF z so101_urdf/.
+#
+#     python -m pip install -r requirements-arm.txt -c constraints.txt
+#
+# lerobot ciagnie torch, wiec instalacja jest ciezka i dluga. Potrzebne tylko
+# na maszynie, ktora faktycznie steruje ramieniem.
+
+-r requirements.txt
+
+lerobot>=0.6.1        # SO101Follower, kalibracja, send_action
+ikpy>=4.1.0           # IK na so101_urdf/so101_new_calib.urdf
