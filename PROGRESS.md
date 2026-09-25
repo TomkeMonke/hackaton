@@ -269,8 +269,8 @@ Pytania do użytkownika na starcie następnej sesji (nie zgaduj):
 - Poradnik setupu Pi (Claude Doc):
   https://claude.ai/code/artifact/247e71b9-5b39-4ffb-8170-e355db9fd56b
   (instalacja, lerobot, RealSense ze źródeł jeśli brak wheela, udev
-  `/dev/robot-arm` i `/dev/robot-drive`, IMU BNO085, systemd, hotspot,
-  checklista, diagnostyka).
+  `/dev/robot-arm` i `/dev/robot-drive`, systemd, hotspot,
+  checklista, diagnostyka). IMU BNO085 było w planie, ale odpadło.
 - Kod: porty ze zmiennych `ROBOT_DRIVE_PORT` / `ROBOT_ARM_PORT` (domyślnie
   `COM9` / `COM10`, Windows bez zmian); `web_control.py` nasłuchuje na
   `0.0.0.0` (`ROBOT_HOST`); **failsafe operatora**: brak wiadomości z

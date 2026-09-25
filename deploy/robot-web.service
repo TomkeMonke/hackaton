@@ -1,0 +1,20 @@
+[Unit]
+Description=Robot web control panel (web_control.py)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=robot
+WorkingDirectory=/home/robot/hackaton
+Environment=ROBOT_DRIVE_PORT=/dev/robot-drive
+Environment=ROBOT_ARM_PORT=/dev/robot-arm
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/home/robot/hackaton/.venv/bin/python web_control.py
+Restart=on-failure
+RestartSec=2
+# SIGINT = like Ctrl+C, so finally blocks run (serial stop command, camera pipeline.stop)
+KillSignal=SIGINT
+TimeoutStopSec=10
+
+[Install]
+WantedBy=multi-user.target

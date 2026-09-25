@@ -8,5 +8,3 @@ pyserial
 websockets
 ikpy
 opencv-python-headless
-adafruit-blinka
-adafruit-circuitpython-bno08x

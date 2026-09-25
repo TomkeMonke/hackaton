@@ -1,0 +1,8 @@
+# Stable names for the robot's serial devices, independent of plug order.
+# Install: sudo cp deploy/99-robot.rules /etc/udev/rules.d/ && sudo udevadm control --reload-rules && sudo udevadm trigger
+# Check:   ls -l /dev/robot-*
+#
+# SO-101 arm controller (CH343 USB-serial)
+SUBSYSTEM=="tty", ATTRS{idVendor}=="1a86", ATTRS{idProduct}=="55d3", SYMLINK+="robot-arm"
+# Seeed Xiao RP2040 driving the hoverboard (xiao_send_pwm.ino)
+SUBSYSTEM=="tty", ATTRS{idVendor}=="2e8a", ATTRS{idProduct}=="000a", SYMLINK+="robot-drive"
