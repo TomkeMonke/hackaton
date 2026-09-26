@@ -140,6 +140,7 @@ try:
         if p is not None:
             pan = go({**PRE, "shoulder_pan": float(p), "gripper": 100.0}, 1.0)["shoulder_pan"]
         bgr, dets = snap()
+        # podstawa ma w serwie zakres tylko +-23 st: bierz szyszki, do ktorych dosiegnie
         ok = [d for d in dets if reachable(d)]
         log(f"pan {pan:.1f}: szyszki {[(round(d.px), round(d.py)) for d in dets]}, w zasiegu {len(ok)}")
         if ok:
