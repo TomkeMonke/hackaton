@@ -329,7 +329,10 @@ class WaypointArm:
     # --- interfejs ---------------------------------------------------------
 
     def replay(self, name: str) -> bool | None:
-        motion = load_motion(self.cfg.arm.motions_dir, name)
+        return self.play(load_motion(self.cfg.arm.motions_dir, name))
+
+    def play(self, motion: Motion) -> bool | None:
+        """Jak replay, ale ruch z pamieci (np. chwyt z tabeli uczenia, pinecone_bot/grasp_table.py)."""
         result: bool | None = None
         log.info("replay '%s': %d waypointow, %.1f s", motion.name, len(motion.waypoints), motion.total_seconds)
         for wp in motion.waypoints:

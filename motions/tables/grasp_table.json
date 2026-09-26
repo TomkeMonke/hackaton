@@ -1,0 +1,26 @@
+{
+  "note": "tools/teach_grasp.py: piksel szyszki w HOME -> ramie nad szyszka (pre) i chwyt (grasp). Zmiana HOME, montazu kamery albo kalibracji serw = uczyc od nowa.",
+  "samples": [
+    {
+      "px": 364,
+      "py": 229,
+      "pre": {
+        "shoulder_pan": -4.31,
+        "shoulder_lift": 86.64,
+        "elbow_flex": -3.87,
+        "wrist_flex": -87.87,
+        "wrist_roll": 88.97,
+        "gripper": 41.06
+      },
+      "grasp": {
+        "shoulder_pan": -4.4,
+        "shoulder_lift": 89.1,
+        "elbow_flex": -13.36,
+        "wrist_flex": -65.54,
+        "wrist_roll": 88.09,
+        "gripper": 41.0
+      },
+      "note": "srodkowa, uczenie 2026-09-26"
+    }
+  ]
+}

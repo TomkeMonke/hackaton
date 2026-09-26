@@ -42,6 +42,10 @@ zadania i przypisania na tablicy Projects (link nizej). Czego nie ma tutaj albo 
 - Po restarcie Pi zadne panele nie wstaja same: `web_control.py` i `tools/arm_web.py` trzeba odpalac recznie, `robot-web.service` nie jest zainstalowany. Nadal nie odpalone w tej sesji.
 - Zasilanie z akumulatora 12 V: issue #8, nie zaczete.
 
+- 2026-09-26 wieczor: nowy HOME ramienia pod kamere na ramieniu (`motions/home.json`, `arm_control.HOME_POSE`), NIE wgrany na Pi.
+  Chwytanie samym ramieniem na zywo (`tools/live_grasp/`): 1 chwyt udany po uczeniu reka, automat 0/4 z glebi.
+  Serwa: niskie P (16), bark na Max_Position_Limit - bez korekty calkujacej 2-4 st bledu. Po zmroku kolor bezuzyteczny.
+
 ## Nastepne 3 kroki (w tej kolejnosci)
 
 1. Wpisac nowy prog HSV na Pi (albo push z brancha po merge) i sprawdzic na zywo; odczytac limity EEPROM barku, potem `tools/arm_play.py --motion grasp_near` z reka na wylaczniku.
