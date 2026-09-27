@@ -40,7 +40,7 @@ HTTP_PORT = 8000
 WS_PORT = 8765
 
 MAX_PWM = 500
-MAX_STEER = 400
+MAX_STEER = 200
 
 LOOP_DELAY = 0.03  # matches the Arduino's loop delay / well under its 500ms timeout
 

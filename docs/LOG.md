@@ -676,3 +676,9 @@ poslizgu: 0.10 m od idealu z kursem, 3.5 m bez. 128 testow zielonych.
 odpowiada pod 172.20.10.1:8080, znak kursu, czy ekran nie gasnie. Dlugosc pasa dalej z czasu (zyroskop nie mierzy drogi).
 **Nastepny krok:** phyphox na telefonie, `python tools/phyphox_check.py` na Pi, obrot recznie o 90 st w lewo -> ~+90.
 **Sprzet:** nie
+
+## 2026-09-27 - frane + Claude - wolniejszy skret w panelu
+**Zrobione:** `web_control.py`: `MAX_STEER` 400 -> 200 (A/D w panelu jazdy skreca o polowe wolniej). `MAX_PWM` bez zmian (500).
+**Nie dziala / otwarte:** na branchach `frane/*` jest `MAX_PWM = 100`, na master dalej 500 - do ustalenia, co ma byc na master.
+**Nastepny krok:** sprawdzic skret na robocie, ewentualnie dostroic `MAX_STEER`.
+**Sprzet:** nie
