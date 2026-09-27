@@ -705,7 +705,20 @@ hebi-py (sdist ~92 MB kazdy) i chcial wymienic torch 2.14+cpu na generyczny z Py
 przy `cmeel-assimp` - hotspot sie zrestartowal (laptop dostal nowy adres), Pi nie wrocilo do sieci przez 10+ min.
 `pkill -f` przez ssh zabil sam siebie 2x (HARDWARE pulapka 31) - uzywac `pgrep -x uv`. Uwaga: `shoulder_pan` ma w
 kalibracji zakres tylko 1786..2308 tickow (~46 st) - IK z telefonu bedzie ograniczone na boki.
-**Nastepny krok:** sprawdzic zasilanie Pi i hotspot, powtorzyc komende uv z SETUP.md (cache ma juz ~3.3 GB),
-odpalic weryfikacje (placo IK na URDF, hebi/teleop, robot_client, pyrealsense2). Potem `teleoperate.py` z
-podmienionym portem/id/kamera, z wylacznikiem w rece.
+**Dokonczone w tej samej sesji (10:27-10:38):** przyczyna "znikniecia" Pi: laptop sam przeskoczyl na WiFi
+"hacker-bloc", Pi caly czas bylo na hotspocie pod 172.20.10.4. Po powrocie laptopa na hotspot instalacja na Pi
+przeszla (90 paczek, 4 MB/s): torch 2.14.0+cpu zostal, torchvision 0.29.0+cpu, numpy 2.2.6, placo 0.9.15,
+hebi-py 2.11.0, grpcio. Weryfikacja OK: importy teleopu, IK placo na URDF z examples/, robot_client, pyrealsense2,
+pinecone_bot. Placo ostrzega o samokolizjach URDF w pozie neutralnej (nieszkodliwe).
+Testy repo na Pi po zmianie numpy: 195/202 zielone; 7 czerwonych to NIE numpy, tylko osierocone pliki na Pi z
+niezmergowanego brancha `claude/robot-pinecone-test-plan-e4ca8e` (`tests/test_calibrate_target.py` - 6, wola
+`collect_average`, ktorego nie ma w `tools/calibrate_target.py` na Pi; `tests/test_web_control_estop.py` - 1,
+`/stop` 404 na starszym `web_control.py`, test wisi ~2 min czekajac na HTTP). Katalog `tests/` na Pi to mieszanka
+branchy po kolejnych `push_to_pi.sh` - `deploy/push_to_pi.sh` kopiuje, nie synchronizuje z usuwaniem.
+Notatka Tomka `docs/STACK.md` (branch `tomek/docs-stack`) zgodna z tym opisem: zero ML w glownym stosie, lerobot
+tylko jako sterownik serw. Wspomina `teleop_mirror.py` (leader -> follower, id `so101_leader`) - jesli ramie
+leader fizycznie istnieje, nagrywamy `lerobot-record --teleop.type=so101_leader` i telefon/placo sa zbedne.
+**Nastepny krok:** ustalic, czy jest leader SO-101. Jesli tak: `lerobot-record` z leaderem (moze byc z laptopa,
+bez placo). Jesli nie: `teleoperate.py` na Pi z podmienionym portem (`/dev/robot-arm`), `id="so101"` i kamera,
+z wylacznikiem w rece; iPhone z HEBI Mobile I/O w tej samej sieci co Pi. Potem druga (statyczna) kamera i nagranie.
 **Sprzet:** dotkniety zdalnie (tylko instalacja pakietow i odczyt pliku kalibracji na Pi; ramie i baza nie ruszane)

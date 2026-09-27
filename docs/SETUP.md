@@ -61,11 +61,13 @@ od nowa tylko `opencv-python`.
 
 ## lerobot do ACT: laptop = serwer, Pi = klient robota
 
-Stan na 2026-09-27: laptop ZROBIONY i sprawdzony importami; na Pi instalacja
-PRZERWANA utrata sieci w polowie pobierania (hotspot sie zrestartowal, Pi nie
-wrocilo do sieci) - komenda ponizej do powtorzenia, uv ma juz wiekszosc paczek
-w cache. Teleop i nagranie jeszcze nie odpalone. Tlo i decyzja:
-`docs/POLICIES_LEROBOT.md`.
+Stan na 2026-09-27: laptop i Pi ZROBIONE, sprawdzone importami (na Pi tez IK placo
+na naszym URDF, klient async, pyrealsense2, pinecone_bot). Teleop telefonem i
+nagranie jeszcze nie odpalone. Tlo i decyzja: `docs/POLICIES_LEROBOT.md`.
+
+Jesli zespol ma fizyczne ramie LEADER SO-101 (`teleop_mirror.py` zaklada id `so101_leader`),
+caly teleop telefonem jest zbedny: nagrywa sie `lerobot-record --teleop.type=so101_leader`,
+bez placo, wiec rowniez z laptopa. Ponizsze dotyczy wariantu BEZ leadera.
 
 Podzial rol jak w async inference lerobota: laptop trenuje ACT na GPU i w czasie
 jazdy jest `policy_server`; Pi obsluguje ramie, kamere i telefon (nagranie
@@ -116,6 +118,13 @@ cd ~/hackaton && uv pip install --python .venv/bin/python \
   --override ~/uv_overrides.txt \
   "lerobot[feetech,async,kinematics]==0.6.1" "teleop>=0.1.0,<0.2.0" "fastapi<1.0" scipy "hebi-py>=2.8.0,<2.12"
 ```
+
+Po instalacji na Pi: torch 2.14.0+cpu (bez zmian), torchvision 0.29.0+cpu, numpy 2.2.6,
+placo 0.9.15, hebi-py 2.11.0, tylko `opencv-python-headless`. Placo przy ladowaniu URDF
+ostrzega o samokolizjach w pozie neutralnej (siatki kolizyjne SO-101 nachodza na
+siebie) - dla IK nieszkodliwe. Pierwsza proba padla na "network unreachable": hotspot
+sie zrestartowal i laptop sam przeskoczyl na "hacker-bloc" - gdy Pi "znika", najpierw
+`netsh wlan show interfaces` na laptopie.
 
 `pip install lerobot` NIE zawiera katalogu `examples/`, a skrypty teleopu
 telefonem zyja tylko tam. Na Pi odtworzony recznie jako

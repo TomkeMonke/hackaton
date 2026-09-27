@@ -4,6 +4,7 @@ Stan na 2026-09-27 (research w sieci, nic nie uruchamiane). Cel: nie pisac polit
 od zera - sprawdzic, co z lerobot, DOT (IliaLarchenko) i MolmoAct (Allen AI) da sie
 uzyc do podnoszenia szyszek ramieniem SO-101.
 
+Opis glownego, deterministycznego stosu: `docs/STACK.md` (branch `tomek/docs-stack`).
 To jest sciezka ROWNOLEGLA do deterministycznej petli z `docs/RUNBOOK.md`
 ("Czego nie robic": ML dopiero, gdy petla bazowa dziala). Nie zastepuje jej.
 
@@ -90,7 +91,8 @@ Opcje bez leader arm:
    `examples/phone_to_so100/SO101/`. Skrypty `teleoperate.py`, `record.py`,
    `replay.py`, `evaluate.py` w `examples/phone_to_so100/`.
 2. **Klawiatura EE** (`--teleop.type=keyboard_ee`, ten sam IK) - wolniejsze.
-3. Pozyczyc leader SO-101 - najlepsza jakosc danych.
+3. Leader SO-101 - najlepsza jakosc danych. UWAGA: `teleop_mirror.py` w repo (leader -> follower,
+   id `so101_leader`) sugeruje, ze leader moze istniec - ustalic z zespolem, zanim ktos konfiguruje telefon.
 
 Druga kamera: statyczna, patrzaca na pole chwytu z gory/boku (`top`), plus nasza
 wrist D415 jako `wrist`. Bez kamery statycznej polityka nie widzi szyszki, gdy

@@ -44,10 +44,10 @@ zadania i przypisania na tablicy Projects (link nizej). Czego nie ma tutaj albo 
 - Po restarcie Pi zadne panele nie wstaja same: `web_control.py` i `tools/arm_web.py` trzeba odpalac recznie, `robot-web.service` nie jest zainstalowany. Nadal nie odpalone w tej sesji.
 - Zasilanie z akumulatora 12 V: issue #8, nie zaczete.
 - Polityki uczone (ML): decyzja frane 2026-09-27 - robimy lerobot ACT rownolegle (`docs/POLICIES_LEROBOT.md`, SETUP.md sekcja "lerobot do ACT").
-  Laptop GOTOWY: torch 2.11 cu128 (CUDA na RTX 3070), lerobot 0.6.1 [phone,feetech,async], `so101.json` skopiowany z Pi. Pi: extras
-  (`kinematics`=placo, `async`, `hebi-py`, `teleop`) NIE doinstalowane - uv padl na utracie sieci, Pi po restarcie hotspotu nie wrocilo
-  do sieci (do sprawdzenia fizycznie: zasilanie, hotspot). `~/hackaton/examples/phone_to_so100/` na Pi gotowy (skrypty v0.6.1 + SO101 z STL).
-  Teleop telefonem, druga kamera, nagranie datasetu: nic nie odpalone.
+  Laptop GOTOWY: torch 2.11 cu128 (CUDA na RTX 3070), lerobot 0.6.1 [phone,feetech,async], `so101.json` skopiowany z Pi.
+  Pi GOTOWE: lerobot 0.6.1 + placo (IK), hebi-py/teleop (telefon), grpcio (async client), torchvision; importy i IK na URDF sprawdzone.
+  `~/hackaton/examples/phone_to_so100/` na Pi (skrypty v0.6.1 + SO101 z STL, poza gitem). Teleop telefonem, druga kamera,
+  nagranie datasetu: nic nie odpalone.
 
 ## Nastepne 3 kroki (w tej kolejnosci)
 
