@@ -179,7 +179,7 @@ class SimConfig:
     hover: bool = False
     hover_static_pwm: float = 155.0
     hover_kinetic_pwm: float = 100.0
-    hover_rate_per_pwm: float = 0.028   # rad/s na jednostke b ponad tarcie kinetyczne
+    hover_rate_per_pwm: float = 0.013   # rad/s na jednostke b ponad tarcie kinetyczne (b 160: 0.43-1.08 rad/s)
     hover_tau_s: float = 0.15
     gyro_delay_s: float = 0.10
 

@@ -17,6 +17,7 @@ Panel jazdy (web_control.py) musi byc zamkniety - trzyma port Xiao.
 
   python tools/calibrate_turn.py                  # tylko pomiar i tabela
   python tools/calibrate_turn.py --write          # pomiar + zapis do pinecone_config.json
+  python tools/calibrate_turn.py --response 160 --step-s 2   # opoznienie i rozpedzanie (3 proby)
 """
 from __future__ import annotations
 
@@ -107,6 +108,48 @@ def sweep(send, yaw, sleep, pwms: list[int], step_s: float, spinup_s: float, res
     return steps
 
 
+def record_response(send, yaw, clock, sleep, pwm: int, hold_s: float, coast_s: float = 1.0):
+    """Staly skret -pwm przez hold_s, potem stop i coast_s wybiegu. Zwraca [(t, yaw)] od chwili komendy."""
+    samples = []
+    t0 = clock()
+    try:
+        while clock() - t0 < hold_s + coast_s:
+            send(-pwm if clock() - t0 < hold_s else 0)
+            y = yaw()
+            if y is not None:
+                samples.append((clock() - t0, y))
+            sleep(SEND_PERIOD)
+    finally:
+        for _ in range(5):
+            send(0)
+            sleep(0.02)
+    return samples
+
+
+@dataclass
+class Response:
+    delay_s: float | None      # od komendy do pierwszej zmiany kursu > 1 st
+    rise_s: float | None       # od poczatku ruchu do 63% predkosci koncowej
+    rate: float                # rad/s pod koniec skretu
+    coast_deg: float           # tyle obrocil sie po stopie
+
+
+def analyze_response(samples, hold_s: float) -> Response:
+    y0 = samples[0][1]
+    moved = [t for t, y in samples if abs(y - y0) > math.radians(1.0)]
+    delay = moved[0] if moved else None
+    held = [(t, y) for t, y in samples if hold_s - 0.5 <= t <= hold_s]
+    rate = (held[-1][1] - held[0][1]) / (held[-1][0] - held[0][0]) if len(held) > 1 else 0.0
+    rise = None
+    if delay is not None and abs(rate) > 0.05:
+        for (ta, ya), (tb, yb) in zip(samples, samples[3:]):
+            if ta >= delay and tb <= hold_s and abs((yb - ya) / (tb - ta)) >= 0.63 * abs(rate):
+                rise = tb - delay
+                break
+    at_stop = min(samples, key=lambda s: abs(s[0] - hold_s))[1]
+    return Response(delay, rise, rate, math.degrees(samples[-1][1] - at_stop))
+
+
 def apply_fit(cfg: Config, fit: TurnFit) -> None:
     cfg.base.xiao_steer_min = fit.steer_min
     cfg.base.xiao_steer_max = max(fit.steer_max, fit.steer_min + 1)
@@ -123,6 +166,8 @@ def main() -> int:
     p.add_argument("--step-s", type=float, default=1.5, help="czas jednego kroku [s]")
     p.add_argument("--max-rate", type=float, default=1.2, help="rad/s; szybciej = koniec pomiaru")
     p.add_argument("--write", action="store_true", help="zapisz wynik do pinecone_config.json")
+    p.add_argument("--response", type=int, default=None, metavar="PWM",
+                   help="zamiast skanu: 3x staly skret -PWM przez --step-s, mierzy opoznienie i rozpedzanie")
     args = p.parse_args()
 
     import serial
@@ -145,6 +190,23 @@ def main() -> int:
 
     def send(b: int) -> None:
         ser.write(f"a0 b{int(b)}\n".encode("ascii"))
+
+    if args.response is not None:
+        try:
+            for i in range(3):
+                samples = record_response(send, gyro.yaw, time.monotonic, time.sleep, args.response, args.step_s)
+                r = analyze_response(samples, args.step_s)
+                fmt = lambda x: "  -  " if x is None else f"{x:4.2f}"  # noqa: E731
+                print(f"  proba {i + 1}: opoznienie {fmt(r.delay_s)} s, rozpedzanie {fmt(r.rise_s)} s, "
+                      f"predkosc {r.rate:+.2f} rad/s, wybieg po stopie {r.coast_deg:+.1f} st")
+                time.sleep(2.0)
+        except KeyboardInterrupt:
+            print("przerwane")
+            return 1
+        finally:
+            ser.close()
+            gyro.close()
+        return 0
 
     try:
         steps = sweep(send, gyro.yaw, time.sleep, list(range(args.start, args.stop + 1, args.step)),

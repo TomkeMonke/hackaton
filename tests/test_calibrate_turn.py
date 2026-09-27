@@ -89,3 +89,28 @@ def test_apply_fit_writes_config_fields():
     assert cfg.base.xiao_steer_min == 150
     assert cfg.base.xiao_steer_max > cfg.base.xiao_steer_min
     assert cfg.control.steer_sign == 1.0
+
+
+def test_response_measures_delay_rise_and_coast():
+    """Atrapa: ruch 0.2 s po komendzie, rozpedzanie tau 0.15 s, 1 rad/s, telefon bez opoznienia."""
+    from calibrate_turn import analyze_response, record_response
+
+    state = {"t": 0.0, "yaw": 0.0, "w": 0.0, "b": 0, "since": None}
+
+    def send(b):
+        if b != state["b"]:
+            state["b"], state["since"] = b, state["t"]
+
+    def sleep(dt):
+        target = 1.0 if state["b"] < 0 and state["t"] - state["since"] >= 0.2 else 0.0
+        state["w"] += (target - state["w"]) * min(1.0, dt / 0.15)
+        state["yaw"] += state["w"] * dt
+        state["t"] += dt
+
+    samples = record_response(send, lambda: state["yaw"], lambda: state["t"], sleep, 160, hold_s=2.0)
+    r = analyze_response(samples, 2.0)
+    assert 0.2 <= r.delay_s <= 0.35, r.delay_s
+    assert 0.05 <= r.rise_s <= 0.35, r.rise_s
+    assert abs(r.rate - 1.0) < 0.1
+    assert r.coast_deg > 3.0
+    assert state["b"] == 0
