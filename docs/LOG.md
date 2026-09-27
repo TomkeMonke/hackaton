@@ -588,6 +588,37 @@ Panel jazdy i ramienia w jednym miejscu: UI ramienia w `arm_panel.js`, montowane
 **Nastepny krok:** restart obu serwerow na Pi z nowym kodem (ramie trzymane - connect zdejmuje na chwile torque); test jazdy W.
 **Sprzet:** dotkniety (Pi: serwery paneli; ramie i baza nie ruszane przez Claude)
 
+## 2026-09-26 - Kajud (Claude) - panel: nagrywanie ruchu i sekwencje jazda+ramie
+**Zrobione:** Zbieranie szyszek "na sztywno" z panelu jazdy (:8000), bez pisania kodu. Ramie: `pinecone_bot/arm_panel.py` dostal szkic waypointow (`add_point` = biezaca poza: przeguby z odczytu serw, chwytak z ostatniej komendy; `drop_point`, `clear_points`, `save_motion` -> `motions/<nazwa>.json` w formacie `record_waypoints.py`, nadpisanie tylko jawne), UI w `arm_panel.js` (sekcja "NAGRYWANIE RUCHU"). `--no-home` pozwala teraz odtwarzac ruchy z motions/ (do sekwencji), ale `WaypointArm(home_on_empty=False)`: po pustym chwycie tylko otwarcie chwytaka, bez HOME (kamera na ramieniu). Sekwencje: nowy `pinecone_bot/sequence.py` (kroki drive/arm/wait, walidacja, `sequences/<nazwa>.json`, `SequenceRunner` z wstrzykiwanymi funkcjami, STOP w <=0.1 s), `web_control.py` tryb "sequence" (runner w watku, kroki ramienia przez HTTP do `tools/arm_web.py`, env `ROBOT_ARM_PANEL`; failsafe/STOP/zmiana trybu przerywa, zeruje jazde i wysyla STOP do ramienia; `drive_step` do testu pojedynczego kroku), sekcja "SEKWENCJA" w `frontend.html` (szkic w localStorage, zapis/odtworz/edytuj/usun, podglad biezacego kroku). `deploy/push_to_pi.sh` kopiuje `sequences/`. Testy: `tests/test_sequence.py` (12), +5 w `test_arm_panel.py`, +1 w `test_arm.py`; razem 135 zielonych. Sprawdzone w przegladarce na atrapie (`arm_web.py --fake` + `web_control.py` bez Xiao): nagranie 2-punktowego ruchu, sekwencja jazda 2 s -> ruch -> czekaj przeszla, STOP w trakcie kroku ramienia przerwal obie strony.
+**Nie dziala / otwarte:** nic z tego nie ruszalo na sprzecie. Kroki jazdy sa "na czas" (open-loop): powtarzalnosc zalezy od baterii i podloza, PWM -> m/s nadal niezmierzone. Stare ruchy (`grasp_mid`, `home`, `drop_box`) koncza w HOME - w trybie `--no-home` odtwarzac tylko ruchy nagrane pod obecny montaz (UI ostrzega). Przy hotspocie failsafe heartbeatu przerwie sekwencje tak samo jak jazde reczna.
+**Nastepny krok:** na Pi restart obu serwerow z mastera, jog + nagranie `grasp_cam` z panelu (czlowiek przy wylaczniku), potem sekwencja: podjazd 1-2 s -> `grasp_cam` -> cofniecie; zmierzyc ile cm daje 0.3 x 2 s.
+**Sprzet:** nie
+
+## 2026-09-26 - pawel120 (Claude) - jog XYZ ramienia w panelu
+**Zrobione:** `pinecone_bot/kinematics.py`: FK z URDF `so101_new_calib.urdf` (numpy, bez ikpy) i krok IK (DLS) dla TCP (gripper_frame_link): przesuniecie o 5/10/20 mm w osiach bazy, pochylenie chwytaka bez zmian. Panel ramienia: sekcja JOG XYZ (GORA/DOL/PRZOD/TYL/LEWO/PRAWO), odczyt TCP, przycisk ZERO URDF (biezacy odczyt = zero URDF, offsety do `pinecone_config.json`: `arm.urdf_offset_deg`, znaki `arm.urdf_sign`). 150 testow zielonych, sekcja widoczna w przegladarce na atrapie.
+**Nie dziala / otwarte:** nie sprawdzone na ramieniu. Zero lerobot to srodek nagranego zakresu, nie zero URDF (HARDWARE pulapka 12) - bez ZERO URDF jog pojedzie krzywo. Znaki przegubow niezmierzone (domyslnie +1).
+**Nastepny krok:** na Pi: ramie prosto poziomo do przodu -> ZERO URDF -> GORA 10 mm, sprawdzic kierunek.
+**Sprzet:** nie
+## 2026-09-26 - pawel120 (Claude) - robot wjechal w ramie; cofniety heartbeat z klawiszami, predkosc /2
+**Zrobione:** Po wdrozeniu PR #33 (heartbeat niosl stan klawiszy) robot przy duzym opoznieniu hotspotu wjechal w ramie i je uszkodzil. Prawdopodobna przyczyna (Claude): opoznione heartbeaty dochodza seriami, stare "W wcisniete" po failsafe znow uruchamialy jazde, a puszczenie W przychodzilo pozniej. Dead-man mierzy czas DOTARCIA wiadomosci, wiec spoznione wiadomosci wygladaja na swieze. Cofniete: heartbeat to znow goly ping (po failsafe trzeba wcisnac klawisz od nowa). `web_control.py` MAX_PWM 500 -> 250, panel ramienia krok 2 -> 1 st/tick (chwytak 4 -> 2). Zdalny STOP po awarii nie doszedl: Pi przestal odpowiadac (ping 100% strat).
+**Nie dziala / otwarte:** ramie uszkodzone - ocena. `shoulder_lift` czyta 116-128 st przy zakresie +-91.6, a wedlug uzytkownika staw jest fizycznie w zakresie -> podejrzenie rozjazdu Homing_Offset w serwie vs so101.json. Narzedzie do kalibracji jednego stawu (tools/calibrate_joint.py) zablokowane przez uprawnienia sesji - czeka na decyzje uzytkownika. Jazda po hotspocie z opoznieniem > 1 s jest niebezpieczna niezaleznie od kodu: dead-man nie odroznia spoznionych komend.
+**Nastepny krok:** ogledziny ramienia; Pi na dobrym zasilaniu; zanim ktos pojedzie zdalnie - znaczniki czasu w komendach jazdy (odrzucac spoznione) albo jazda tylko w zasiegu wzroku z wylacznikiem.
+**Sprzet:** dotkniety (robot wjechal w ramie - uszkodzenie)
+## 2026-09-26 - tomek - sciezka S w POKRYCIU
+**Zrobione:** tryb POKRYCIE w `web_control.py` zawsze skrecal w te sama strone, wiec po drugim nawrocie
+wracal na pierwszy pas i jezdzil tam i z powrotem po dwoch pasach. Teraz kierunek nawrotu zmienia sie po
+kazdym `turn2` (L, P, L...), wiec pasy ida w poprzek pola. Logika fazy wydzielona do `coverage_advance()`,
+test `tests/test_web_control_coverage.py` (websockets podstawiony stubem, bo nie ma go w CI).
+**Nie dziala / otwarte:** nie jechane na sprzecie. Czasy otwarte (bez odometrii), wiec 90 st zalezy od
+`cov_turn_seconds`. Znak skretu Xiao niezmierzony: pierwszy nawrot moze pojsc w prawo - wtedy start z drugiego rogu.
+**Nastepny krok:** na trawie nastroic `cov_turn_seconds` do 90 st, potem dlugosc pasa i odstep; zmierzone
+predkosci przepisac do `search_drive_v` / `search_w` w `pinecone_config.json`.
+**Sprzet:** nie
+## 2026-09-26 - pawel120 (Claude) - wylacznik STOP na telefon
+**Zrobione:** Strona `/stop` (`stop.html`) w `web_control.py`: jeden duzy przycisk na caly ekran telefonu (pointerdown, bez przewijania). POST `/api/estop` zatrzaskuje STOP: petla sterowania co tick robi `hard_stop()` (zero bez rampy, tryb manual, koniec sekwencji/nagrywania, klawisze zerowane), `start_sequence` odmawia; watek wysyla STOP do ramienia (:8010). ODBLOKUJ (`/api/estop_release`) wymaga numeru zatrzasku - spozniony ODBLOKUJ nie zdejmie nowszego STOP. HTTP zamiast WebSocket celowo: /stop nie jest heartbeatem operatora, wiec telefon z ta strona nie trzyma robota przy zyciu po utracie panelu jazdy. Strona ponawia STOP do potwierdzenia, pokazuje lacze w ms i "BRAK LACZA" po 2 s. Panel jazdy pokazuje stan E-STOP i link do /stop. `tests/test_web_control_estop.py` (8), razem 163 zielone. Sprawdzone w przegladarce (widok telefonu) na `web_control.py` bez Xiao: zatrzask blokuje W, po ODBLOKUJ jedzie, STOP w trakcie jazdy zeruje.
+**Nie dziala / otwarte:** nie wdrozone na Pi. Zatrzask dotyczy jazdy; panel ramienia dostaje jeden STOP, jog ramienia dalej mozliwy. Przy duzym lagu hotspotu STOP tez dojdzie pozno.
+**Nastepny krok:** skopiowac `web_control.py`, `stop.html`, `frontend.html` na Pi, restart `web_control.py`, test STOP z telefonu przy jadacym robocie (kola w powietrzu).
+
 ## 2026-09-26 - frane (Claude) - polaczenie z Pi po WiFi + kalibracja HSV V/H
 **Zrobione:**
 - Polaczenie z Pi: `robot.local` (mDNS, dziala w git-bash, nie w PowerShell) odpowiada, Pi ma dwa adresy -
@@ -660,6 +691,206 @@ Panel jazdy i ramienia w jednym miejscu: UI ramienia w `arm_panel.js`, montowane
   nagrac `drop_box` (`tools/record_motion.py --name drop_box`), dopisac chwyty do `cfg.grasps`,
   `tools/calibrate_target.py`; potem `tools/base_test.py`, `--dry-run`, `--real` z wylacznikiem.
 **Sprzet:** dotkniety (tylko odczyt kamery i plik configu na Pi; ramie i baza nie ruszane)
+## 2026-09-26 - pawel120 (Claude) - podglad glebi jak RealSense Viewer
+**Zrobione:** Uzytkownik: glebia w `rs_mjpeg_server.py` "zupelnie inna niz w RealSense Viewer". Klatka ze strumienia: dane glebi ciagle (podloga bez dziur, szyszki widoczne jako slabe wybrzuszenia), winna skala liniowa 0-1500 mm - podloga to jeden gradient, szyszki (kilka cm) nie odrozniaja sie. Domyslnie teraz `rs.colorizer` (Jet z wyrownaniem histogramu, brak danych = czarny, jak w Viewerze); stara skala pod `--colormap fixed`. Podglad uruchomiony na Pi (:8080), D435 na USB3, zasilanie bez throttlingu.
+**Nie dziala / otwarte:** nowa wersja nie wdrozona na Pi (sesja nie miala zgody na zapis na Pi). Viewer ma tez filtry (spatial/temporal) i domyslnie 848x480 - tu ich nie ma.
+**Nastepny krok:** scp `rs_mjpeg_server.py` na Pi, restart podgladu, porownac z Viewerem. Jesli szyszki dalej slabo widac: kolor = wysokosc nad plaszczyzna podlogi (jak w `scan_cones.py`).
+**Sprzet:** nie (tylko odczyt kamery)
+
+
+## 2026-09-27 - frane + Claude - pasy po kursie z telefonu
+**Zrobione:** Decyzja: plyta hovera jest przerobiona i niedostepna, wiec hallotronow (bipropellant) nie bedzie;
+IMU brak; ROS/SLAM/MuJoCo odlozone. Kurs do pasow bierzemy z zyroskopu telefonu (phyphox, remote access).
+`pinecone_bot/heading.py` (PhyphoxGyro: odpytywanie HTTP, calkowanie trapezami, stale -> None; OdometryHeading),
+`cfg.heading`, `brain.py`: pasy jako odcinki (spin/line/turn), obrot do kata zamiast po czasie, P na kurs na prostej,
+powrot na kurs pasa po chwycie, kurs startowy zapisany przed pierwszym podjazdem. Bezpieczniki: brak kursu > lost_s
+albo odcinek > 3x nominalu -> pasy z czasu od tego samego miejsca. `--heading` w main, kolumna `yaw_deg` w CSV,
+`tools/phyphox_check.py`, niedoskonalosci napedu w symulatorze (`sim.turn_gain`, `sim.drift_w`).
+Symulacja, pole 3.0 m, 10 ziaren x 5 szyszek: naped idealny - z czasu 43/50, z kursem 47/50;
+poslizg obrotow 15% + znoszenie 0.03 rad/s - z czasu 39/50, z kursem 44/50. Koniec wzorca bez szyszek przy
+poslizgu: 0.10 m od idealu z kursem, 3.5 m bez. 128 testow zielonych.
+**Nie dziala / otwarte:** nic nie sprawdzone na telefonie ani robocie: czy phyphox na iPhonie-hotspocie
+odpowiada pod 172.20.10.1:8080, znak kursu, czy ekran nie gasnie. Dlugosc pasa dalej z czasu (zyroskop nie mierzy drogi).
+**Nastepny krok:** phyphox na telefonie, `python tools/phyphox_check.py` na Pi, obrot recznie o 90 st w lewo -> ~+90.
+**Sprzet:** nie
+
+## 2026-09-27 - frane + Claude - telefon jako zyroskop dziala
+**Zrobione:** phyphox na iPhonie (tym samym, ktory robi hotspot) odpowiada Pi pod `http://172.20.10.1` - port 80,
+nie 8080 jak w dokumentacji phyphox (to port Androida). Znalezione skanem portow z Pi (`GCDWebServer` na :80).
+Bufory `gyrZ`/`gyr_time` zgodne z kodem. Obrot robota recznie o 90 st w lewo -> kurs +90, `heading.sign` 1.0 dobry.
+Domyslny `phyphox_url` poprawiony, pulapka 36 w HARDWARE.md. Test na Pi szedl z osobnego katalogu `~/phyphox_test`
+(config.py, heading.py, phyphox_check.py z mastera), bo na Pi jest kod z `pawel/arm-xyz-jog`, nie master.
+**Nie dziala / otwarte:** serwer phyphox znika po zgaszeniu ekranu. Jazda po kursie nie sprawdzona: `brain.py`/`main.py`
+na Pi nie maja kursu, dopoki `pawel/arm-xyz-jog` nie polaczy sie z masterem (push mastera cofnalby panel XYZ).
+**Nastepny krok:** merge `pawel/arm-xyz-jog` z masterem, push na Pi, `--dry-run --heading phyphox`.
+**Sprzet:** tak (telefon, Pi; baza i ramie nie ruszane)
+
+## 2026-09-27 - frane + Claude - kod z Pi z powrotem w repo (frane/pi-sync)
+**Zrobione:** Na Pi byl nie master, tylko mieszanka branchy: `web_control.py`/`frontend.html`/`arm_panel.py` z
+`pawel/drive-s-path`, reszta `pinecone_bot/` z `pawel/arm-xyz-jog` (przez PR #35), `rs_mjpeg_server.py` z
+`pawel/rs-viewer-colormap`, `tools/calibrate_joint.py` z `pawel/drive-revert-heartbeat-half-speed`, plus pliki tylko
+na Pi (`tools/estop_server.py`, `tools/raw_drive.py`, offsety URDF w `pinecone_config.json`). `push_to_pi.sh` z mastera
+cofnalby panel XYZ i zgubil offsety. Branch `frane/pi-sync` = master + `pawel/phone-estop` (zawiera drive-s-path i
+arm-xyz-jog) + PR #35 + `pawel/rs-viewer-colormap` + `frane/phyphox-ios` + pliki z Pi. Porownanie md5 (bez CR) wszystkich
+plikow kopiowanych przez `push_to_pi.sh`: na Pi nic nie zostaje cofniete, roznice to tylko nowsze wersje (master, /stop,
+kurs). Prog HSV i sekcja camera z mastera (nowszy prog, dwa swiatla; PR #30), offsety URDF z Pi. 178 testow zielonych,
+symulacja 5/5 z kursem i bez.
+**Nie dziala / otwarte:** `pinecone_bot/landmarks.py` na Pi to same bajty zerowe (uszkodzony, pewnie pad pendrive'a przy
+zasilaniu z powerbanku); nic go nie importuje, oryginal jest w lokalnym commicie dafd481 (branch `pawel/base-calibration`,
+niewypchniety). `tools/live_grasp/` (niezacommitowany eksperyment z `pawel/arm-home-cam`) poleci na Pi przy pushu z tego
+katalogu, bo push kopiuje katalog roboczy - nieszkodliwe. Na Pi nadal prog HSV z phone-estop (sztuczna trawa) do pushu.
+**Nastepny krok:** review + merge PR, `PI_HOST=robot@172.20.10.4 bash deploy/push_to_pi.sh` z mastera, potem
+`python -m pinecone_bot.main --dry-run --heading phyphox`.
+**Sprzet:** nie (tylko odczyt plikow z Pi)
+
+## 2026-09-27 - frane + Claude - --no-arm do testow jazdy
+**Zrobione:** `python -m pinecone_bot.main --real --no-arm`: prawdziwa baza, ramie tylko drukuje (PrintArm), port ramienia
+nie jest otwierany. Powod: ramie uszkodzone 2026-09-26, a `--real` odtwarza chwyt przy kazdej brazowej detekcji (reka w
+kadrze ma odcien szyszki). `make_devices()` w `main.py`, 3 testy w `tests/test_main.py`, 181 zielonych.
+**Nie dziala / otwarte:** nic na sprzecie.
+**Nastepny krok:** po merge #44 i tego PR: push na Pi, `--dry-run --heading phyphox` (obracac recznie), `base_test.py`,
+`--real --no-arm --heading phyphox` z `lane_count` 1.
+**Sprzet:** nie
+
+## 2026-09-27 - frane + Claude - zyroskop z telefonu, petla obrotu, kalibracja glebia (branch frane/lidar)
+**Zrobione:**
+- `--dry-run --heading phyphox` na Pi z pustym obrazem (`--source ~/pusty.png`), telefon obracany recznie: obrot 360 st
+  konczy sie na 358, prosta trzyma kurs, skret liczy kat. Na Pi byl `config.py` z portem 8080 (bez #43) -> tymczasowo
+  `heading.phyphox_url` w configu na Pi.
+- `tools/calibrate_turn.py` (skan PWM skretu i `--response PWM`): skret hovera ma martwa strefe 100-160 zaleznie od tego,
+  czy robot stal, predkosc przy tym samym PWM rozrzut 2.5x, opoznienie 0.15-0.4 s, wybieg 3-10 st. Pulapka 37.
+- `pinecone_bot/turn_loop.py`: petla predkosci obrotu na zyroskopie (rampa, gdy stoi; skok do PWM, ktory ostatnio trzymal
+  predkosc, gdy ruszy; calka, gdy kreci). `XiaoBase.set_raw`. Symulator `--hover` (SimXiaoDrive + SimGyro, model z
+  pomiarow). Pasy na modelu: 0.01-0.07 m od idealu przy wzmocnieniu 0.007-0.018 i opoznieniu telefonu 0.1-0.2 s;
+  bez petli robot sie nie obraca. Szyszki: 24/25 na bazowym modelu, ale przy innych parametrach podjazd oscyluje.
+- `tools/calibrate_drive.py`: predkosc do przodu z glebi (odleglosc do sciany przed i po jezdzie, powrot tylem, stop
+  przy scianie < 0.5 m). Pierwsze odpalenie: kamera patrzyla w sufit -> +-2 cm, choc robot jechal 40 cm. Dodane
+  zdjecie widoku i ostrzezenie. Kamera ustawiona poziomo jogiem nadgarstka przez panel.
+- Ramie przez panel `arm_web.py --no-home` + `/api/cmd`: wszystkie stawy i chwytak ruszaja sie, powrot do pozycji.
+  `shoulder_pan` przy granicy -23 ucina krok (skonczyl 6 st obok startu).
+- Kod na Pi: wypchniety z brancha `frane/gyro-rate-loop` (PUSH_ANY_BRANCH), nie z mastera. Kopie configu z Pi:
+  `~/pinecone_config.json.bak-*`.
+**Nie dziala / otwarte:** pomiar jazdy do przodu do powtorzenia (kamera na sciane); petla obrotu nie jechala na robocie;
+podjazd do szyszki na hoverze wrazliwy (pomysl: celowanie krokami); `landmarks.py` na Pi uszkodzony.
+**Nastepny krok:** `calibrate_drive.py --write`, potem pasy `--real --no-arm --heading phyphox` z `lane_count` 1.
+**Sprzet:** tak (baza: obroty i jazda testowe; ramie: jog przez panel; telefon; kamera)
+
+Do polaczenia z druga sesja o glebi/lidarze: branch `frane/lidar` (= `frane/gyro-rate-loop`, wychodzi z `frane/no-arm`
+<- `frane/pi-sync`). Pliki o glebi: `tools/calibrate_drive.py`, `tests/test_calibrate_drive.py`; o kursie/obrocie:
+`pinecone_bot/heading.py`, `pinecone_bot/turn_loop.py`, `tools/calibrate_turn.py`, `tools/phyphox_check.py`,
+`pinecone_bot/sim.py` (SimXiaoDrive, SimGyro), `heading.*` w `pinecone_bot/config.py`.
+
+## 2026-09-27 - frane + Claude - mapa ogrodu D435, zygzak po mapie (branch frane/mapa-d435)
+**Zrobione:**
+- Polaczone sesje o "lidarze": lidara nie ma, to glebia RealSense; kamera to D435 (nie D415).
+- `tools/record_rgbd.py`: nagranie na Pi prosto w formacie RTAB-Map (kolor + glebia wyrownana, ostrzezenia o szybkim
+  obrocie, malej glebi, dziurach). `tools/rtabmap_build.py`: mapa jedna komenda na laptopie (RTAB-Map 0.23.8 win64;
+  0xC0000135 = brak msvcr110/msvcp110 - skopiowane x64 z Office do bin).
+- `pinecone_bot/localize.py`: lokalizacja z jednego zdjecia (ORB + PnP do klatek kluczowych mapy), na Pi 0.5 s.
+- `pinecone_bot/zygzak.py`: pasy od miejsca startu, obrot na zyroskopie, co 1 m stop + zdjecie + poprawka, uczenie
+  prawdziwej predkosci; `--first-turn`, poza ramienia `motions/patrz.json` na start. Symulacja: robot 0.6x wolniejszy
+  trafia w punkty < 0.3 m, bez zdjec chybia > 0.5 m.
+- `camera.py`: bez `lock_auto` odmraza auto-ekspozycje (kamera pamietala 166 -> bialy obraz na sloncu).
+- `estop_server.py`: zabija tez zygzak i calibrate_drive. `tools/arm_hold.py`: poza trzymana do Ctrl+C.
+- Nagrania ogrod1 (329 s) i ogrod2 (235 s), mapy z obu.
+**Nie dziala / otwarte:** mapy rozpadaja sie na kawalki (5-9), ok. 1/3 nagrania poza mapa; ze startu przy plocie brak
+lokalizacji (ogrod1). ogrod2 na zywo niesprawdzona. Zygzak nie jechal. Szyszki w zygzaku niepodpiete. Pi padl raz.
+**Nastepny krok:** zdjecie ze startu na ogrod2; jesli nie lapie - strojenie odometrii RTAB-Map / krotsze nagranie pola.
+**Sprzet:** tak (kamera, ramie w pozie patrz, jazda panelem przy nagraniu; Pi restart)
+Koniec sesji (frane przechodzi na inny laptop): mapy RTAB-Map skopiowane na Pi `~/mapy` (bez raw.db), opis w
+`docs/MAPA.md` ("Na innym laptopie"). PR #50 czeka na review. Kod testowy na Pi w `~/mapa_test` (nie w `~/hackaton`).
+Przekazanie z sesji "Dostep do kamer": Xiao odpiety (leader w jego USB), pulapka 43 (push_to_pi nadpisuje pliki z Pi).
+
+## 2026-09-27 - frane + Claude - research gotowych polityk lerobot
+**Zrobione:** Przegladniete z polki: lerobot (ACT, SmolVLA, MolmoAct2, Flux3), DOT (IliaLarchenko), MolmoAct
+("moloko"). Wynik w `docs/POLICIES_LEROBOT.md`. Skrot: gotowych wag do szyszek nie ma. Jedyny zero-shot pod
+SO-101 to MolmoAct2 (5B, 21.8 GB fp32, lerobot `main`, GPU >= 24 GB) - nie odpali na RTX 3070 8 GB ani na Pi.
+DOT nie zmergowany do lerobot (PR #739 stale), tylko fork ze stara kalibracja - odpada. Realna sciezka: lerobot
+ACT (jest w 0.6.1) na wlasnych ~50 epizodach, inference przez async policy server na laptopie, Pi jako klient;
+SmolVLA fine-tune (Colab) jako plan B. Blokery wspolne: brak leader arm (zamiennik: teleop telefonem
+`lerobot[phone]`, IK na naszym URDF) i tylko jedna kamera, na ramieniu (potrzebna druga, statyczna).
+**Nie dziala / otwarte:** nic nie uruchamiane; decyzja zespolu, czy ML idzie rownolegle do petli z RUNBOOK.
+**Nastepny krok:** jesli tak: `pip install "lerobot[phone]"` na laptopie, kopia `so101.json` z Pi, teleop telefonem
+przy stole z wylacznikiem; potem druga kamera i nagranie 50 epizodow.
+**Sprzet:** nie
+
+## 2026-09-27 - frane + Claude - lerobot do ACT: instalacja laptop + Pi
+**Zrobione:** Decyzja frane: robimy ACT rownolegle do petli deterministycznej; laptop = serwer (trening, policy
+server), Pi = klient robota (teleop telefonem, nagranie, robot_client), bo `placo` (IK teleopu) nie ma kola na
+Windows. Laptop (`.venv`, Python 3.12): torch 2.11.0+cu128 (CUDA widzi RTX 3070 8 GB), lerobot 0.6.1
+[phone,feetech,async], numpy 2.5.3 -> 2.2.6 (pin lerobota), opencv naprawione po konflikcie headless; importy teleopu
+OK; 128 testow zielonych. `so101.json` skopiowany z Pi do cache lerobota na laptopie (MD5 zgodne). Na Pi odtworzony
+`~/hackaton/examples/phone_to_so100/` (skrypty z tagu v0.6.1 + `SO101/` z SO-ARM100: URDF identyczny z repo + 31 STL).
+Dokumentacja: `docs/SETUP.md` sekcja "lerobot do ACT" z komendami i pulapkami (placo/Windows, override torcha na Pi,
+hebi-py tylko sdist, brak `examples/` po pip install). Torch cu128 po hotspocie: ~1 h.
+**Nie dziala / otwarte:** instalacja extras na Pi: pierwszy `uv pip install lerobot[phone,...]` cofal sie po wersjach
+hebi-py (sdist ~92 MB kazdy) i chcial wymienic torch 2.14+cpu na generyczny z PyPI (2 GB CUDA); rozwiazane przez
+`--override` + jawne skladniki extra `phone` (dry-run czysty), ale wlasciwa instalacja padla na "network unreachable"
+przy `cmeel-assimp` - hotspot sie zrestartowal (laptop dostal nowy adres), Pi nie wrocilo do sieci przez 10+ min.
+`pkill -f` przez ssh zabil sam siebie 2x (HARDWARE pulapka 31) - uzywac `pgrep -x uv`. Uwaga: `shoulder_pan` ma w
+kalibracji zakres tylko 1786..2308 tickow (~46 st) - IK z telefonu bedzie ograniczone na boki.
+**Dokonczone w tej samej sesji (10:27-10:38):** przyczyna "znikniecia" Pi: laptop sam przeskoczyl na WiFi
+"hacker-bloc", Pi caly czas bylo na hotspocie pod 172.20.10.4. Po powrocie laptopa na hotspot instalacja na Pi
+przeszla (90 paczek, 4 MB/s): torch 2.14.0+cpu zostal, torchvision 0.29.0+cpu, numpy 2.2.6, placo 0.9.15,
+hebi-py 2.11.0, grpcio. Weryfikacja OK: importy teleopu, IK placo na URDF z examples/, robot_client, pyrealsense2,
+pinecone_bot. Placo ostrzega o samokolizjach URDF w pozie neutralnej (nieszkodliwe).
+Testy repo na Pi po zmianie numpy: 195/202 zielone; 7 czerwonych to NIE numpy, tylko osierocone pliki na Pi z
+niezmergowanego brancha `claude/robot-pinecone-test-plan-e4ca8e` (`tests/test_calibrate_target.py` - 6, wola
+`collect_average`, ktorego nie ma w `tools/calibrate_target.py` na Pi; `tests/test_web_control_estop.py` - 1,
+`/stop` 404 na starszym `web_control.py`, test wisi ~2 min czekajac na HTTP). Katalog `tests/` na Pi to mieszanka
+branchy po kolejnych `push_to_pi.sh` - `deploy/push_to_pi.sh` kopiuje, nie synchronizuje z usuwaniem.
+Notatka Tomka `docs/STACK.md` (branch `tomek/docs-stack`) zgodna z tym opisem: zero ML w glownym stosie, lerobot
+tylko jako sterownik serw. Wspomina `teleop_mirror.py` (leader -> follower, id `so101_leader`) - jesli ramie
+leader fizycznie istnieje, nagrywamy `lerobot-record --teleop.type=so101_leader` i telefon/placo sa zbedne.
+Odpowiedz frane: leader JEST (sala 435 D). Bez kalibracji (brak `so101_leader.json` na Pi i laptopie). Pulapka:
+leader ma ten sam CH343 co follower - regula udev po idVendor/idProduct dalaby obu `/dev/robot-arm`; odczytany serial
+followera `5B41532803`, `deploy/99-robot.rules` rozroznia teraz `robot-arm` (ten serial) i `robot-leader` (inny CH343).
+SETUP.md: sekcja "Wariant z leaderem" (kalibracja TYLKO leadera, teleop test, record lokalnie, train na laptopie).
+**Nastepny krok:** wgrac regule udev na Pi, wpiac leader, `lerobot-calibrate --teleop.*` (bez `--robot.*`),
+`lerobot-teleoperate` z wylacznikiem, potem `lerobot-record` (SETUP.md). Stary plan (gdyby leadera nie bylo): `lerobot-record` z leaderem (moze byc z laptopa,
+bez placo). Jesli nie: `teleoperate.py` na Pi z podmienionym portem (`/dev/robot-arm`), `id="so101"` i kamera,
+z wylacznikiem w rece; iPhone z HEBI Mobile I/O w tej samej sieci co Pi. Potem druga (statyczna) kamera i nagranie.
+**Sprzet:** dotkniety zdalnie (tylko instalacja pakietow i odczyt pliku kalibracji na Pi; ramie i baza nie ruszane)
+
+## 2026-09-27 - frane + Claude - zera stawow vs URDF i kalibracja reka-oko (narzedzia)
+**Zrobione:** Pytanie frane "nie mamy juz ruchu ramienia dla pozycji szczeki?" - nie: IK (`legacy/ik_approach`, ikpy)
+nigdy nie zweryfikowane na sprzecie, zera lerobot vs URDF niesprawdzone (HARDWARE 12), transformata kamera-ramie
+oszacowana. GraspGenX (NVIDIA, generator poz chwytu 6-DOF z chmury punktow) odlozony: potrzebuje IK, kalibracji
+kamera-ramie i segmentacji, a rozwiazuje tylko "gdzie chwycic" (dla szyszki latwe). Zeby to nadrobic, dwa narzedzia:
+`tools/frame_check.py` (dla kazdego stawu ruch +delta, FK placo na URDF, opis przesuniecia koncowki slowami,
+werdykt operatora t/n, raport JSON; `--fake` bez sprzetu) i `tools/hand_eye_calib.py` (marker ArUco -> collect z
+torque off jak record_motion -> AX=XB Park-Martin w numpy (cv2.calibrateHandEye tylko jako kontrola: CI ma OpenCV 5.0
+bez tej funkcji) -> `camera_on_arm.json` = T_gripper_cam, residua, `predict`
+pozycji kamery z FK). Testy: `tests/test_frame_check.py` (5, atrapa ramienia i plaska kinematyka),
+`tests/test_hand_eye_calib.py` (9, syntetyczne AX=XB odzyskuje X z bledem < 0.1 mm, marker syntetyczny wykrywany).
+142 testy zielone. Instrukcja dla sesji przy Pi: `docs/ARM_FRAMES.md`. RUNBOOK: dwa wiersze w tabeli narzedzi.
+**Nie dziala / otwarte:** nic z tego nie odpalone na sprzecie. Osie X/Y podstawy URDF nieznane (Z = gora pewne),
+ustala operator na `shoulder_pan`. placo ostrzega o samokolizjach URDF w pozie neutralnej (nieszkodliwe).
+**Nastepny krok:** sesja przy Pi wg `docs/ARM_FRAMES.md`: push_to_pi, `frame_check.py --fake`, potem z ramieniem
+(wylacznik), potem marker + `hand_eye_calib.py collect/solve`; wyniki do LOG, `camera_on_arm.json` do repo.
+**Sprzet:** nie (tylko odczyt FK na Pi bez ruchu)
+## 2026-09-27 - frane + Claude - wolniejszy skret w panelu
+**Zrobione:** `web_control.py`: `MAX_STEER` 400 -> 200 (A/D w panelu jazdy skreca o polowe wolniej). `MAX_PWM` bez zmian (500).
+**Nie dziala / otwarte:** na branchach `frane/*` jest `MAX_PWM = 100`, na master dalej 500 - do ustalenia, co ma byc na master.
+**Nastepny krok:** sprawdzic skret na robocie, ewentualnie dostroic `MAX_STEER`.
+**Sprzet:** nie
+
+## 2026-09-27 - frane + Claude - trening ACT na laptopie, dataset i wagi na masterze
+**Zrobione:** Od teraz praca prosto na masterze (decyzja frane). Druga sesja nagrala na Pi `so101_grasp2`
+(50 epizodow leaderem, kamera wrist; leader skalibrowany 12:30, kamera to D435 serial 030522070668). Kopia na
+laptop `tar --exclude=tmp*` przez ssh (pierwsza kopia w trakcie nagrywania miala uciety parquet). Dataset na masterze
+w `datasets/so101_grasp2` (wideo Git LFS, 2 pliki po ~197 MB > limit 100 MB GitHuba). Laptop: `lerobot[dataset,
+training]`, CUDA OK. Trening ACT (batch 8, AMP, num_workers 0, pyav): 3 kroki/s po podpieciu zasilacza; loss 26 ->
+5.2 (100) -> 2.65 (500) -> 1.24 (2000). Checkpointy co 1000 na Pi (`~/models/act_so101_grasp2/`), 1000 na masterze
+(`models/`, LFS). Na Pi `ACTPolicy.from_pretrained` 30 s, 0.65 s na paczke 100 akcji (CPU) -> rollout lokalnie.
+`tools/train_win.py` (obejscie symlinku `checkpoints/last`, WinError 1314), pulapki w SETUP.md.
+**Nie dziala / otwarte:** rollout na robocie NIE sprawdzony w tej sesji (komenda w SETUP.md). Pierwszy trening padl
+po checkpoincie 500 (symlink). Laptop na baterii = GPU 210 MHz (krok 1.6 s zamiast 0.14 s). Zabijanie procesow po
+linii polecen trafilo wlasny push (README zawieral te slowa). LFS: 630 MB z 1 GB darmowego limitu zuzyte.
+**Nastepny krok:** rollout checkpointu koncowego na Pi z wylacznikiem; jesli ruch w zla strone - ARM_FRAMES krok 1.
+Wiecej epizodow (`--resume=true`) i druga statyczna kamera, jesli polityka nie generalizuje po polozeniu szyszki.
+**Sprzet:** dotkniety zdalnie (odczyt kamery `lerobot-find-cameras` na Pi, kopiowanie plikow; ramie nie ruszane)
+
 ## 2026-09-26 - pawel120 (Claude) - HOME pod kamere, chwytanie samym ramieniem na zywo
 **Zrobione:** Nowy HOME = poza ustawiona recznie (odczyt `./arm.sh status`): `arm_control.HOME_POSE`, `pinecone_bot/arm.py`, `motions/home.json`; test `grasp_mid` xfail (nagrany pod stary HOME), test STOP panelu jog w dol (HOME przy gornej granicy barku). `pinecone_bot/grasp_table.py` (tabela: piksel szyszki w HOME -> pozy nad/chwyt, najblizsza probka, ruch chwytu) + `WaypointArm.play(motion)`, 7 testow. Na zywo przez ssh stdin (nic nie kopiowane na Pi), skrypty w `tools/live_grasp/`: uczenie reka srodkowej szyszki -> chwyt udany (odczyt chwytaka 6.8, szyszka w szczekach na zdjeciu); celowanie podstawa na obrazie + glebsze zejscie (elbow -4, wrist +8) -> drugi udany chwyt. Automat z kolorem 11 prob, potem z glebia 4 proby: 0 udanych.
 **Nie dziala / otwarte:** (1) serwa: P=16, bark stoi na Max_Position_Limit (surowo 3052 = 88.4 st) - male komendy nie ruszaja, potrzebna korekta calkujaca (jest w skryptach). (2) serwo chwytaka przy scisku do 0 raz zniklo z magistrali ("Missing motor IDs: 6") - trzymac z mniejszym celem. (3) kamera na przedramieniu: szczeki w obrazie zaleza od nadgarstka; w pozycji "nad" przy lewej szczece jest cien stereo (glebia slepa), tam widzi tylko kolor. (4) po zmroku kolor bezuzyteczny (ekspozycja 100 ms, gain max - ciemno); glebia z laserem 360 dziala. (5) duza lezaca szyszka nie miesci sie w szczekach - spychana. (6) Moje bledy: reguly "uczenia" wyciagaly wnioski z zlych pomiarow (bark nie wykonywal komend, koncowka szczeki z mapy wysokosci liczona zle) - parametry dryfowaly zamiast sie poprawiac. Pi: raz OOM (svd bez full_matrices=False na 20k punktow).

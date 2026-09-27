@@ -214,12 +214,132 @@ class SimDrive:
         return self.x, self.y, self.theta
 
     def advance(self, dt: float) -> None:
-        self.theta += self.w * dt
+        s = self.cfg.sim
+        drift = s.drift_w if abs(self.v) > 1e-6 else 0.0
+        self.theta += (self.w * s.turn_gain + drift) * dt
         self.x += self.v * math.cos(self.theta) * dt
         self.y += self.v * math.sin(self.theta) * dt
 
     def close(self) -> None:
         pass
+
+
+class SimXiaoDrive(SimDrive):
+    """
+    Hover przez Xiao, jak zmierzony (cfg.sim.hover_*): skret to PWM b, nie rad/s.
+    Robot stojacy rusza dopiero od |b| >= hover_static_pwm, krecacy sie kreci dalej od hover_kinetic_pwm,
+    powyzej predkosc rosnie o hover_rate_per_pwm na jednostke b; silniki z opoznieniem hover_tau_s.
+    W czasie jazdy do przodu kola juz sie tocza, wiec maly skret dziala bez martwej strefy.
+    set_speed mapuje w -> b tak jak XiaoBase (xiao_steer_min/max z configu); set_raw podaje b wprost.
+    Predkosc do przodu bez modelu: speed_pwm w symulacji = mm/s.
+    """
+
+    ROLL_RATE_PER_PWM = 0.006   # rad/s na jednostke b w czasie jazdy do przodu
+
+    def __init__(self, cfg: Config, **kw):
+        super().__init__(cfg, **kw)
+        self.t = 0.0
+        self.b = 0
+        self.w_act = 0.0
+        self.spinning = False
+        self.history: list[tuple[float, float]] = [(0.0, self.theta)]
+
+    def pwm_for(self, v: float, w: float) -> tuple[int, int]:
+        from .base import XIAO_STEER_LIMIT, xiao_map
+        c, b = self.cfg.control, self.cfg.base
+        v = min(max(v, c.v_min), c.v_max)
+        w = min(max(w, -c.w_max), c.w_max)
+        return int(round(v * 1000)), -xiao_map(w, c.w_max, b.xiao_steer_min, b.xiao_steer_max, XIAO_STEER_LIMIT)
+
+    def set_speed(self, v_mps: float, w_radps: float) -> None:
+        speed, steer = self.pwm_for(v_mps, w_radps)
+        self.set_raw(speed, steer)
+
+    def set_raw(self, speed_pwm: int, steer_pwm: int) -> None:
+        self.v = speed_pwm / 1000.0
+        self.b = int(steer_pwm)
+        self.w = 0.0   # nieuzywane; faktyczny obrot w w_act
+
+    def stop(self) -> None:
+        self.set_raw(0, 0)
+
+    def _target_rate(self) -> float:
+        s = self.cfg.sim
+        mag = abs(self.b)
+        if abs(self.v) > 0.02:
+            r = mag * self.ROLL_RATE_PER_PWM
+        else:
+            if not self.spinning and mag >= s.hover_static_pwm:
+                self.spinning = True
+            if self.spinning and mag < s.hover_kinetic_pwm:
+                self.spinning = False
+            r = max(0.0, mag - s.hover_kinetic_pwm) * s.hover_rate_per_pwm if self.spinning else 0.0
+        return -math.copysign(r, self.b) if self.b else 0.0   # ujemne b = w lewo = kurs rosnie
+
+    def advance(self, dt: float) -> None:
+        s = self.cfg.sim
+        left = float(dt)
+        while left > 1e-9:
+            h = min(0.01, left)
+            target = self._target_rate()
+            self.w_act += (target - self.w_act) * min(1.0, h / max(s.hover_tau_s, 1e-3))
+            if target == 0.0 and abs(self.w_act) < 0.02:
+                self.w_act = 0.0
+                if abs(self.v) <= 0.02:
+                    self.spinning = False
+            drift = s.drift_w if abs(self.v) > 1e-6 else 0.0
+            self.theta += (self.w_act + drift) * h
+            self.x += self.v * math.cos(self.theta) * h
+            self.y += self.v * math.sin(self.theta) * h
+            self.t += h
+            left -= h
+        self.history.append((self.t, self.theta))
+        if len(self.history) > 2000:
+            del self.history[:1000]
+
+
+class SimGyro:
+    """Telefon: kurs z opoznieniem gyro_delay_s, odswiezany co 1/poll_hz (jak odpytywanie phyphox)."""
+
+    def __init__(self, drive: SimXiaoDrive, cfg: Config):
+        self.drive = drive
+        self.delay = cfg.sim.gyro_delay_s
+        self.hz = cfg.heading.poll_hz
+        self.alive = True
+
+    def yaw(self) -> float | None:
+        if not self.alive:
+            return None
+        tq = self.drive.t - self.delay
+        tq = math.floor(tq * self.hz) / self.hz
+        hist = self.drive.history
+        for t, th in reversed(hist):
+            if t <= tq:
+                return th
+        return hist[0][1]
+
+    def close(self) -> None:
+        pass
+
+
+def build_sim_robot(cfg: Config, cones: list | None = None):
+    """
+    (base, world, clock, heading) dla symulacji. Bez cfg.sim.hover: idealny naped i idealny kurs.
+    Z hover: SimXiaoDrive + SimGyro, a gdy jest kurs i heading.rate_loop - petla obrotu na zyroskopie.
+    """
+    from .heading import OdometryHeading
+    from .turn_loop import wrap_with_turn_loop
+
+    if not cfg.sim.hover:
+        drive = SimDrive(cfg)
+        heading = OdometryHeading(drive) if cfg.heading.source != "none" else None
+        base = drive
+    else:
+        drive = SimXiaoDrive(cfg)
+        heading = SimGyro(drive, cfg) if cfg.heading.source != "none" else None
+        base = wrap_with_turn_loop(drive, heading, cfg, clock=lambda: drive.t, thread=False)
+    world = SimWorld(cfg, drive.odometry, cones=cones)
+    return base, world, SimClock(base), heading
 
 
 class SimArmSimple:
