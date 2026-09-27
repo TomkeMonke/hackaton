@@ -11,6 +11,9 @@ zadania i przypisania na tablicy Projects (link nizej). Czego nie ma tutaj albo 
 
 - Ramie SO-101: skalibrowane po naprawie barku, `./arm.sh home|status|open|close`. NIE uruchamiac `lerobot calibrate`.
 - Podwozie: Xiao + panel webowy (`python web_control.py`, WASD, osemka, pokrycie), `drive_step.py` do pojedynczych krokow.
+- Podglad kamery OBOK lerobot: `tools/cam_preview.py lerobot-record|lerobot-rollout ...` (port 8081) - serwer MJPEG
+  w tym samym procesie, podglada `read_latest()` kamery lerobot (nie zajmuje jej drugi raz). `act_pick.py` uzywa go
+  domyslnie. Testy 6 + sprawdzone z prawdziwym lerobot `OpenCVCamera` na laptopie; NA PI z RealSense NIE sprawdzone.
 - Kamera D415: podglad `rs_mjpeg_server.py` (glebia 424x240 -> mniejszy MinZ, bliski dywan ma ciagla glebie), detekcja szyszek z glebi (`scan_cones.py`, rozrzut < 2 mm).
 - Nowy stos `pinecone_bot` (PR #14 + poprawki PR #16): symulacja na laptopie zbiera 5/5 szyszek, 66 testow zielonych.
   Ramie odtwarza nagrane punkty, baza ustawia szyszke z obrazu, maszyna stanow, szukanie pasami. Bez IK, bez ML.

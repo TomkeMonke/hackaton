@@ -763,3 +763,15 @@ Nagrane: `so101_grasp_t2` 2 ep., `so101_grasp` 7 ep., `so101_grasp2` 12+ ep. (30
 `drop_box.json` tylko na Pi. `torchcodec` na Pi nie laduje sie (torch 2.14 vs 0.11) - lerobot uzywa pyav.
 **Nastepny krok:** 50 epizodow, trening na RTX 3070, `act_pick.py --skip-drop`.
 **Sprzet:** dotkniety (ramiona, kamera, pakiety na Pi)
+
+## 2026-09-27 - pawel120 + Claude - podglad kamery w procesie lerobot
+**Zrobione:** `tools/cam_preview.py`: uruchamia komende lerobot (record/rollout/teleoperate) w swoim procesie i
+serwer MJPEG na 8081 obok. Hook na `lerobot.cameras.camera.Camera.__init__` zapisuje kazda kamere, podglad bierze
+`read_latest()` (peek, nie czysci `new_frame_event`, petla sterowania dostaje te same klatki). Przyczyna, dla ktorej
+wczesniej sie nie dalo: kamera na wylacznosc jednego procesu, `rs_mjpeg_server.py` + lerobot = `Couldn't resolve
+requests`. `act_pick.py --preview-port` (domyslnie 8081, 0 = wylacz). Testy: `tests/test_cam_preview.py` (6),
+`test_act_pick.py` (+2), 158 zielonych. Laptop: prawdziwy lerobot `OpenCVCamera` -> hook -> JPEG po HTTP dziala.
+**Nie dziala / otwarte:** nie sprawdzone na Pi z RealSense i `lerobot-record` (obciazenie CPU przy 10 fps podgladu).
+**Nastepny krok:** na Pi `tools/cam_preview.py lerobot-record ...`, otworzyc `http://<IP_PI>:8081/`, sprawdzic, czy
+nie ma `frame is too old` (jesli jest: `--preview-fps 5`).
+**Sprzet:** nie

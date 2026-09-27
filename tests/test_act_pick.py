@@ -7,7 +7,7 @@ from types import SimpleNamespace
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "tools"))
 
-from act_pick import TASK, drop_cmd, main, rollout_cmd  # noqa: E402
+from act_pick import TASK, drop_cmd, main, rollout_cmd, with_preview  # noqa: E402
 
 
 def test_rollout_keeps_torque_and_matches_dataset_camera():
@@ -21,6 +21,20 @@ def test_rollout_keeps_torque_and_matches_dataset_camera():
     assert "wrist:" in cams and "width: 640" in cams and "height: 480" in cams
 
 
+def test_rollout_runs_through_camera_preview_by_default(capsys):
+    assert main(["--policy", "p", "--dry-run", "--skip-drop"], run=None) == 0
+    line = capsys.readouterr().out.splitlines()[0]
+    assert "tools/cam_preview.py --preview-port=8081 lerobot-rollout --strategy.type=base" in line
+
+
+def test_with_preview_keeps_lerobot_args_and_can_be_disabled():
+    cmd = rollout_cmd("/m/act", 12)
+    wrapped = with_preview(cmd, 9000)
+    assert wrapped[1:4] == ["tools/cam_preview.py", "--preview-port=9000", "lerobot-rollout"]
+    assert wrapped[4:] == cmd[1:]
+    assert with_preview(cmd, 0) == cmd
+
+
 def test_drop_goes_home_after():
     cmd = drop_cmd(port="/dev/x")
     assert cmd[1:] == ["tools/arm_play.py", "--motion", "drop_box", "--port", "/dev/x", "--home-after"]
@@ -30,7 +44,7 @@ def test_main_runs_stages_in_order_and_repeats():
     calls = []
 
     def run(cmd, cwd=None):
-        calls.append(cmd[0].rsplit("/", 1)[-1] if "rollout" in cmd[0] else cmd[1])
+        calls.append("lerobot-rollout" if "lerobot-rollout" in cmd else cmd[1])
         return SimpleNamespace(returncode=0)
 
     assert main(["--policy", "p", "--repeat", "2"], run=run) == 0

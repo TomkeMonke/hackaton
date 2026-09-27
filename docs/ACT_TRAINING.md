@@ -17,6 +17,9 @@ pkill -f lerobot; pkill -f arm_web.py; pkill -f web_control.py
 cd ~/hackaton && SVT_LOG=1 .venv/bin/lerobot-record --robot.type=so101_follower --robot.port=/dev/robot-arm --robot.id=so101 --robot.cameras="{ wrist: {type: intelrealsense, serial_number_or_name: 030522070668, width: 640, height: 480, fps: 30}}" --teleop.type=so101_leader --teleop.port=/dev/robot-leader --teleop.id=so101_leader --dataset.repo_id=local/so101_grasp --dataset.root=/home/robot/datasets/so101_grasp2 --dataset.push_to_hub=false --dataset.num_episodes=50 --dataset.episode_time_s=15 --dataset.reset_time_s=5 --play_sounds=false --dataset.single_task="Grasp the pine cone and lift it"
 ```
 
+- Podglad kamery w czasie nagrania (ten sam proces, kamera nie jest zajmowana drugi raz): zamiast
+  `.venv/bin/lerobot-record ...` daj `.venv/bin/python tools/cam_preview.py lerobot-record ...` (reszta bez zmian),
+  w przegladarce `http://<IP_PI>:8081/`. Osobny `rs_mjpeg_server.py` NIE moze chodzic obok lerobot.
 - Dokladanie do istniejacego datasetu: ta sama komenda + `--resume=true`, `--dataset.num_episodes=` ile DOLOZYC.
 - Ruchy tylko po linii `Recording episode N`. `Reset the environment` = przerwa: szyszka w nowe miejsce, leader do HOME.
 - Klawisze: strzalka w prawo = koniec epizodu, w lewo = nagraj od nowa, Esc = koniec (zapisuje).
@@ -74,6 +77,9 @@ cd ~/hackaton
 .venv/bin/python tools/act_pick.py --policy ~/models/act_grasp                # chwyt + sloik + HOME
 .venv/bin/python tools/act_pick.py --policy ~/models/act_grasp --repeat 3
 ```
+
+Podglad kamery w czasie chwytu: `http://<IP_PI>:8081/` (act_pick puszcza rollout przez `tools/cam_preview.py`,
+`--preview-port 0` wylacza). Na czas wrzutu kamera jest zamknieta, obraz wraca przy kolejnym chwycie.
 
 Sam ruch do sloika bez sieci: `.venv/bin/python tools/arm_play.py --motion drop_box --port /dev/robot-arm --home-first`.
 

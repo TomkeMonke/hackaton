@@ -12,6 +12,9 @@ Uzycie (na Pi, z katalogu repo; nic innego nie moze trzymac portu ramienia):
     python tools/act_pick.py --policy ... --repeat 3          # 3 cykle chwyt + wrzut
     python tools/act_pick.py --policy ... --skip-drop         # sam chwyt (test polityki)
 
+Podglad kamery w czasie chwytu: http://<IP_PI>:8081/ (tools/cam_preview.py, --preview-port 0 wylacza).
+W trakcie wrzutu (etap 2) kamera jest zamknieta, strona wznawia obraz przy nastepnym chwycie.
+
 Rollout konczy sie z --robot.disable_torque_on_disconnect=false: ramie trzyma szyszke
 w powietrzu, zanim arm_play przejmie port. Pierwsze uruchomienie z wylacznikiem w rece.
 """
@@ -55,6 +58,17 @@ def rollout_cmd(policy: str, seconds: float, port: str = "/dev/robot-arm", robot
     ]
 
 
+def with_preview(cmd: list, preview_port: int, python: str = ".venv/bin/python") -> list:
+    """Ta sama komenda lerobot, ale przez tools/cam_preview.py: podglad kamery w tym samym procesie.
+
+    preview_port <= 0 = bez podgladu (komenda bez zmian).
+    """
+    if preview_port <= 0:
+        return cmd
+    entry = os.path.basename(cmd[0])
+    return [python, "tools/cam_preview.py", f"--preview-port={preview_port}", entry] + cmd[1:]
+
+
 def drop_cmd(port: str = "/dev/robot-arm", motion: str = "drop_box", python: str = ".venv/bin/python") -> list:
     """Komenda etapu 2: nagrany ruch do sloika i HOME na koniec."""
     return [python, "tools/arm_play.py", "--motion", motion, "--port", port, "--home-after"]
@@ -64,7 +78,8 @@ def plan(args) -> list:
     """Lista komend dla wszystkich cykli (etap 1, etap 2, etap 1, ...)."""
     steps = []
     for _ in range(args.repeat):
-        steps.append(rollout_cmd(args.policy, args.grasp_s, port=args.port, fps=args.fps))
+        steps.append(with_preview(rollout_cmd(args.policy, args.grasp_s, port=args.port, fps=args.fps),
+                                  args.preview_port))
         if not args.skip_drop:
             steps.append(drop_cmd(port=args.port, motion=args.motion))
     return steps
@@ -79,6 +94,8 @@ def main(argv=None, run=subprocess.run) -> int:
     parser.add_argument("--motion", default="drop_box", help="ruch etapu 2 (motions/<name>.json)")
     parser.add_argument("--repeat", type=int, default=1)
     parser.add_argument("--skip-drop", action="store_true", help="tylko etap 1")
+    parser.add_argument("--preview-port", type=int, default=8081,
+                        help="podglad kamery http://<pi>:PORT/ w czasie chwytu (0 = wylacz)")
     parser.add_argument("--dry-run", action="store_true", help="wypisz komendy, nic nie uruchamiaj")
     args = parser.parse_args(argv)
 
