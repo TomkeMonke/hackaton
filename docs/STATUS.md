@@ -27,6 +27,11 @@ zadania i przypisania na tablicy Projects (link nizej). Czego nie ma tutaj albo 
 
 ## Nie dziala / nie sprawdzone
 
+- `tools/drive_calib.py` (branch pawel/drive-calib, draft PR): kalibracja jazdy bez miarki - droga z glebi RealSense
+  do sciany, kat z phyphox, pytanie l/p -> xiao_pwm_*/xiao_steer_*, steer_sign, heading.sign. Testy 9, NA PI NIE
+  uruchomione. Prawdopodobnie dubluje `base_test.py --measure` (pawel/base-calibration), `turn_loop.py`
+  (frane/gyro-rate-loop) i jazde po mapie `zygzak.py` (frane/mapa-d435) - przed uzyciem zdecydowac, co zostaje.
+
 - `pinecone_bot` NIE JECHAL jeszcze na sprzecie. Wszystko ponizej to pierwsze uruchomienie (docs/RUNBOOK.md).
 - Nowy prog HSV (branch, commit 2ba7fc9) NIE jest jeszcze wpisany na Pi - do wypchniecia razem z blokada AWB/ekspozycji (`lock_auto`, sekcja "camera" configu, PR #30), ktora jest na masterze, ale NIE na Pi (`pinecone_bot/camera.py`/`config.py` na Pi sa starsze). Reka w kadrze ma podobny odcien co szyszka (bloby 9000-31500 px, szyszka max ~4000 px) - `max_area_px` 40000 tego nie odrzuca, warto zmniejszyc do ~8000 (niezmienione).
 - `lsusb` zglasza kamere jako D435 (8086:0b07), docs mowia D415 - sprawdzic model.
