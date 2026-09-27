@@ -66,7 +66,7 @@ HTTP_PORT = 8000
 WS_PORT = 8765
 
 MAX_PWM = 100  # was 500; halved 2026-09-26 after the robot drove into the arm over a laggy hotspot
-MAX_STEER = 400
+MAX_STEER = 200
 
 LOOP_DELAY = 0.03  # matches the Arduino's loop delay / well under its 500ms timeout
 

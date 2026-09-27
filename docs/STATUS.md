@@ -74,13 +74,31 @@ zadania i przypisania na tablicy Projects (link nizej). Czego nie ma tutaj albo 
   fizyczny wylacznik dalej w rece. Zatrzask nie blokuje panelu ramienia (:8010) - STOP ramienia idzie raz.
 - Sciezka S w `web_control.py` (POKRYCIE): nawroty naprzemienne (L, P, L...) poprawione w kodzie, NIE jechane na sprzecie.
   Do nastrojenia na trawie: `cov_turn_seconds` (90 st), `cov_forward_seconds`, `cov_lane_seconds`.
+- Polityki uczone (ML): decyzja frane 2026-09-27 - robimy lerobot ACT rownolegle (`docs/POLICIES_LEROBOT.md`, SETUP.md sekcja "lerobot do ACT").
+  Laptop GOTOWY: torch 2.11 cu128 (CUDA na RTX 3070), lerobot 0.6.1 [phone,feetech,async], `so101.json` skopiowany z Pi.
+  Pi GOTOWE: lerobot 0.6.1 + placo (IK), hebi-py/teleop (telefon), grpcio (async client), torchvision; importy i IK na URDF sprawdzone.
+  `~/hackaton/examples/phone_to_so100/` na Pi (skrypty v0.6.1 + SO101 z STL, poza gitem). Teleop telefonem, druga kamera,
+  nagranie datasetu: nic nie odpalone. JEST leader SO-101 (sala 435 D) -> sciezka glowna to `lerobot-record` z leaderem
+  (SETUP.md "Wariant z leaderem"), telefon/placo tylko awaryjnie. Leader bez kalibracji; nowa regula udev `robot-leader`
+  (po serialu CH343) w `deploy/99-robot.rules`, WGRANA na Pi.
+- Zera stawow vs URDF i kamera na ramieniu: `tools/frame_check.py` (FK placo + werdykt operatora) i
+  `tools/hand_eye_calib.py` (marker/collect/solve/predict, AX=XB) gotowe z testami (28), instrukcja `docs/ARM_FRAMES.md`.
+  NIE uruchomione na sprzecie - do zrobienia przez sesje przy Pi. To warunek wstepny dla IK/GraspGenX.
 
 ## Nastepne 3 kroki (w tej kolejnosci)
 
+Dwa tory rownolegle. Tor mapa + zygzak (frane/mapa-d435, `docs/MAPA.md`):
 1. Lokalizacja ze startu: `tools/arm_hold.py patrz`, zdjecie z miejsca startu zygzaka, `localize` na ogrod2. Nie lapie ->
    lepsza mapa (strojenie odometrii RTAB-Map na zewnatrz albo nagranie krotsze i wolniejsze, tylko pole zygzaka).
 2. Zygzak `--dry-run`, potem `--real` na 2 pasach po 2 m (STOP z `~/mapa_test/tools/estop_server.py`, zna zygzak).
 3. Poza ramienia "szukaj" (kamera 38 st w dol) i szyszki w zygzaku (detektor + podjazd z `brain.py`); merge frane/mapa-d435.
+
+Tor ACT / ramie (master):
+0. (sesja przy Pi, rownolegle z ACT) `docs/ARM_FRAMES.md`: `tools/frame_check.py` z wylacznikiem, potem
+   `tools/hand_eye_calib.py collect/solve` z markerem ArUco -> `camera_on_arm.json` do repo.
+1. Wpisac nowy prog HSV na Pi (albo push z brancha po merge) i sprawdzic na zywo; odczytac limity EEPROM barku, potem `tools/arm_play.py --motion grasp_near` z reka na wylaczniku.
+2. Nagrac `drop_box` (`tools/record_motion.py --name drop_box`), dopisac chwyty do `cfg.grasps`, `tools/calibrate_target.py`.
+3. `tools/base_test.py`, `tools/phyphox_check.py` (znak kursu), potem `python -m pinecone_bot.main --dry-run --heading phyphox`, potem `--real` z wylacznikiem w rece.
 
 ## Blokery
 
