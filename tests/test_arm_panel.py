@@ -545,6 +545,8 @@ def test_sloik_motion_stays_in_base_range_and_ends_home():
     assert all(abs(wp.pose["shoulder_pan"]) <= 23.0 for wp in m.waypoints)
     last = m.waypoints[-1].pose
     assert all(last[j] == pytest.approx(HOME_POSE[j]) for j in JOINT_NAMES if j != "gripper")
-    opened = [i for i, wp in enumerate(m.waypoints) if wp.pose["gripper"] >= 90]
-    assert opened, "brak otwarcia chwytaka nad sloikiem"
-    assert all(wp.pose["gripper"] < 10 for wp in m.waypoints[:opened[0]])  # szyszka trzymana do sloika
+    assert any(wp.pose["gripper"] >= 90 for wp in m.waypoints), "brak otwarcia chwytaka nad sloikiem"
+    opening = next(i for i, wp in enumerate(m.waypoints) if wp.pose["gripper"] > 20)
+    assert opening > 0 and all(wp.pose["gripper"] < 10 for wp in m.waypoints[:opening])  # szyszka trzymana do sloika
+    over_jar = m.waypoints[opening].pose
+    assert over_jar["shoulder_pan"] < -15  # sloik przy podstawie ok. -20 st, jak przy nagraniu
