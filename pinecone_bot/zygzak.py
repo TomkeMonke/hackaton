@@ -253,6 +253,8 @@ def main(argv=None) -> int:
     ap.add_argument("--spacing", type=float, default=None, help="odstep pasow m (control.lane_spacing_m)")
     ap.add_argument("--first-turn", choices=["left", "right"], default=None,
                     help="strona pierwszego skretu: z lewego dolnego rogu 'right', z prawego 'left'")
+    ap.add_argument("--no-arm", action="store_true",
+                    help="nie ruszaj ramieniem (kamere trzyma kto inny, np. teleop)")
     ap.add_argument("--save-looks", default="frames/zygzak", help="zapis zdjec z postojow ('' = nie)")
     args = ap.parse_args(argv)
 
@@ -281,6 +283,14 @@ def main(argv=None) -> int:
     loc = MapLocalizer.load(path)
     print("  %d klatek kluczowych" % len(loc.ids))
 
+    arm = None
+    if not args.no_arm:
+        # przed kamera: rozgrzewka auto-ekspozycji ma juz widziec sciany, nie ziemie
+        from .arm import make_arm
+        print("ramie: poza '%s' (kamera na sciany), trzymana do konca jazdy%s" % (
+            cfg.nav.look_motion, " - RAMIE RUSZA SIE TEZ W --dry-run" if args.dry_run else ""))
+        arm = make_arm(cfg, home_on_empty=False)
+        arm.replay(cfg.nav.look_motion)
     camera = make_camera(cfg)
     base, _arm = make_devices(cfg, dry=args.dry_run, no_arm=True)
     heading = make_heading(cfg, base)
@@ -292,6 +302,8 @@ def main(argv=None) -> int:
         heading.close()
         camera.close()
         base.close()
+        if arm is not None:
+            arm.close()
         return 2
     if not args.dry_run:
         base = wrap_with_turn_loop(base, heading, cfg)
@@ -307,6 +319,8 @@ def main(argv=None) -> int:
         base.close()
         heading.close()
         camera.close()
+        if arm is not None:
+            arm.close()   # lerobot disconnect puszcza moment - ramie opada
     return 0
 
 

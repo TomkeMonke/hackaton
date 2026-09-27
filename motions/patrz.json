@@ -1,0 +1,11 @@
+{
+  "name": "patrz",
+  "note": "Kamera na ramieniu poziomo przed robota (na sciany/plot) - poza, w ktorej nagrana mapa ogrod1 (2026-09-27, panel arm_web --no-home, wrist_flex jog). Zygzak ustawia ja na starcie i trzyma do konca jazdy.",
+  "waypoints": [
+    {
+      "label": "patrz",
+      "pose": {"shoulder_pan": -6.0, "shoulder_lift": 2.0, "elbow_flex": 93.0, "wrist_flex": -96.0, "wrist_roll": 87.0, "gripper": 1.3},
+      "seconds": 3.0
+    }
+  ]
+}

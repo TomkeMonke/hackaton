@@ -28,7 +28,7 @@ R_BASE_OPT = np.array([[0.0, 0.0, 1.0],
                        [-1.0, 0.0, 0.0],
                        [0.0, -1.0, 0.0]])
 
-DEPTH_MIN_M, DEPTH_MAX_M = 0.3, 4.0
+DEPTH_MIN_M, DEPTH_MAX_M = 0.3, 6.0
 
 
 @dataclass

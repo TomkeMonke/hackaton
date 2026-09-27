@@ -164,6 +164,7 @@ class NavConfig:
     (control.search_drive_v razy speed_scale, poprawiany po kazdym zdjeciu). Pasy: control.lane_*.
     """
     map_features: str = "~/mapy/ogrod1/map_features.npz"
+    look_motion: str = "patrz"     # motions/<nazwa>.json: kamera na sciany, jak przy nagrywaniu mapy
     look_every_m: float = 1.0      # co tyle metrow jazdy stop i zdjecie
     look_settle_s: float = 0.6     # po zatrzymaniu (rozmazanie, kamera na ramieniu sie buja)
     look_retries: int = 3          # nieudana lokalizacja -> obrot o look_turn_deg i jeszcze raz
