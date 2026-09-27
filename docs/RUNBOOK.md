@@ -63,6 +63,7 @@ Kolejnosc ma znaczenie: kazdy krok zapisuje cos, z czego korzysta nastepny.
 | `tools/calibrate_hsv.py`         | Interaktywne strojenie progu HSV, zapis do configu. |
 | `tools/calibrate_target.py`      | Pomiar `cfg.cx` i `grasp.target_row` dla kazdego nagranego chwytu. |
 | `tools/record_waypoints.py`      | Nagrywanie ruchu ramienia (waypointy) recznym ustawianiem serw. |
+| `tools/calibrate_joint.py`       | Kalibracja jednego stawu (np. `shoulder_lift`) zamiast `lerobot calibrate`: odczyt, `--record`, `--write` z kopia. |
 | `tools/frame_check.py`           | Zera i znaki stawow lerobot vs URDF przez FK placo, werdykt operatora na staw (docs/ARM_FRAMES.md). |
 | `tools/hand_eye_calib.py`        | Kalibracja reka-oko kamery na ramieniu (ArUco + AX=XB w numpy) -> `camera_on_arm.json`. |
 | `tools/arm_play.py`              | Odtworzenie jednego nagranego ruchu (do testu bez calej petli). |

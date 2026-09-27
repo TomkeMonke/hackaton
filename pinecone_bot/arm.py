@@ -49,12 +49,12 @@ JOINT_NAMES = [
 # WaypointArm.home() uzywa arm_control.HOME_POSE (zrodlo prawdy); ta kopia
 # sluzy tylko do motions/home.json i do dry-run bez lerobot.
 HOME_POSE = {
-    "shoulder_pan": 1.27,
-    "shoulder_lift": -85.05,
-    "elbow_flex": 99.0,
-    "wrist_flex": -102.11,
-    "wrist_roll": 89.10,
-    "gripper": 1.69,
+    "shoulder_pan": -5.45,
+    "shoulder_lift": 88.92,
+    "elbow_flex": 7.56,
+    "wrist_flex": -87.87,
+    "wrist_roll": 88.88,
+    "gripper": 41.06,
 }
 
 GRIPPER_OPEN = 100.0   # arm_control: gripper 0 = zamkniety, 100 = otwarty
@@ -333,7 +333,10 @@ class WaypointArm:
     # --- interfejs ---------------------------------------------------------
 
     def replay(self, name: str) -> bool | None:
-        motion = load_motion(self.cfg.arm.motions_dir, name)
+        return self.play(load_motion(self.cfg.arm.motions_dir, name))
+
+    def play(self, motion: Motion) -> bool | None:
+        """Jak replay, ale ruch z pamieci (np. chwyt z tabeli uczenia, pinecone_bot/grasp_table.py)."""
         result: bool | None = None
         log.info("replay '%s': %d waypointow, %.1f s", motion.name, len(motion.waypoints), motion.total_seconds)
         for wp in motion.waypoints:

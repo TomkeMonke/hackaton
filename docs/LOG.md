@@ -875,6 +875,31 @@ ustala operator na `shoulder_pan`. placo ostrzega o samokolizjach URDF w pozie n
 **Nastepny krok:** sprawdzic skret na robocie, ewentualnie dostroic `MAX_STEER`.
 **Sprzet:** nie
 
+## 2026-09-27 - frane + Claude - ACT: leader, nagrywanie, act_pick
+**Zrobione:** leader na Pi (`/dev/robot-leader`, zamiast kabla hovera), kalibracja leadera skopiowana z followera
+(decyzja frane) + gripper `calibrate_joint.py`. `motions/drop_box.json` nagrany na Pi, przyciety od t8.40, powrot tym
+samym torem bez postoju (15 s; kopie `drop_box_full/_oneway/_old.json`). Na Pi `lerobot[dataset]` (override torch
+2.14 cpu). Undervoltage przy 2 ramionach + kamerze: `frame is too old` w lerobot-record, potem Bus error - uszkodzone
+`pyarrow` i `av` (sprawdzone hashami RECORD calego venv), przeinstalowane; nowe zasilanie -> `throttled=0x0`.
+Nagrane: `so101_grasp_t2` 2 ep., `so101_grasp` 7 ep., `so101_grasp2` 12+ ep. (30 fps, 449 klatek/ep.).
+`tools/act_pick.py` + `tests/test_act_pick.py` (5), 150 testow zielonych.
+**Nie dziala / otwarte:** czesc osi leadera odwrocona (nie poprawione, `drive_mode` w pliku leadera). Brak wag ACT.
+`drop_box.json` tylko na Pi. `torchcodec` na Pi nie laduje sie (torch 2.14 vs 0.11) - lerobot uzywa pyav.
+**Nastepny krok:** 50 epizodow, trening na RTX 3070, `act_pick.py --skip-drop`.
+**Sprzet:** dotkniety (ramiona, kamera, pakiety na Pi)
+
+## 2026-09-27 - pawel120 + Claude - podglad kamery w procesie lerobot
+**Zrobione:** `tools/cam_preview.py`: uruchamia komende lerobot (record/rollout/teleoperate) w swoim procesie i
+serwer MJPEG na 8081 obok. Hook na `lerobot.cameras.camera.Camera.__init__` zapisuje kazda kamere, podglad bierze
+`read_latest()` (peek, nie czysci `new_frame_event`, petla sterowania dostaje te same klatki). Przyczyna, dla ktorej
+wczesniej sie nie dalo: kamera na wylacznosc jednego procesu, `rs_mjpeg_server.py` + lerobot = `Couldn't resolve
+requests`. `act_pick.py --preview-port` (domyslnie 8081, 0 = wylacz). Testy: `tests/test_cam_preview.py` (6),
+`test_act_pick.py` (+2), 158 zielonych. Laptop: prawdziwy lerobot `OpenCVCamera` -> hook -> JPEG po HTTP dziala.
+**Nie dziala / otwarte:** nie sprawdzone na Pi z RealSense i `lerobot-record` (obciazenie CPU przy 10 fps podgladu).
+**Nastepny krok:** na Pi `tools/cam_preview.py lerobot-record ...`, otworzyc `http://<IP_PI>:8081/`, sprawdzic, czy
+nie ma `frame is too old` (jesli jest: `--preview-fps 5`).
+**Sprzet:** nie
+
 ## 2026-09-27 - frane + Claude - trening ACT na laptopie, dataset i wagi na masterze
 **Zrobione:** Od teraz praca prosto na masterze (decyzja frane). Druga sesja nagrala na Pi `so101_grasp2`
 (50 epizodow leaderem, kamera wrist; leader skalibrowany 12:30, kamera to D435 serial 030522070668). Kopia na
@@ -917,4 +942,39 @@ z `rs_mjpeg_server.py`, `pinecone_bot.main` ani `lerobot-record` (wtedy `--visio
 Stan maszyny stanow (SEARCH/APPROACH/...) w panelu jest schematem, nie na zywo: `brain.py` nie wystawia stanu po HTTP.
 **Nastepny krok:** na Pi `deploy/push_to_pi.sh` (po merge), `python tools/robot_panel.py --autostart`, otworzyc
 `http://<IP_PI>:8090`, sprawdzic kamere, jog i WASD z wylacznikiem w rece; potem ewentualnie jako usluga systemd.
+**Sprzet:** nie
+
+## 2026-09-26 - pawel120 (Claude) - robot wjechal w ramie; cofniety heartbeat z klawiszami, predkosc /2
+**Zrobione:** Po wdrozeniu PR #33 (heartbeat niosl stan klawiszy) robot przy duzym opoznieniu hotspotu wjechal w ramie i je uszkodzil. Prawdopodobna przyczyna (Claude): opoznione heartbeaty dochodza seriami, stare "W wcisniete" po failsafe znow uruchamialy jazde, a puszczenie W przychodzilo pozniej. Dead-man mierzy czas DOTARCIA wiadomosci, wiec spoznione wiadomosci wygladaja na swieze. Cofniete: heartbeat to znow goly ping (po failsafe trzeba wcisnac klawisz od nowa). `web_control.py` MAX_PWM 500 -> 250, panel ramienia krok 2 -> 1 st/tick (chwytak 4 -> 2). Zdalny STOP po awarii nie doszedl: Pi przestal odpowiadac (ping 100% strat).
+**Nie dziala / otwarte:** ramie uszkodzone - ocena. `shoulder_lift` czyta 116-128 st przy zakresie +-91.6, a wedlug uzytkownika staw jest fizycznie w zakresie -> podejrzenie rozjazdu Homing_Offset w serwie vs so101.json. Dodane `tools/calibrate_joint.py` (za zgoda uzytkownika): kalibracja JEDNEGO stawu bez `lerobot calibrate` - domyslnie tylko odczyt (rejestry serwa vs plik), `--record S` (torque OFF na stawie, reczny przejazd przez caly zakres, propozycja offsetu/limitow), `--write` (EEPROM + wpis stawu w so101.json po wpisaniu TAK, z kopia pliku). Matematyka sprawdzona na przypadku z 2026-09-25 (offset 1977, zakres ~1056..3039). NIE uruchomione - Pi nie odpowiada. Jazda po hotspocie z opoznieniem > 1 s jest niebezpieczna niezaleznie od kodu: dead-man nie odroznia spoznionych komend.
+**Nastepny krok:** ogledziny ramienia; Pi na dobrym zasilaniu; zanim ktos pojedzie zdalnie - znaczniki czasu w komendach jazdy (odrzucac spoznione) albo jazda tylko w zasiegu wzroku z wylacznikiem.
+**Sprzet:** dotkniety (robot wjechal w ramie - uszkodzenie)
+
+## 2026-09-26 - pawel120 (Claude) - HOME pod kamere, chwytanie samym ramieniem na zywo
+**Zrobione:** Nowy HOME = poza ustawiona recznie (odczyt `./arm.sh status`): `arm_control.HOME_POSE`, `pinecone_bot/arm.py`, `motions/home.json`; test `grasp_mid` xfail (nagrany pod stary HOME), test STOP panelu jog w dol (HOME przy gornej granicy barku). `pinecone_bot/grasp_table.py` (tabela: piksel szyszki w HOME -> pozy nad/chwyt, najblizsza probka, ruch chwytu) + `WaypointArm.play(motion)`, 7 testow. Na zywo przez ssh stdin (nic nie kopiowane na Pi), skrypty w `tools/live_grasp/`: uczenie reka srodkowej szyszki -> chwyt udany (odczyt chwytaka 6.8, szyszka w szczekach na zdjeciu); celowanie podstawa na obrazie + glebsze zejscie (elbow -4, wrist +8) -> drugi udany chwyt. Automat z kolorem 11 prob, potem z glebia 4 proby: 0 udanych.
+**Nie dziala / otwarte:** (1) serwa: P=16, bark stoi na Max_Position_Limit (surowo 3052 = 88.4 st) - male komendy nie ruszaja, potrzebna korekta calkujaca (jest w skryptach). (2) serwo chwytaka przy scisku do 0 raz zniklo z magistrali ("Missing motor IDs: 6") - trzymac z mniejszym celem. (3) kamera na przedramieniu: szczeki w obrazie zaleza od nadgarstka; w pozycji "nad" przy lewej szczece jest cien stereo (glebia slepa), tam widzi tylko kolor. (4) po zmroku kolor bezuzyteczny (ekspozycja 100 ms, gain max - ciemno); glebia z laserem 360 dziala. (5) duza lezaca szyszka nie miesci sie w szczekach - spychana. (6) Moje bledy: reguly "uczenia" wyciagaly wnioski z zlych pomiarow (bark nie wykonywal komend, koncowka szczeki z mapy wysokosci liczona zle) - parametry dryfowaly zamiast sie poprawiac. Pi: raz OOM (svd bez full_matrices=False na 20k punktow).
+**Nastepny krok:** przy dziennym swietle: uczyc reka 2-3 szyszki (nad/chwyt) z zapisem zdjecia z pozycji "nad"; punkt celowania brac z tych zdjec, dopiero potem `tools/live_grasp/run.sh`. Wgrac nowy HOME na Pi (scp arm_control.py, pinecone_bot/arm.py, motions/home.json).
+**Sprzet:** dotkniety (ramie: ruchy na zywo, torque wylaczony na koniec; kamera: ustawienia lasera tylko w sesji)
+## 2026-09-26 (noc) - pawel120 (Claude) - chwytanie z demonstracji, dom
+**Zrobione:** Nagranie ruchu reka (2 min, 9 cykli chwyt -> sloik, stawy 30 Hz + zdjecia) i odtworzenie cyklu na ramieniu. Dwie sesje uczenia (robot robi zdjecie glebi w HOME, czlowiek chwyta reka, zapis pozy przy zacisku): 20 chwytow, 8 jednoznacznych. Model liniowy szyszka (kamera HOME) -> stawy, `pick.py` / `pick_loop.py` z poprawka po przepchnieciu. Proba korekty w pozie chwytu (`grasp_servo.py`) i podejscia od gory. Wszystko w `tools/live_grasp/` + `pi.sh` (ssh stdin, bez plikow na Pi), dane bez zdjec w `tools/live_grasp/data/`, instrukcja `docs/LIVE_GRASP.md`.
+**Nie dziala / otwarte:** 0 udanych autonomicznych chwytow (ok. 15 prob): model ma blad ok. 6 cm (zostaw-jedna), szczeki trafiaja obok albo spychaja szyszke. Kamera na przedramieniu nie widzi szyszki, gdy szczeki sa nad nia. Etykiety sesji 1-2 niepewne (znikalo kilka szyszek naraz), rozne style chwytu. Kinematyka URDF nie zgadza sie z ramieniem (wysokosc szczek przy ziemi rozrzucona o 5 cm). Podstawa: limit EEPROM +-23 st. Pi raz sie zrestartowal (zasilanie z powerbanku).
+**Nastepny krok:** `docs/LIVE_GRASP.md`: czyste uczenie `teach_clean.py` (1 szyszka naraz, jeden styl, 12 pozycji, swiatlo), `fit.py`, test `pick.py`. Alternatywa: kamera na maszt.
+**Sprzet:** dotkniety (ramie: ruchy na zywo, torque wlaczony w HOME na koniec; kamera tylko odczyt)
+
+## 2026-09-26 - pawel120 (Claude) - poradnik odpalania panelu (docs/PANEL.md)
+**Zrobione:** Polaczenie z Pi krok po kroku i odpalenie paneli spisane w `docs/PANEL.md` (hotspot iPhone / kabel, szukanie IP, dwa terminale SSH: `web_control.py` + `tools/arm_web.py`, przegladarka, konczenie pracy, tabela bledow z dzisiejszej sesji). Link w README, notka w `docs/SETUP.md`, ze WiFi na Pi juz dziala. Na Pi: 136 testow zielonych, `./arm.sh status` OK.
+**Nie dziala / otwarte:** `robot-web.service` nie zainstalowany (brak autostartu). Na Pi lezy `tests/test_calibrate_target.py` z niezmergowanego brancha `claude/robot-pinecone-test-plan-e4ca8e` (6 bledow, pomijac `--ignore`). `push_to_pi.sh` bez rsync nie usuwa starych plikow.
+**Nastepny krok:** zainstalowac autostart (`deploy/setup_pi.sh` krok 7) albo zostac przy recznym starcie w tmux.
+**Sprzet:** dotkniety (Pi: SSH, testy, start paneli przez uzytkownika; Claude tylko odczyt stanu)
+
+## 2026-09-27 - pawel120 + Claude - drive_calib (kalibracja jazdy bez miarki)
+**Zrobione:** `tools/drive_calib.py` + `tests/test_drive_calib.py` (9, cale tests zielone): 2x prosto (glebia
+RealSense do sciany przed/po), 2x obrot (phyphox, na zmiane lewo/prawo), pytanie operatora l/p; dopasowanie prostej
+pwm = p0 + s*v -> xiao_pwm_min/max i xiao_steer_min/max, znaki steer_sign i heading.sign, `--write` do configu.
+**Nie dziala / otwarte:** nie uruchomione na Pi. Dopiero po napisaniu znalezione istniejace prace na niezmergowanych
+branchach: `pawel/base-calibration` (base_test --measure, landmarks.py), `frane/gyro-rate-loop` (turn_loop.py: stala
+tabela w->PWM nie opisze hovera), `frane/mapa-d435` (localize.py + zygzak.py, jazda po mapie RTAB-Map). Pulapka:
+bez rsync `deploy/push_to_pi.sh` idzie przez scp i nadpisuje na Pi `motions/drop_box.json` (tylko na Pi) placeholderem.
+**Nastepny krok:** zdecydowac, ktora kalibracja/jazda zostaje (raczej zygzak po mapie z frane/mapa-d435); Xiao
+wpiac z powrotem (teraz w jego USB jest leader), test na robocie z wylacznikiem.
 **Sprzet:** nie

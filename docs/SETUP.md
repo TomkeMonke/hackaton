@@ -225,6 +225,10 @@ ktorych w repo nie ma). Skrypty maja w srodku port `/dev/tty.usbmodem...`,
 
 ### Jak sie polaczyc z Pi
 
+> Aktualizacja 2026-09-26: WiFi na Pi dziala (hotspot iPhone, Maximize
+> Compatibility ON). Aktualny poradnik polaczenia i odpalania panelu:
+> `docs/PANEL.md`. Ponizej opis kabla ethernet (dalej dziala jako zapas).
+
 - Kabel ethernet laptop<->Pi (adapter USB-Ethernet w laptopie). Pi ma
   **statyczne IP `192.168.137.5`** (ustawione przez `nmcli` na "Wired
   connection 1"), laptop `192.168.137.1` (Windows ICS - Internet

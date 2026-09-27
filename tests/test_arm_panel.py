@@ -222,7 +222,7 @@ def test_motion_list_and_replay():
 
 def test_stop_interrupts_motion_and_clears_queue():
     panel, arm, clock = make_panel()
-    panel.submit({"cmd": "jog", "joint": "shoulder_lift", "step": 10})
+    panel.submit({"cmd": "jog", "joint": "shoulder_lift", "step": -10})
     panel.submit({"cmd": "jog", "joint": "elbow_flex", "step": 10})
     start = arm.pose["shoulder_lift"]
     ticks = {"n": 0}
@@ -237,12 +237,12 @@ def test_stop_interrupts_motion_and_clears_queue():
     clock.hook = None
     assert "przerwane" in panel.last_result
     moved = arm.pose["shoulder_lift"] - start
-    assert 0 < moved < 10
+    assert -10 < moved < 0  # w dol: HOME jest blisko gornej granicy shoulder_lift
     assert not panel.process_one(), "STOP musi wyczyscic kolejke"
     # po STOP nowe komendy dzialaja i startuja od miejsca zatrzymania
-    assert panel.submit({"cmd": "jog", "joint": "shoulder_lift", "step": 1})[0]
+    assert panel.submit({"cmd": "jog", "joint": "shoulder_lift", "step": -1})[0]
     panel.process_one()
-    assert arm.pose["shoulder_lift"] == pytest.approx(start + moved + 1)
+    assert arm.pose["shoulder_lift"] == pytest.approx(start + moved - 1)
 
 
 def test_stop_interrupts_waypoint_replay():
@@ -501,6 +501,8 @@ def test_jog_back_into_range_allowed_when_slightly_outside():
     panel.process_one()
     assert panel.last_error is None
     assert lo <= arm.pose["wrist_roll"] <= lo + 5.0
+
+
 def test_default_speed_is_halved():
     # 2026-09-26: po wjechaniu robota w ramie predkosc panelu zmniejszona o polowe
     from pinecone_bot.arm_panel import DEFAULT_MAX_STEP
