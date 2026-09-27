@@ -1,5 +1,5 @@
 """
-Awaryjny STOP w przegladarce na czas testow podwozia (base_test.py, pinecone_bot.main).
+Awaryjny STOP w przegladarce na czas testow podwozia (base_test.py, pinecone_bot.main, pinecone_bot.zygzak).
 
 Panel web_control.py trzyma port Xiao, wiec nie moze chodzic rownolegle z testami.
 Ten serwer portu nie trzyma: STOP zabija procesy testowe (bez nich Xiao i tak staje
@@ -20,7 +20,8 @@ import serial
 
 PORT = int(os.environ.get("ESTOP_PORT", "8001"))
 DRIVE_PORT = os.environ.get("ROBOT_DRIVE_PORT", "/dev/robot-drive")
-TARGETS = ("tools/base_test.py", "pinecone_bot.main", "tools/calibrate_turn.py")
+TARGETS = ("tools/base_test.py", "pinecone_bot.main", "pinecone_bot.zygzak", "tools/calibrate_turn.py",
+           "tools/calibrate_drive.py")
 
 PAGE = b"""<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>STOP</title><style>
