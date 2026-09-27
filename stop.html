@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="theme-color" content="#0f1115" />
+<title>Robot STOP</title>
+<style>
+  /* Wylacznik z telefonu: jeden przycisk. Serwer: web_control.py (POST /api/estop). */
+  :root {
+    color-scheme: dark;
+    --bg: #0f1115;
+    --bg-latched: #3a0d0b;
+    --stop: #ff3b30;
+    --stop-down: #c9241b;
+    --text: #f2f3f5;
+    --muted: #9aa0aa;
+    --ok: #35c759;
+    --warn: #ffcc00;
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    margin: 0;
+    font-family: -apple-system, Segoe UI, Roboto, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    display: flex;
+    flex-direction: column;
+    padding: max(12px, env(safe-area-inset-top)) 16px max(16px, env(safe-area-inset-bottom));
+    -webkit-user-select: none; user-select: none;
+    -webkit-tap-highlight-color: transparent;
+    overscroll-behavior: none;
+  }
+  body.latched { background: var(--bg-latched); }
+  .bar { font-size: 15px; line-height: 1.4; text-align: center; min-height: 44px; }
+  #link.ok { color: var(--ok); }
+  #link.lost {
+    color: #111; background: var(--warn); border-radius: 8px;
+    padding: 6px 8px; font-weight: 700;
+  }
+  #robot { color: var(--muted); margin-top: 4px; }
+  body.latched #robot { color: var(--text); font-weight: 700; }
+  main { flex: 1; display: flex; align-items: center; justify-content: center; }
+  #stop {
+    width: min(86vw, 62vh); height: min(86vw, 62vh);
+    border-radius: 50%;
+    border: 10px solid rgba(255, 255, 255, 0.9);
+    background: var(--stop);
+    color: #fff;
+    font-size: min(18vw, 13vh); font-weight: 900; letter-spacing: 0.04em;
+    box-shadow: 0 10px 40px rgba(255, 59, 48, 0.45);
+    touch-action: manipulation;
+    cursor: pointer;
+  }
+  #stop:active, #stop.sending { background: var(--stop-down); transform: scale(0.97); }
+  #stop.sending { font-size: min(9vw, 6vh); }
+  #release {
+    display: none;
+    width: 100%; padding: 16px;
+    border: 1px solid #5a2a27; border-radius: 12px;
+    background: #22262f; color: var(--text);
+    font-size: 16px; font-weight: 600;
+  }
+  body.latched #release { display: block; }
+  .hint { font-size: 12px; color: var(--muted); text-align: center; margin-top: 10px; line-height: 1.4; }
+</style>
+</head>
+<body>
+  <div class="bar">
+    <div id="link">lacze: sprawdzam...</div>
+    <div id="robot"></div>
+  </div>
+  <main>
+    <button id="stop" type="button">STOP</button>
+  </main>
+  <button id="release" type="button">ODBLOKUJ (robot znow moze jechac)</button>
+  <div class="hint">
+    STOP zeruje jazde, przerywa tryby auto i sekwencje, wysyla STOP do ramienia i zostaje zablokowany do ODBLOKUJ.
+    Brak lacza = ta strona nic nie zatrzyma: wylacznik fizyczny.
+  </div>
+
+<script>
+const stopBtn = document.getElementById('stop');
+const releaseBtn = document.getElementById('release');
+const linkEl = document.getElementById('link');
+const robotEl = document.getElementById('robot');
+
+let robot = null;       // ostatni stan z /api/estop
+let lastOk = 0;         // Date.now() ostatniej odpowiedzi serwera
+let rtt = null;         // ms, czas odpowiedzi
+let sending = false;
+let ackMs = null;       // ile trwalo potwierdzenie ostatniego STOP
+let polling = false;
+
+const LINK_LOST_MS = 2000;
+
+function sleep(ms) { return new Promise((r) => setTimeout(r, ms)); }
+
+async function api(method, path, body, timeoutMs) {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), timeoutMs);
+  const t0 = performance.now();
+  try {
+    const resp = await fetch(path, {
+      method,
+      headers: body ? { 'Content-Type': 'application/json' } : {},
+      body: body ? JSON.stringify(body) : undefined,
+      cache: 'no-store',
+      signal: ctrl.signal,
+    });
+    const data = await resp.json();
+    rtt = Math.round(performance.now() - t0);
+    lastOk = Date.now();
+    return { status: resp.status, data };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+function apply(data) {
+  if (data && typeof data.latched === 'boolean') robot = data;
+  render();
+}
+
+function render() {
+  const lost = Date.now() - lastOk > LINK_LOST_MS;
+  linkEl.className = lost ? 'lost' : 'ok';
+  linkEl.textContent = lost
+    ? 'BRAK LACZA Z ROBOTEM - wylacznik fizyczny!'
+    : `lacze OK, ${rtt} ms`;
+
+  const latched = !!(robot && robot.latched);
+  document.body.classList.toggle('latched', latched);
+  if (!robot) robotEl.textContent = '';
+  else if (latched) robotEl.textContent = `ZATRZYMANY (STOP #${robot.id}${ackMs !== null ? `, potwierdzony po ${ackMs} ms` : ''})`;
+  else {
+    const moving = Math.abs(robot.speed) > 0.01 || Math.abs(robot.steer) > 0.01;
+    let txt = moving ? `JEDZIE - tryb ${robot.mode}` : `stoi - tryb ${robot.mode}`;
+    if (robot.failsafe) txt += ' (nikt nie steruje z panelu)';
+    robotEl.textContent = txt;
+  }
+  if (robot && !robot.connected) robotEl.textContent += ' | Arduino niepodlaczone';
+
+  stopBtn.classList.toggle('sending', sending);
+  stopBtn.textContent = sending ? 'WYSYLAM...' : 'STOP';
+}
+
+async function sendStop() {
+  if (navigator.vibrate) navigator.vibrate(150);
+  if (sending) return;
+  sending = true;
+  ackMs = null;
+  render();
+  const t0 = performance.now();
+  // Ponawiaj do skutku: na hotspocie pojedyncze zadanie potrafi zginac.
+  for (;;) {
+    try {
+      const r = await api('POST', '/api/estop', {}, 1000);
+      if (r.status === 200) {
+        ackMs = Math.round(performance.now() - t0);
+        apply(r.data);
+        break;
+      }
+    } catch (e) { /* timeout / brak sieci - ponow */ }
+    render();
+    await sleep(100);
+  }
+  sending = false;
+  render();
+}
+
+async function release() {
+  if (!robot || !robot.latched) return;
+  if (!confirm('Odblokowac? Robot znow bedzie mogl jechac z panelu.')) return;
+  try {
+    const r = await api('POST', '/api/estop_release', { id: robot.id }, 2000);
+    apply(r.data);
+    if (r.status !== 200) alert(`Nie odblokowano: ${r.data.msg}`);
+  } catch (e) {
+    alert('Brak odpowiedzi robota - nie odblokowano.');
+  }
+}
+
+async function poll() {
+  if (polling) return;
+  polling = true;
+  try {
+    const r = await api('GET', '/api/estop', null, 1500);
+    apply(r.data);
+  } catch (e) {
+    render();
+  } finally {
+    polling = false;
+  }
+}
+
+// pointerdown zamiast click: dziala od razu przy dotknieciu, bez czekania na puszczenie palca
+stopBtn.addEventListener('pointerdown', (e) => { e.preventDefault(); sendStop(); });
+stopBtn.addEventListener('keydown', (e) => { if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); sendStop(); } });
+releaseBtn.addEventListener('click', release);
+
+setInterval(poll, 500);
+setInterval(render, 500);
+poll();
+</script>
+</body>
+</html>

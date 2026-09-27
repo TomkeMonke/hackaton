@@ -102,6 +102,11 @@ class ArmConfig:
     motions_dir: str = "motions"
     subprocess_cmd: str = "python legacy/arm_recordings/replay_demo.py --port {port}"
     empty_gripper_below: float = 6.0  # odczyt gripper.pos po zamknieciu ponizej tego = pusty chwytak
+    # Jog XYZ w panelu (pinecone_bot/kinematics.py): kat URDF = znak * kat lerobot + offset.
+    # Offsety wpisuje przycisk "ZERO URDF" w panelu (ramie wyprostowane poziomo do przodu).
+    urdf_path: str = "so101_urdf/so101_new_calib.urdf"
+    urdf_sign: dict = field(default_factory=dict)        # {joint: +1/-1}, brak = +1
+    urdf_offset_deg: dict = field(default_factory=dict)  # {joint: st}, brak = 0
 
 
 @dataclass

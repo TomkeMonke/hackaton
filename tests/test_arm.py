@@ -361,3 +361,20 @@ def test_make_arm_dispatch():
     cfg = make_cfg("nope")
     with pytest.raises(ValueError):
         make_arm(cfg)
+
+
+def test_waypoint_replay_empty_without_home_on_empty_stays_put():
+    """Panel --no-home (kamera na ramieniu): po pustym chwycie tylko otwarcie chwytaka, bez HOME."""
+    fake = FakeArm(gripper_reading=2.0)
+    clock = FakeClock()
+    ctl = WaypointArm(make_cfg(), arm=fake, sleep=clock.sleep, clock=clock.now, home_on_empty=False)
+    motion = load_motion(MOTIONS_DIR, "grasp_mid")
+
+    assert ctl.replay("grasp_mid") is False
+
+    check = next(i for i, wp in enumerate(motion.waypoints) if wp.check_gripper)
+    close_pose = {f"{j}.pos": v for j, v in motion.waypoints[check].pose.items()}
+    idx = next(i for i, a in enumerate(fake.actions) if a == pytest.approx(close_pose))
+    after = fake.actions[idx + 1:]
+    assert after and all(set(a) == {"gripper.pos"} for a in after), "po zacisku tylko chwytak, zadnego HOME"
+    assert after[-1]["gripper.pos"] == pytest.approx(GRIPPER_OPEN)

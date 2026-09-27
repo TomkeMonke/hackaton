@@ -588,6 +588,37 @@ Panel jazdy i ramienia w jednym miejscu: UI ramienia w `arm_panel.js`, montowane
 **Nastepny krok:** restart obu serwerow na Pi z nowym kodem (ramie trzymane - connect zdejmuje na chwile torque); test jazdy W.
 **Sprzet:** dotkniety (Pi: serwery paneli; ramie i baza nie ruszane przez Claude)
 
+## 2026-09-26 - Kajud (Claude) - panel: nagrywanie ruchu i sekwencje jazda+ramie
+**Zrobione:** Zbieranie szyszek "na sztywno" z panelu jazdy (:8000), bez pisania kodu. Ramie: `pinecone_bot/arm_panel.py` dostal szkic waypointow (`add_point` = biezaca poza: przeguby z odczytu serw, chwytak z ostatniej komendy; `drop_point`, `clear_points`, `save_motion` -> `motions/<nazwa>.json` w formacie `record_waypoints.py`, nadpisanie tylko jawne), UI w `arm_panel.js` (sekcja "NAGRYWANIE RUCHU"). `--no-home` pozwala teraz odtwarzac ruchy z motions/ (do sekwencji), ale `WaypointArm(home_on_empty=False)`: po pustym chwycie tylko otwarcie chwytaka, bez HOME (kamera na ramieniu). Sekwencje: nowy `pinecone_bot/sequence.py` (kroki drive/arm/wait, walidacja, `sequences/<nazwa>.json`, `SequenceRunner` z wstrzykiwanymi funkcjami, STOP w <=0.1 s), `web_control.py` tryb "sequence" (runner w watku, kroki ramienia przez HTTP do `tools/arm_web.py`, env `ROBOT_ARM_PANEL`; failsafe/STOP/zmiana trybu przerywa, zeruje jazde i wysyla STOP do ramienia; `drive_step` do testu pojedynczego kroku), sekcja "SEKWENCJA" w `frontend.html` (szkic w localStorage, zapis/odtworz/edytuj/usun, podglad biezacego kroku). `deploy/push_to_pi.sh` kopiuje `sequences/`. Testy: `tests/test_sequence.py` (12), +5 w `test_arm_panel.py`, +1 w `test_arm.py`; razem 135 zielonych. Sprawdzone w przegladarce na atrapie (`arm_web.py --fake` + `web_control.py` bez Xiao): nagranie 2-punktowego ruchu, sekwencja jazda 2 s -> ruch -> czekaj przeszla, STOP w trakcie kroku ramienia przerwal obie strony.
+**Nie dziala / otwarte:** nic z tego nie ruszalo na sprzecie. Kroki jazdy sa "na czas" (open-loop): powtarzalnosc zalezy od baterii i podloza, PWM -> m/s nadal niezmierzone. Stare ruchy (`grasp_mid`, `home`, `drop_box`) koncza w HOME - w trybie `--no-home` odtwarzac tylko ruchy nagrane pod obecny montaz (UI ostrzega). Przy hotspocie failsafe heartbeatu przerwie sekwencje tak samo jak jazde reczna.
+**Nastepny krok:** na Pi restart obu serwerow z mastera, jog + nagranie `grasp_cam` z panelu (czlowiek przy wylaczniku), potem sekwencja: podjazd 1-2 s -> `grasp_cam` -> cofniecie; zmierzyc ile cm daje 0.3 x 2 s.
+**Sprzet:** nie
+
+## 2026-09-26 - pawel120 (Claude) - jog XYZ ramienia w panelu
+**Zrobione:** `pinecone_bot/kinematics.py`: FK z URDF `so101_new_calib.urdf` (numpy, bez ikpy) i krok IK (DLS) dla TCP (gripper_frame_link): przesuniecie o 5/10/20 mm w osiach bazy, pochylenie chwytaka bez zmian. Panel ramienia: sekcja JOG XYZ (GORA/DOL/PRZOD/TYL/LEWO/PRAWO), odczyt TCP, przycisk ZERO URDF (biezacy odczyt = zero URDF, offsety do `pinecone_config.json`: `arm.urdf_offset_deg`, znaki `arm.urdf_sign`). 150 testow zielonych, sekcja widoczna w przegladarce na atrapie.
+**Nie dziala / otwarte:** nie sprawdzone na ramieniu. Zero lerobot to srodek nagranego zakresu, nie zero URDF (HARDWARE pulapka 12) - bez ZERO URDF jog pojedzie krzywo. Znaki przegubow niezmierzone (domyslnie +1).
+**Nastepny krok:** na Pi: ramie prosto poziomo do przodu -> ZERO URDF -> GORA 10 mm, sprawdzic kierunek.
+**Sprzet:** nie
+## 2026-09-26 - pawel120 (Claude) - robot wjechal w ramie; cofniety heartbeat z klawiszami, predkosc /2
+**Zrobione:** Po wdrozeniu PR #33 (heartbeat niosl stan klawiszy) robot przy duzym opoznieniu hotspotu wjechal w ramie i je uszkodzil. Prawdopodobna przyczyna (Claude): opoznione heartbeaty dochodza seriami, stare "W wcisniete" po failsafe znow uruchamialy jazde, a puszczenie W przychodzilo pozniej. Dead-man mierzy czas DOTARCIA wiadomosci, wiec spoznione wiadomosci wygladaja na swieze. Cofniete: heartbeat to znow goly ping (po failsafe trzeba wcisnac klawisz od nowa). `web_control.py` MAX_PWM 500 -> 250, panel ramienia krok 2 -> 1 st/tick (chwytak 4 -> 2). Zdalny STOP po awarii nie doszedl: Pi przestal odpowiadac (ping 100% strat).
+**Nie dziala / otwarte:** ramie uszkodzone - ocena. `shoulder_lift` czyta 116-128 st przy zakresie +-91.6, a wedlug uzytkownika staw jest fizycznie w zakresie -> podejrzenie rozjazdu Homing_Offset w serwie vs so101.json. Narzedzie do kalibracji jednego stawu (tools/calibrate_joint.py) zablokowane przez uprawnienia sesji - czeka na decyzje uzytkownika. Jazda po hotspocie z opoznieniem > 1 s jest niebezpieczna niezaleznie od kodu: dead-man nie odroznia spoznionych komend.
+**Nastepny krok:** ogledziny ramienia; Pi na dobrym zasilaniu; zanim ktos pojedzie zdalnie - znaczniki czasu w komendach jazdy (odrzucac spoznione) albo jazda tylko w zasiegu wzroku z wylacznikiem.
+**Sprzet:** dotkniety (robot wjechal w ramie - uszkodzenie)
+## 2026-09-26 - tomek - sciezka S w POKRYCIU
+**Zrobione:** tryb POKRYCIE w `web_control.py` zawsze skrecal w te sama strone, wiec po drugim nawrocie
+wracal na pierwszy pas i jezdzil tam i z powrotem po dwoch pasach. Teraz kierunek nawrotu zmienia sie po
+kazdym `turn2` (L, P, L...), wiec pasy ida w poprzek pola. Logika fazy wydzielona do `coverage_advance()`,
+test `tests/test_web_control_coverage.py` (websockets podstawiony stubem, bo nie ma go w CI).
+**Nie dziala / otwarte:** nie jechane na sprzecie. Czasy otwarte (bez odometrii), wiec 90 st zalezy od
+`cov_turn_seconds`. Znak skretu Xiao niezmierzony: pierwszy nawrot moze pojsc w prawo - wtedy start z drugiego rogu.
+**Nastepny krok:** na trawie nastroic `cov_turn_seconds` do 90 st, potem dlugosc pasa i odstep; zmierzone
+predkosci przepisac do `search_drive_v` / `search_w` w `pinecone_config.json`.
+**Sprzet:** nie
+## 2026-09-26 - pawel120 (Claude) - wylacznik STOP na telefon
+**Zrobione:** Strona `/stop` (`stop.html`) w `web_control.py`: jeden duzy przycisk na caly ekran telefonu (pointerdown, bez przewijania). POST `/api/estop` zatrzaskuje STOP: petla sterowania co tick robi `hard_stop()` (zero bez rampy, tryb manual, koniec sekwencji/nagrywania, klawisze zerowane), `start_sequence` odmawia; watek wysyla STOP do ramienia (:8010). ODBLOKUJ (`/api/estop_release`) wymaga numeru zatrzasku - spozniony ODBLOKUJ nie zdejmie nowszego STOP. HTTP zamiast WebSocket celowo: /stop nie jest heartbeatem operatora, wiec telefon z ta strona nie trzyma robota przy zyciu po utracie panelu jazdy. Strona ponawia STOP do potwierdzenia, pokazuje lacze w ms i "BRAK LACZA" po 2 s. Panel jazdy pokazuje stan E-STOP i link do /stop. `tests/test_web_control_estop.py` (8), razem 163 zielone. Sprawdzone w przegladarce (widok telefonu) na `web_control.py` bez Xiao: zatrzask blokuje W, po ODBLOKUJ jedzie, STOP w trakcie jazdy zeruje.
+**Nie dziala / otwarte:** nie wdrozone na Pi. Zatrzask dotyczy jazdy; panel ramienia dostaje jeden STOP, jog ramienia dalej mozliwy. Przy duzym lagu hotspotu STOP tez dojdzie pozno.
+**Nastepny krok:** skopiowac `web_control.py`, `stop.html`, `frontend.html` na Pi, restart `web_control.py`, test STOP z telefonu przy jadacym robocie (kola w powietrzu).
+
 ## 2026-09-26 - frane (Claude) - polaczenie z Pi po WiFi + kalibracja HSV V/H
 **Zrobione:**
 - Polaczenie z Pi: `robot.local` (mDNS, dziala w git-bash, nie w PowerShell) odpowiada, Pi ma dwa adresy -

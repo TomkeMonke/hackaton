@@ -16,22 +16,35 @@ zadania i przypisania na tablicy Projects (link nizej). Czego nie ma tutaj albo 
   Ramie odtwarza nagrane punkty, baza ustawia szyszke z obrazu, maszyna stanow, szukanie pasami. Bez IK, bez ML.
 - Detektor HSV: prog w branchu (commit 2ba7fc9, `pinecone_config.json`) rozdziela po odcieniu+nasyceniu: lo [130,20,20], hi [179,160,255], min_area_px 400, morph_ksize 9 -> 0 bledow w dwoch swiatlach (20 + 18 klatek kontrolnych, przeszukano 20160 kombinacji). Poprzedni prog V<95 rozdzielal po jasnosci i w drugim swietle gubil polowe szyszek (18/18 bledow) - NIEAKTUALNY. Na Pi wciaz jest stary prog (V<95, min_area 300, morph 7) - nowy jeszcze NIE wypchniety (laptop na chwile stracil siec do Pi).
 - Polaczenie z Pi po WiFi: `robot.local` (mDNS, git-bash, nie PowerShell) albo `robot@172.20.10.4` (hotspot "iPhone pawel", DHCP), SSH ping 11-109 ms, klucz SSH laptopa juz na Pi (bez hasla). Pi ma tez eth0 192.168.137.5 (kabel).
+- Wylacznik na telefon: `http://<ip-pi>:8000/stop` (`stop.html`, serwuje `web_control.py`). Jeden duzy STOP: zatrzask, jazda zablokowana
+  (klawisze, tryby auto, sekwencje) do ODBLOKUJ na tej stronie, STOP idzie tez do ramienia. Zwykly HTTP, nie heartbeat: telefon na /stop
+  nie trzyma robota przy zyciu. Pokazuje lacze (ms) i czy robot jedzie. Sprawdzone w przegladarce bez Xiao, 8 testow; NIE na Pi.
 - Panel webowy ramienia `tools/arm_web.py` (port 8010): jog kazdego stawu o 1/5/10, HOME, chwytak, ruchy z `motions/`, STOP.
   Jazda + ramie w jednym miejscu: sekcja ramienia w panelu jazdy (:8000, `frontend.html`), glowny STOP zatrzymuje tez ramie.
   Dwa procesy na Pi: `web_control.py` i `tools/arm_web.py` (UI ramienia wspolne: `arm_panel.js`).
   Logika w `pinecone_bot/arm_panel.py` (kolejka, zakres z kalibracji, limit kroku), 22 testy; sprawdzony w przegladarce na atrapie (`--fake`).
-  `--no-home`: bez HOME przy starcie, HOME i `motions/` wylaczone, tylko jog i chwytak (kamera siedzi teraz na ramieniu - HOME w nia uderzy).
+  `--no-home`: bez HOME przy starcie (kamera siedzi teraz na ramieniu - HOME w nia uderzy); jog, chwytak i ruchy z `motions/` dzialaja,
+  po pustym chwycie ramie zostaje w miejscu zamiast wracac do HOME.
 - Pasy po kursie (`cfg.heading`, `pinecone_bot/heading.py`, RUNBOOK "Pasy po kursie"): obroty do kata z zyroskopu telefonu (phyphox, remote access), na prostej regulator P kursu, bezpieczniki -> pasy z czasu. W symulacji z poslizgiem 15% koniec wzorca 0.10 m od idealu (bez kursu 3.5 m). `--heading phyphox|odometry|none`. Tylko symulacja i testy.
+- Zbieranie szyszek "na sztywno" z panelu (:8000), bez kodu: (1) sekcja ramienia "NAGRYWANIE RUCHU": ustaw stawami, "+ PUNKT" (chwytak z ostatniej
+  komendy, wiec przed punktem zacisku "Zamknij chwytak"), "ZAPISZ do motions/" -> `motions/<nazwa>.json`; (2) sekcja "SEKWENCJA": kroki jazda
+  (speed/steer/sekundy, bez limitu z suwaka) / ramie (ruch z motions/) / czekaj, "TEST TEGO KROKU", szkic w przegladarce, zapis do `sequences/<nazwa>.json`,
+  odtwarzanie w trybie "sequence" (`pinecone_bot/sequence.py`, 12 testow; STOP/failsafe/zmiana trybu przerywa i zeruje jazde + STOP ramienia).
+  Sprawdzone w przegladarce na atrapie ramienia (`--fake`) i bez Xiao; NIE na sprzecie.
 - `motions/grasp_mid.json`: chwyt z `demo2_fixed.csv` (aktualna kalibracja). `home.json`, `drop_box.json` (placeholder).
 - `tools/record_motion.py` (commit 40a75aa): ciagle nagranie ruchu ramienia prowadzonego reka (bez jazdy do HOME, kamera na ramieniu), probki 10 Hz, 'q'+Enter konczy i oddaje torque, zapis `motions/<name>.json` (waypointy co 0.25 s w tempie prowadzenia, pierwszy z dojazdem 1.5 s); odtwarzanie `tools/arm_play.py --motion <name>`. Testy `tests/test_record_motion.py` (3). Zastapilo dla operatora `tools/record_waypoints.py` (punkt po punkcie, uciazliwe) i legacy `record_demo.py` (jazda do HOME, stala liczba sekund).
 
 ## Nie dziala / nie sprawdzone
 
+- Jog XYZ w panelu ramienia (`pinecone_bot/kinematics.py`, sekcja JOG XYZ): testy + atrapa, NIE sprawdzony na ramieniu. Najpierw ZERO URDF (ramie prosto poziomo do przodu), potem sprawdzic, czy GORA jedzie w gore (inaczej `arm.urdf_sign`).
+- 2026-09-26: ROBOT WJECHAL W RAMIE I JE USZKODZIL (panel jazdy po hotspocie z duzym opoznieniem). Stan ramienia do oceny, serwa nie zasilac przed ogledzinami. Pi przestal odpowiadac (ping 100% strat).
+
 - `pinecone_bot` NIE JECHAL jeszcze na sprzecie. Wszystko ponizej to pierwsze uruchomienie (docs/RUNBOOK.md).
 - Nowy prog HSV (branch, commit 2ba7fc9) NIE jest jeszcze wpisany na Pi - do wypchniecia razem z blokada AWB/ekspozycji (`lock_auto`, sekcja "camera" configu, PR #30), ktora jest na masterze, ale NIE na Pi (`pinecone_bot/camera.py`/`config.py` na Pi sa starsze). Reka w kadrze ma podobny odcien co szyszka (bloby 9000-31500 px, szyszka max ~4000 px) - `max_area_px` 40000 tego nie odrzuca, warto zmniejszyc do ~8000 (niezmienione).
 - `lsusb` zglasza kamere jako D435 (8086:0b07), docs mowia D415 - sprawdzic model.
 - Kamera stoi za nisko: miejsce chwytu (17 cm przed kamera) jest w martwej strefie glebi (~31 cm). Trzeba przestawic.
-- Panel ramienia (`tools/arm_web.py --no-home`) chodzi na Pi, jog NIE sprawdzony na ramieniu.
+- Panel ramienia (`tools/arm_web.py --no-home`) chodzi na Pi, jog NIE sprawdzony na ramieniu. Nagrywanie ruchu z panelu i sekwencje
+  (jazda + ramie) tylko na atrapie; na Pi trzeba zrestartowac oba serwery (`web_control.py` woli `http://127.0.0.1:8010`, env `ROBOT_ARM_PANEL`).
 - `shoulder_lift` stoi poza zakresem kalibracji (odczyt 127.7 st, zakres +-91.6; kamera na ramieniu). Panel blokuje jog tego stawu - trzeba go ustawic recznie albo sprawdzic kalibracje pod nowy montaz (NIE `lerobot calibrate`).
 - Hotspot: ping do Pi skacze do 240 ms i gubi pakiety, heartbeat panelu jazdy (1 s) co chwile wpada w failsafe (robot staje na chwile).
 - Chwyty `grasp_far`, `drop_box` nie nagrane (config ma na razie tylko `grasp_mid`).
@@ -43,11 +56,18 @@ zadania i przypisania na tablicy Projects (link nizej). Czego nie ma tutaj albo 
 - WiFi na Pi DZIALA (wczesniej ten plik mowil, ze nie): eth0 192.168.137.5 (kabel) i wlan0 172.20.10.4 (hotspot "iPhone pawel", DHCP - adres moze sie zmienic). Kod na Pi nadal wchodzi przez `deploy/push_to_pi.sh` / scp (internet/`git pull` na Pi niesprawdzone).
 - Po restarcie Pi zadne panele nie wstaja same: `web_control.py` i `tools/arm_web.py` trzeba odpalac recznie, `robot-web.service` nie jest zainstalowany. Nadal nie odpalone w tej sesji.
 - Zasilanie z akumulatora 12 V: issue #8, nie zaczete.
+- Wylacznik /stop nie wdrozony na Pi (trzeba restartu `web_control.py`). Przy lagu hotspotu > 1-2 s STOP z telefonu tez dojdzie pozno:
+  fizyczny wylacznik dalej w rece. Zatrzask nie blokuje panelu ramienia (:8010) - STOP ramienia idzie raz.
+- Sciezka S w `web_control.py` (POKRYCIE): nawroty naprzemienne (L, P, L...) poprawione w kodzie, NIE jechane na sprzecie.
+  Do nastrojenia na trawie: `cov_turn_seconds` (90 st), `cov_forward_seconds`, `cov_lane_seconds`.
 
 ## Nastepne 3 kroki (w tej kolejnosci)
 
-1. Wpisac nowy prog HSV na Pi (albo push z brancha po merge) i sprawdzic na zywo; odczytac limity EEPROM barku, potem `tools/arm_play.py --motion grasp_near` z reka na wylaczniku.
-2. Nagrac `drop_box` (`tools/record_motion.py --name drop_box`), dopisac chwyty do `cfg.grasps`, `tools/calibrate_target.py`.
+1. Merge `frane/pi-sync` (kod z Pi + master) i `deploy/push_to_pi.sh` - od tego momentu Pi = master.
+   Nowy prog HSV jedzie wtedy na Pi; sprawdzic na zywo.
+2. Na Pi: `python tools/arm_web.py --no-home` (:8010) + `python web_control.py` (:8000), sprawdzic jog/STOP. Potem nagrac chwyt pod kamere na ramieniu
+   z panelu ("NAGRYWANIE RUCHU" -> `motions/grasp_cam.json`) i ulozyc sekwencje zbierania (jazda -> chwyt -> cofniecie) w sekcji "SEKWENCJA";
+   alternatywnie `tools/record_waypoints.py`. Potem `target_row` (`tools/calibrate_target.py`).
 3. `tools/base_test.py`, `tools/phyphox_check.py` (znak kursu), potem `python -m pinecone_bot.main --dry-run --heading phyphox`, potem `--real` z wylacznikiem w rece.
 
 ## Blokery
