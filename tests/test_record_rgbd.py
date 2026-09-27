@@ -83,7 +83,7 @@ def test_writer_and_meta_layout(tmp_path):
 
 # --- tools/rtabmap_build.py ---
 
-from rtabmap_build import graph_summary, lost_frames, source_ini  # noqa: E402
+from rtabmap_build import dataset_problem, graph_summary, lost_frames, source_ini  # noqa: E402
 
 
 def test_source_ini_absolute_paths(tmp_path):
@@ -109,3 +109,17 @@ def test_graph_summary():
             "Global graph:       5 poses and 8 links\n"
             "Maps in graph:      1/4 [0(5)]\n")
     assert graph_summary(info) == {"nodes": 5, "poses": 5, "maps": 4}
+
+
+def test_dataset_problem_detects_partial_copy(tmp_path):
+    for sub in ("rgb", "depth"):
+        os.makedirs(tmp_path / sub)
+    for i in (1, 2):
+        (tmp_path / "rgb" / ("%06d.jpg" % i)).write_bytes(b"x")
+        (tmp_path / "depth" / ("%06d.png" % i)).write_bytes(b"x")
+    (tmp_path / "stamps.txt").write_text("1.0
+2.0
+")
+    assert dataset_problem(str(tmp_path)) is None
+    os.remove(tmp_path / "rgb" / "000002.jpg")
+    assert "rgb 1, depth 2" in dataset_problem(str(tmp_path))

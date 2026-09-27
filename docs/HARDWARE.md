@@ -26,7 +26,10 @@ sterowane z Raspberry Pi 5 (zamiast Windows PC).
   repo: `~/.cache/huggingface/lerobot/calibration/robots/so_follower/so101.json`
   (id ramienia `so101`) - na laptopie i osobno na Pi, trzeba kopiowac
   recznie (nie jest w gicie).
-- **Kamera Intel RealSense D415** - USB. Serial 105422060821, firmware
+- **Kamera na robocie (sprawdzone 2026-09-27, pyrealsense2 na Pi): Intel RealSense D435**
+  (PID 0B07, firmware 5.11.1.100, USB 3.2), siedzi na ramieniu. Pomiary w pulapkach 16-27 byly robione
+  na D415 - dla D435 moga sie roznic (D435 ma szersze pole widzenia i inna martwa strefe).
+- **Kamera Intel RealSense D415** (wczesniej) - USB. Serial 105422060821, firmware
   5.17.0.10. Montaz docelowy: platforma robota, 12 cm nad ziemia.
 - **udev / stabilne nazwy portow na Pi** (`deploy/99-robot.rules`):
   `/dev/robot-arm` = kontroler ramienia (CH343, `1a86:55d3`),
@@ -326,3 +329,15 @@ dziala stabilnie. Szczegoly i decyzje - patrz issue #8.
     `disconnect`), ramie opada. Do trzymania pozycji (np. kamera poziomo) -
     `tools/arm_web.py --no-home` i jog przez panel albo `POST /api/cmd`
     `{"cmd":"jog","joint":"wrist_flex","step":5}`.
+
+40. **RealSense pamieta opcje po poprzednim procesie.** Program z `camera.lock_auto` zamraza
+    ekspozycje (np. 166 w cieniu); nastepny program bez blokady dostaje ta sama reczna ekspozycje
+    i na sloncu obraz jest bialy. `RealSenseCamera` bez `lock_auto` wlacza teraz auto z powrotem.
+
+41. **Mapa do lokalizacji: nagrywac w tej samej pozie kamery, w ktorej robot bedzie sie
+    lokalizowal** (`motions/patrz.json`, `tools/arm_hold.py patrz`), wolno, na koniec wrocic na
+    start. Nagranie `ogrod1` (329 s): RTAB-Map skleil tylko czesc, fragment przy plocie odpadl i ze
+    startu przy plocie lokalizacja nie lapala. Punkty mapy brac do 6 m (plot 4-5 m od robota).
+
+42. **`tools/estop_server.py` zabija tylko programy z listy `TARGETS`.** Nowy program, ktory
+    jezdzi baza, trzeba tam dopisac (zygzak nie byl na liscie).

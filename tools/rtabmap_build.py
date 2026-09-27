@@ -46,6 +46,18 @@ def source_ini(dataset: str) -> str:
     ])
 
 
+def dataset_problem(dataset: str) -> str | None:
+    """Niekompletna kopia (zerwane scp): RTAB-Map wtedy po cichu nie importuje nic."""
+    n_rgb = len(os.listdir(os.path.join(dataset, "rgb")))
+    n_depth = len(os.listdir(os.path.join(dataset, "depth")))
+    with open(os.path.join(dataset, "stamps.txt"), encoding="utf-8") as f:
+        n_st = sum(1 for line in f if line.strip())
+    if not (n_rgb == n_depth == n_st):
+        return "rgb %d, depth %d, stamps %d - kopia niekompletna, dociagnij brakujace pliki" % (
+            n_rgb, n_depth, n_st)
+    return None
+
+
 def lost_frames(reprocess_log: str) -> tuple[int, int]:
     """(zgubione, wszystkie) z linii 'Processed N/M frames (... lost=true)' rtabmap-reprocess."""
     lines = re.findall(r"Processed (\d+)/(\d+) frames \(.*?lost=(true|false)\)", reprocess_log)
@@ -90,6 +102,10 @@ def main() -> int:
         if not os.path.exists(os.path.join(ds, need)):
             print("brak %s w %s" % (need, ds))
             return 2
+    problem = dataset_problem(ds)
+    if problem:
+        print(problem)
+        return 2
     exe = lambda name: os.path.join(args.bin, name + ".exe")  # noqa: E731
     if not os.path.isfile(exe("rtabmap-reprocess")):
         print("nie ma RTAB-Map w %s (--bin)" % args.bin)
