@@ -66,7 +66,7 @@ class RealSenseCamera:
     """
 
     def __init__(self, cfg: Config, depth: bool = True, fps: int = 30,
-                 warmup_frames: int = 15, timeout_ms: int = 2000,
+                 warmup_frames: int | None = None, timeout_ms: int = 2000,
                  laser_power: float | None = None):
         import pyrealsense2 as rs  # leniwie: na laptopie bez kamery modul moze nie istniec
         self._rs = rs
@@ -110,13 +110,78 @@ class RealSenseCamera:
                                      float(intr.ppx), float(intr.ppy),
                                      int(intr.width), int(intr.height))
 
-        # Rozgrzanie auto-ekspozycji, jak w rs_snapshot.py. Bez tego pierwsze
-        # klatki sa ciemne i prog HSV na nich nie trafia.
+        # Kamera pamieta opcje po poprzednim procesie: jesli ktos wczesniej zamrozil ekspozycje
+        # (lock_auto), bez tego zostaje reczna wartosc i na sloncu obraz jest bialy.
+        if not cfg.camera.lock_auto:
+            self._enable_auto(profile)
+
+        # Rozgrzanie auto-ekspozycji i auto white balance, jak w rs_snapshot.py. Bez tego
+        # pierwsze klatki sa ciemne albo maja zle kolory i prog HSV na nich nie trafia.
+        if warmup_frames is None:
+            warmup_frames = cfg.camera.warmup_frames
+        last = None
         for _ in range(max(0, int(warmup_frames))):
             try:
-                self._pipeline.wait_for_frames(self.timeout_ms)
+                last = self._pipeline.wait_for_frames(self.timeout_ms)
             except RuntimeError:
                 break
+
+        self.locked: dict[str, float] = {}
+        if cfg.camera.lock_auto:
+            self.locked = self._lock_auto(profile, last)
+
+    def _color_sensor(self, profile):
+        rs = self._rs
+        for s in profile.get_device().query_sensors():
+            if s.supports(rs.option.enable_auto_white_balance) or s.supports(rs.option.white_balance):
+                return s
+        return None
+
+    def _enable_auto(self, profile) -> None:
+        """Wlacz AWB i auto-ekspozycje koloru, jesli poprzedni proces je wylaczyl."""
+        rs = self._rs
+        sensor = self._color_sensor(profile)
+        if sensor is None:
+            return
+        for opt in (rs.option.enable_auto_white_balance, rs.option.enable_auto_exposure):
+            if sensor.supports(opt) and sensor.get_option(opt) != 1:
+                sensor.set_option(opt, 1)
+
+    def _lock_auto(self, profile, frames) -> dict[str, float]:
+        """
+        Zamroz AWB i auto-ekspozycje koloru na wartosciach z ostatniej klatki rozgrzewki.
+        Samo wylaczenie auto wraca do recznej wartosci domyslnej, dlatego najpierw
+        czytamy biezaca wartosc z metadanych klatki i wpisujemy ja recznie.
+        Zwraca, co ustawiono (do logu); czego kamera nie wspiera, pomija.
+        """
+        rs = self._rs
+        color = frames.get_color_frame() if frames is not None else None
+        sensor = self._color_sensor(profile)
+        if sensor is None:
+            return {}
+        pairs = [
+            (rs.option.enable_auto_white_balance, rs.option.white_balance,
+             rs.frame_metadata_value.white_balance, "white_balance"),
+            (rs.option.enable_auto_exposure, rs.option.exposure,
+             rs.frame_metadata_value.actual_exposure, "exposure"),
+        ]
+        done: dict[str, float] = {}
+        for auto_opt, value_opt, meta, name in pairs:
+            if not sensor.supports(auto_opt):
+                continue
+            value = None
+            if color and color.supports_frame_metadata(meta):
+                value = float(color.get_frame_metadata(meta))
+            elif sensor.supports(value_opt):
+                value = float(sensor.get_option(value_opt))
+            sensor.set_option(auto_opt, 0)
+            if value is not None and sensor.supports(value_opt):
+                rng = sensor.get_option_range(value_opt)
+                value = max(rng.min, min(rng.max, value))
+                sensor.set_option(value_opt, value)
+                done[name] = value
+        print(f"[camera] zablokowane auto: {done}", file=sys.stderr)
+        return done
 
     def read(self) -> tuple[np.ndarray, np.ndarray | None]:
         try:

@@ -18,6 +18,20 @@ Configuration via environment variables (defaults suit the Windows dev PC):
 Safety: if no browser message arrives for HEARTBEAT_TIMEOUT seconds (all tabs
 closed, WiFi dropped, phone locked), the robot stops and drops back to manual
 mode. The frontend sends a ping every 200 ms to keep the link alive.
+
+Sequences ("hardcoded pinecone pickup"): sequences/<name>.json is a list of
+steps (drive for N seconds, arm motion from motions/, wait) played back in
+order by pinecone_bot/sequence.py in mode "sequence". Arm steps go to the
+arm panel server (tools/arm_web.py, ROBOT_ARM_PANEL, default
+http://127.0.0.1:8010) over HTTP; a lost heartbeat, STOP or any mode change
+aborts the sequence, zeroes the drive and sends STOP to the arm.
+
+Phone e-stop: http://<robot-ip>:8000/stop (stop.html) is one big STOP button.
+It talks plain HTTP (POST /api/estop), not the WebSocket, so it never counts as
+an operator heartbeat: a phone left on that page cannot keep the robot alive
+after the driving browser drops. The stop latches: drive stays at zero (keys,
+modes and sequences ignored) until someone presses ODBLOKUJ on /stop. The
+release carries the latch number, so a delayed release cannot undo a newer STOP.
 """
 
 import asyncio
@@ -25,12 +39,24 @@ import functools
 import http.server
 import json
 import os
+import sys
 import threading
+import urllib.error
+import urllib.request
 from pathlib import Path
 from time import time
 
 import serial
 import websockets
+
+sys.path.insert(0, str(Path(__file__).parent))
+from pinecone_bot.sequence import (  # noqa: E402
+    SequenceRunner,
+    delete_sequence,
+    load_sequences,
+    parse_steps,
+    save_sequence,
+)
 
 PORT_SERIAL = os.environ.get("ROBOT_DRIVE_PORT", "COM9")
 BAUDRATE = 115200
@@ -39,8 +65,8 @@ HOST = os.environ.get("ROBOT_HOST", "0.0.0.0")
 HTTP_PORT = 8000
 WS_PORT = 8765
 
-MAX_PWM = 250  # was 500; halved 2026-09-26 after the robot drove into the arm over a laggy hotspot
-MAX_STEER = 400
+MAX_PWM = 100  # was 500; halved 2026-09-26 after the robot drove into the arm over a laggy hotspot
+MAX_STEER = 200
 
 LOOP_DELAY = 0.03  # matches the Arduino's loop delay / well under its 500ms timeout
 
@@ -56,8 +82,9 @@ DEFAULT_PARAMS = {
     "fig8_steer": 0.025,     # figure-eight: steer fraction while arcing (keep well below fig8_speed!)
     "fig8_ramp": 0.02,       # figure-eight: per-tick ramp
     "fig8_loop_seconds": 10.0,  # figure-eight: seconds per half-loop before switching direction
-    # coverage ("lawnmower"): forward a lane, pivot ~90 deg twice (same direction) to
-    # shift into the next lane heading the opposite way, repeat -> sweeps the whole floor.
+    # coverage ("lawnmower", S-path): forward a lane, pivot ~90 deg twice (same direction) to
+    # shift into the next lane heading the opposite way, then the next U-turn goes the other
+    # way (left, right, left...) -> sweeps the whole floor instead of shuttling between 2 lanes.
     "cov_speed": 0.06,        # forward speed fraction while driving a lane
     "cov_forward_seconds": 6.0,   # how long to drive straight per lane
     "cov_turn_steer": 0.4,    # steer fraction while pivoting (in-place turn, speed=0)
@@ -79,6 +106,44 @@ PARAM_LIMITS = {
 
 STATIC_DIR = Path(__file__).parent
 RECORDINGS_DIR = STATIC_DIR / "recordings"
+SEQUENCES_DIR = str(STATIC_DIR / "sequences")
+
+# Panel ramienia (tools/arm_web.py) - kroki "arm" w sekwencji ida tam przez HTTP.
+ARM_PANEL_URL = os.environ.get("ROBOT_ARM_PANEL", "http://127.0.0.1:8010").rstrip("/")
+ARM_HTTP_TIMEOUT = 2.0
+
+
+def arm_post(cmd):
+    """POST /api/cmd do panelu ramienia -> (ok, msg). Brak polaczenia = (False, msg)."""
+    body = json.dumps(cmd).encode("ascii")
+    req = urllib.request.Request(
+        f"{ARM_PANEL_URL}/api/cmd", data=body, method="POST",
+        headers={"Content-Type": "application/json"},
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=ARM_HTTP_TIMEOUT) as resp:
+            data = json.loads(resp.read())
+    except urllib.error.HTTPError as exc:
+        try:
+            data = json.loads(exc.read())
+        except ValueError:
+            return False, f"panel ramienia: HTTP {exc.code}"
+    except (urllib.error.URLError, OSError, ValueError) as exc:
+        return False, f"panel ramienia niedostepny ({ARM_PANEL_URL}): {exc}"
+    return bool(data.get("ok")), str(data.get("msg", ""))
+
+
+def arm_state():
+    """GET /api/state panelu ramienia -> dict albo None, gdy nie odpowiada."""
+    try:
+        with urllib.request.urlopen(f"{ARM_PANEL_URL}/api/state", timeout=ARM_HTTP_TIMEOUT) as resp:
+            return json.loads(resp.read())
+    except (urllib.error.URLError, OSError, ValueError):
+        return None
+
+
+def arm_stop():
+    arm_post({"cmd": "stop"})
 
 
 def step_toward(current, target, step):
@@ -87,6 +152,17 @@ def step_toward(current, target, step):
     if current > target:
         return max(current - step, target)
     return current
+
+
+COV_NEXT_PHASE = {"forward": "turn1", "turn1": "lane", "lane": "turn2", "turn2": "forward"}
+
+
+def coverage_advance(phase, turn_dir):
+    """Next (phase, turn_dir) of the S-path. The U-turn side flips after every turn2, so
+    consecutive U-turns alternate left/right and the lanes step across the floor."""
+    if phase == "turn2":
+        turn_dir = -turn_dir
+    return COV_NEXT_PHASE[phase], turn_dir
 
 
 def load_recordings():
@@ -128,6 +204,7 @@ class RobotState:
         self.fig8_half_start = time()
         self.cov_phase = "forward"  # "forward" | "turn1" | "lane" | "turn2"
         self.cov_phase_start = time()
+        self.cov_turn_dir = 1  # +1 / -1: side of the current U-turn, flips after each one
         self.speed_scale = 1.0  # 0..1, multiplies both manual and figure8 speed targets
         self.params = dict(DEFAULT_PARAMS)
 
@@ -139,6 +216,75 @@ class RobotState:
         self.playback_name = None
         self.playback_start = 0.0
         self.playback_index = 0
+
+        # sekwencje (jazda + ramie); runner ustawia seq_speed/seq_steer z wlasnego watku
+        self.seq_speed = 0.0
+        self.seq_steer = 0.0
+        self.sequences = load_sequences(SEQUENCES_DIR)  # name -> steps
+        self.runner = SequenceRunner(
+            drive=self._set_seq_target, arm_start=lambda name: arm_post({"cmd": "motion", "name": name}),
+            arm_state=arm_state, arm_stop=arm_stop,
+        )
+        self.seq_error = None  # ostatni blad zapisu/uruchomienia (dla przegladarki)
+
+        # wylacznik z telefonu (/stop): zatrzask + numer, zeby spozniony ODBLOKUJ nie zdjal nowszego STOP
+        self.estop_latched = False
+        self.estop_id = 0
+
+    def estop(self):
+        """STOP z /stop (watek HTTP). Petla sterowania zeruje jazde w nastepnym ticku. Zwraca numer zatrzasku."""
+        self.estop_id += 1
+        self.estop_latched = True
+        return self.estop_id
+
+    def estop_release(self, estop_id):
+        """ODBLOKUJ z /stop. False = numer nieaktualny (w miedzyczasie ktos wcisnal STOP)."""
+        if not self.estop_latched:
+            return True
+        if estop_id != self.estop_id:
+            return False
+        self.estop_latched = False
+        return True
+
+    def hard_stop(self):
+        """Zero jazdy bez rampy, koniec trybow auto, sekwencji i nagrywania; klawisze trzeba wcisnac od nowa."""
+        if self.mode == "sequence":
+            self.stop_sequence()
+        self.mode = "manual"
+        self.playback_name = None
+        self.recording = False
+        self.record_buffer = []
+        self.keys = {"w": False, "a": False, "s": False, "d": False}
+        self.speed = 0.0
+        self.steer = 0.0
+
+    def _set_seq_target(self, speed, steer):
+        self.seq_speed = speed
+        self.seq_steer = steer
+
+    def start_sequence(self, name, steps):
+        """True = ruszyla. Zeruje klawisze i przelacza tryb; jedna sekwencja naraz."""
+        if self.estop_latched:
+            # nie startuj wcale: pierwszy krok ramienia poszedlby, zanim petla zdazy przerwac
+            self.seq_error = "E-STOP z telefonu - odblokuj na /stop"
+            return False
+        if self.runner.status()["running"]:
+            self.seq_error = "inna sekwencja jeszcze trwa"
+            return False
+        self.recording = False
+        self.record_buffer = []
+        self.playback_name = None
+        self.keys = {"w": False, "a": False, "s": False, "d": False}
+        self.seq_speed = 0.0
+        self.seq_steer = 0.0
+        self.mode = "sequence"
+        self.seq_error = None
+        return self.runner.start(name, steps)
+
+    def stop_sequence(self):
+        self.runner.stop()
+        self.seq_speed = 0.0
+        self.seq_steer = 0.0
 
     def connect_serial(self):
         try:
@@ -152,11 +298,88 @@ class RobotState:
 state = RobotState()
 
 
+def estop_status():
+    return {
+        "latched": state.estop_latched,
+        "id": state.estop_id,
+        "mode": state.mode,
+        "speed": round(state.speed, 2),
+        "steer": round(state.steer, 2),
+        "failsafe": state.failsafe,
+        "connected": state.ser is not None,
+    }
+
+
 class FrontendHandler(http.server.SimpleHTTPRequestHandler):
     def translate_path(self, path):
         if path == "/":
             path = "/frontend.html"
+        elif path == "/stop":
+            path = "/stop.html"
         return super().translate_path(path)
+
+    def log_message(self, fmt, *args):
+        if self.path.startswith("/api/estop"):
+            return  # /stop odpytuje stan co 0.5 s - bez tego log zarasta
+        super().log_message(fmt, *args)
+
+    def _json(self, code, payload):
+        body = json.dumps(payload).encode("ascii")
+        self.send_response(code)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(body)))
+        self.send_header("Cache-Control", "no-store")
+        self.end_headers()
+        self.wfile.write(body)
+
+    def do_GET(self):
+        if self.path == "/api/estop":
+            self._json(200, estop_status())
+        else:
+            super().do_GET()
+
+    def do_POST(self):
+        # body zawsze przeczytac przed odpowiedzia: zamkniecie gniazda z nieprzeczytanymi danymi = RST u klienta
+        try:
+            length = int(self.headers.get("Content-Length") or 0)
+        except ValueError:
+            length = 0
+        raw = self.rfile.read(length) if 0 < length <= 1024 else b""
+        if self.path not in ("/api/estop", "/api/estop_release"):
+            self._json(404, {"ok": False, "msg": "nie ma"})
+            return
+        # Tylko z naszej strony: application/json wymusza preflight CORS (na OPTIONS nie odpowiadamy),
+        # wiec obca strona w tej sieci nie zdejmie zatrzasku.
+        origin = self.headers.get("Origin")
+        if origin and not (origin.startswith("http://") and origin.endswith(f":{HTTP_PORT}")):
+            self._json(403, {"ok": False, "msg": "obcy origin"})
+            return
+        if not (self.headers.get("Content-Type") or "").startswith("application/json"):
+            self._json(415, {"ok": False, "msg": "wymagany application/json"})
+            return
+        try:
+            data = json.loads(raw) if raw else {}
+        except ValueError:
+            data = {}
+        if not isinstance(data, dict):
+            data = {}
+
+        if self.path == "/api/estop":
+            estop_id = state.estop()
+            print(f"E-STOP #{estop_id} z {self.client_address[0]}")
+            threading.Thread(target=arm_stop, daemon=True).start()  # HTTP do ramienia do 2 s - nie blokuj odpowiedzi
+            self._json(200, {"ok": True, **estop_status()})
+        else:
+            try:
+                estop_id = int(data.get("id"))
+            except (TypeError, ValueError):
+                self._json(400, {"ok": False, "msg": "brak numeru STOP"})
+                return
+            if state.estop_release(estop_id):
+                print(f"E-STOP #{estop_id} odblokowany z {self.client_address[0]}")
+                self._json(200, {"ok": True, **estop_status()})
+            else:
+                self._json(409, {"ok": False, "msg": "w miedzyczasie nowszy STOP", **estop_status()})
 
 
 def start_http_server():
@@ -183,6 +406,8 @@ async def ws_handler(websocket):
             elif data.get("type") == "set_mode":
                 new_mode = data.get("mode")
                 if new_mode in ("manual", "figure8", "coverage"):
+                    if state.mode == "sequence":
+                        state.stop_sequence()
                     if state.recording and new_mode != "manual":
                         state.recording = False
                         state.record_buffer = []
@@ -192,6 +417,7 @@ async def ws_handler(websocket):
                     if new_mode == "coverage" and state.mode != "coverage":
                         state.cov_phase = "forward"
                         state.cov_phase_start = time()
+                        state.cov_turn_dir = 1
                     state.playback_name = None
                     state.mode = new_mode
                     if new_mode == "manual":
@@ -235,6 +461,34 @@ async def ws_handler(websocket):
                 if name in state.recordings:
                     del state.recordings[name]
                     delete_recording_from_disk(name)
+            elif data.get("type") == "drive_step":
+                # pojedynczy krok jazdy do sprawdzenia (ten sam kod co w sekwencji)
+                try:
+                    steps = parse_steps([{"type": "drive", "speed": data.get("speed"),
+                                          "steer": data.get("steer"), "seconds": data.get("seconds")}])
+                except ValueError as exc:
+                    state.seq_error = str(exc)
+                else:
+                    state.start_sequence("krok", steps)
+            elif data.get("type") == "play_sequence":
+                name = data.get("name")
+                if name in state.sequences:
+                    state.start_sequence(name, state.sequences[name])
+            elif data.get("type") == "stop_sequence":
+                state.stop_sequence()
+            elif data.get("type") == "save_sequence":
+                try:
+                    name = str(data.get("name") or "").strip()
+                    save_sequence(SEQUENCES_DIR, name, data.get("steps"))
+                    state.sequences[name] = parse_steps(data.get("steps"))
+                    state.seq_error = None
+                except (ValueError, OSError) as exc:
+                    state.seq_error = f"zapis sekwencji: {exc}"
+            elif data.get("type") == "delete_sequence":
+                name = data.get("name")
+                if name in state.sequences:
+                    del state.sequences[name]
+                    delete_sequence(SEQUENCES_DIR, name)
     finally:
         state.clients.discard(websocket)
 
@@ -268,15 +522,10 @@ async def control_loop():
             print("Failsafe: no operator heartbeat, stopping." if operator_lost else "Operator heartbeat back.")
             state.failsafe = operator_lost
 
-        if operator_lost:
-            # Hard stop (no ramp) and drop any auto mode: nobody is watching the robot.
-            state.mode = "manual"
-            state.playback_name = None
-            state.recording = False
-            state.record_buffer = []
-            state.keys = {"w": False, "a": False, "s": False, "d": False}
-            state.speed = 0.0
-            state.steer = 0.0
+        if operator_lost or state.estop_latched:
+            # Hard stop (no ramp) and drop any auto mode: nobody is watching the robot,
+            # or the phone e-stop is latched (then every tick, so keys/modes stay ignored).
+            state.hard_stop()
         elif state.mode == "figure8":
             if time() - state.fig8_half_start >= p["fig8_loop_seconds"]:
                 state.fig8_direction *= -1
@@ -292,9 +541,8 @@ async def control_loop():
                 "lane": p["cov_lane_seconds"],
                 "turn2": p["cov_turn_seconds"],
             }
-            next_phase = {"forward": "turn1", "turn1": "lane", "lane": "turn2", "turn2": "forward"}
             if time() - state.cov_phase_start >= phase_durations[state.cov_phase]:
-                state.cov_phase = next_phase[state.cov_phase]
+                state.cov_phase, state.cov_turn_dir = coverage_advance(state.cov_phase, state.cov_turn_dir)
                 state.cov_phase_start = time()
 
             if state.cov_phase in ("forward", "lane"):
@@ -302,10 +550,17 @@ async def control_loop():
                 steer_target = 0.0
             else:
                 speed_target = 0.0
-                steer_target = p["cov_turn_steer"] * state.speed_scale
+                steer_target = state.cov_turn_dir * p["cov_turn_steer"] * state.speed_scale
 
             state.speed = step_toward(state.speed, speed_target, p["accel_step"])
             state.steer = step_toward(state.steer, steer_target, p["accel_step"])
+        elif state.mode == "sequence":
+            if not state.runner.status()["running"]:
+                state.mode = "manual"   # sekwencja skonczona / przerwana / blad (szczegoly w statusie)
+                state.seq_speed = 0.0
+                state.seq_steer = 0.0
+            state.speed = step_toward(state.speed, state.seq_speed, p["accel_step"])
+            state.steer = step_toward(state.steer, state.seq_steer, p["accel_step"])
         elif state.mode == "playback":
             samples = state.recordings.get(state.playback_name) or []
             elapsed = time() - state.playback_start
@@ -365,6 +620,11 @@ async def control_loop():
                 },
                 "playback_name": state.playback_name,
                 "failsafe": state.failsafe,
+                "estop": state.estop_latched,
+                "sequence": state.runner.status(),
+                "sequences": state.sequences,
+                "seq_error": state.seq_error,
+                "arm_panel": ARM_PANEL_URL,
             }
         )
 
@@ -376,6 +636,7 @@ async def main():
     print(f"Frontend: http://localhost:{HTTP_PORT} (listening on {HOST})")
     print(f"WebSocket control on ws://localhost:{WS_PORT}")
     print(f"Drive serial port: {PORT_SERIAL}")
+    print(f"Arm panel for sequences: {ARM_PANEL_URL} (sequences in {SEQUENCES_DIR}: {', '.join(state.sequences) or 'none'})")
 
     state.connect_serial()
     if state.ser is None:

@@ -64,6 +64,8 @@ Kolejnosc ma znaczenie: kazdy krok zapisuje cos, z czego korzysta nastepny.
 | `tools/calibrate_target.py`      | Pomiar `cfg.cx` i `grasp.target_row` dla kazdego nagranego chwytu. |
 | `tools/record_waypoints.py`      | Nagrywanie ruchu ramienia (waypointy) recznym ustawianiem serw. |
 | `tools/calibrate_joint.py`       | Kalibracja jednego stawu (np. `shoulder_lift`) zamiast `lerobot calibrate`: odczyt, `--record`, `--write` z kopia. |
+| `tools/frame_check.py`           | Zera i znaki stawow lerobot vs URDF przez FK placo, werdykt operatora na staw (docs/ARM_FRAMES.md). |
+| `tools/hand_eye_calib.py`        | Kalibracja reka-oko kamery na ramieniu (ArUco + AX=XB w numpy) -> `camera_on_arm.json`. |
 | `tools/arm_play.py`              | Odtworzenie jednego nagranego ruchu (do testu bez calej petli). |
 | `tools/arm_web.py`               | Panel webowy ramienia na :8010 (jog stawow, HOME, chwytak, `motions/`, STOP); ta sama sekcja jest w panelu jazdy :8000. `--fake` bez sprzetu, `--no-home` bez HOME (kamera na ramieniu). |
 | `tools/base_test.py`             | Reczny test podwozia: `forward` / `turn` / `square`, pomiar znaku skretu i mapowania PWM. |
@@ -192,7 +194,7 @@ i `settle_frames` (ile klatek z rzedu w tolerancji, zanim ALIGN potwierdzi
 chwyt - za male drga na szumie detekcji, za duze wydluza kazde podejscie).
 
 `pinecone_log.csv` (kolumny: `t, state, n_det, px, py, err_x, err_y, v, w,
-collected`) pokazuje dokladnie, dlaczego chwyt sie nie udal: patrz na
+collected, yaw_deg`; `yaw_deg` tylko z wlaczonym kursem, patrz nizej) pokazuje dokladnie, dlaczego chwyt sie nie udal: patrz na
 `err_x`/`err_y` tuz przed przejsciem do stanu `GRASP` - jesli byly poza
 tolerancja, ALIGN nie powinien byl puscic do GRASP (blad w kodzie), a jesli
 byly w tolerancji, ale szyszka i tak nie trafila do chwytaka, to
@@ -220,6 +222,37 @@ wiec na trawie trzeba je zmierzyc `tools/base_test.py` i wpisac. Z Xiao
 (otwarte PWM) pasy beda krzywe; z bipropellantem (zamknieta petla predkosci,
 odczyt halla) mozna je potem oprzec na odometrii. Na demo wystarczy
 `lane_count` 2-3 i szyszki w zasiegu pierwszego obrotu.
+
+### Pasy po kursie (zyroskop telefonu)
+
+Bez dostepu do plyty hovera nie ma odometrii, a pasy z czasu psuje glownie
+kat: obrot "przez X sekund" slizga sie o kilka stopni, a prosta jedzie lukiem.
+Dlatego kurs bierzemy z zyroskopu telefonu (`cfg.heading`, `pinecone_bot/heading.py`):
+
+- obrot konczy sie, gdy kurs dojdzie do celu (`tol_deg`), a nie po czasie;
+- na prostej regulator P (`kp`) trzyma kurs pasa; po podjezdzie do szyszki
+  robot najpierw obraca sie z powrotem na kurs pasa;
+- dlugosc prostej nadal z czasu i `search_drive_v` (zyroskop nie mierzy drogi).
+  Blad dlugosci skraca pasy, ale zostaja rownolegle.
+
+W symulacji z poslizgiem obrotow 15% i znoszeniem 0.03 rad/s koniec wzorca
+mija sie z idealem o 0.10 m z kursem i o 3.5 m bez (`tests/test_heading.py`).
+
+Uruchomienie:
+1. Telefon plasko na bazie, ekranem do gory. phyphox -> "Gyroscope (rotation
+   rate)" -> menu -> "Allow remote access" -> start. Ekran nie moze zgasnac.
+2. Na Pi: `python tools/phyphox_check.py`, obroc robota recznie o 90 st w lewo.
+   Kurs ma urosnac o ~+90. Maleje -> `"heading": {"sign": -1.0}` w configu.
+3. `python -m pinecone_bot.main --dry-run --heading phyphox`: robot stoi, obracaj go
+   recznie (360 st, potem 90 st) i patrz, czy komendy przechodza obrot -> prosto -> skret.
+   Potem `--real --no-arm --heading phyphox` (ramie tylko drukuje, portu ramienia nie otwiera):
+   pierwsza jazda z `lane_count` 1 i `lane_length_m` 1.0, reka na STOP.
+   `--heading` nadpisuje `heading.source` z configu (`none` = pasy z czasu).
+
+Bezpieczniki: brak kursu dluzej niz `lost_s` albo odcinek, ktory trwa ponad
+3x dluzej niz powinien (zly znak kursu albo `steer_sign`, robot kreci sie
+w kolko), przelaczaja na pasy z czasu od tego samego miejsca wzorca. Oba
+widac w konsoli ("UWAGA: pasy po kursie wylaczone").
 
 ## Czego nie robic
 

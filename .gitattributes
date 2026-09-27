@@ -2,3 +2,5 @@
 *.sh text eol=lf
 *.rules text eol=lf
 *.service text eol=lf
+datasets/**/*.mp4 filter=lfs diff=lfs merge=lfs -text
+models/**/*.safetensors filter=lfs diff=lfs merge=lfs -text

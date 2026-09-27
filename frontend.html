@@ -95,6 +95,23 @@
   }
   .rec-row-btns button.play { background: var(--accent); }
   .rec-row-btns button.del { background: var(--bad); }
+  .seq-form { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 8px; }
+  .seq-form select, .seq-form input {
+    font: inherit; color: var(--text); background: #22262f; border: 1px solid #2c313c; border-radius: 8px; padding: 8px; min-width: 0;
+  }
+  .seq-form input[type=number] { width: 78px; }
+  .seq-form label { font-size: 12px; color: var(--muted); display: flex; align-items: center; gap: 4px; }
+  .seq-form button, .seq-btns button {
+    font: inherit; color: var(--text); background: #22262f; border: 1px solid #2c313c; border-radius: 8px; padding: 10px 12px; font-weight: 600; cursor: pointer;
+  }
+  .seq-btns { display: flex; gap: 8px; flex-wrap: wrap; margin: 8px 0; }
+  .seq-btns button.play { background: var(--ok); border-color: var(--ok); color: #fff; }
+  .seq-steps { font-size: 13px; font-variant-numeric: tabular-nums; }
+  .seq-steps div { display: flex; justify-content: space-between; align-items: center; padding: 4px 0; border-bottom: 1px solid #2c313c; gap: 8px; }
+  .seq-steps div.cur { color: var(--accent); font-weight: 600; }
+  .seq-steps button { font: inherit; background: none; border: 1px solid #2c313c; color: var(--muted); border-radius: 6px; padding: 2px 8px; cursor: pointer; }
+  .seq-status { font-size: 13px; margin-top: 8px; min-height: 1.2em; }
+  .seq-status.err { color: var(--bad); }
 </style>
 </head>
 <body>
@@ -193,6 +210,7 @@
     <button class="stop-btn" id="stop-btn">STOP</button>
   </div>
   <div class="mode-text" id="mode-text"></div>
+  <div class="hint">wyłącznik na telefon: <a href="/stop" style="color: var(--accent)">/stop</a> (jeden duży STOP, blokuje jazdę do odblokowania)</div>
 
   <div class="panel">
     <div class="panel-title">NAGRYWANIE RUCHÓW</div>
@@ -202,6 +220,45 @@
 
     <div id="recordings-list" style="margin-top: 14px;"></div>
     <div class="hint">nagraj jadąc na WASD, potem odtwórz jako kolejny tryb auto. Odtwarzanie kończy się i wraca do manuala samo.</div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-title">SEKWENCJA - zbieranie szyszek na sztywno</div>
+    <div class="hint" style="text-align:left; margin: -6px 0 12px;">
+      Ułóż kroki: <b>jazda</b> (speed: + przód / - tył, steer: + prawo / - lewo, jak W/S i D/A; ułamki 0..1 bez limitu z suwaka),
+      <b>ramię</b> (ruch z motions/, nagraj go niżej w sekcji ramienia), <b>czekaj</b>. Zapisz pod nazwą i odtwórz. STOP przerywa wszystko.
+    </div>
+    <div class="seq-form">
+      <select id="seq-type">
+        <option value="drive">jazda</option>
+        <option value="arm">ramię</option>
+        <option value="wait">czekaj</option>
+      </select>
+      <span id="seq-f-drive" class="seq-form" style="margin:0">
+        <label>speed <input id="seq-speed" type="number" min="-1" max="1" step="0.05" value="0.3" /></label>
+        <label>steer <input id="seq-steer" type="number" min="-1" max="1" step="0.05" value="0" /></label>
+        <label>s <input id="seq-secs" type="number" min="0" max="30" step="0.1" value="2" /></label>
+      </span>
+      <span id="seq-f-arm" class="seq-form" style="margin:0; display:none">
+        <select id="seq-motion"></select>
+      </span>
+      <span id="seq-f-wait" class="seq-form" style="margin:0; display:none">
+        <label>s <input id="seq-wait" type="number" min="0" max="60" step="0.1" value="1" /></label>
+      </span>
+    </div>
+    <div class="seq-btns">
+      <button id="seq-add">+ DODAJ KROK</button>
+      <button id="seq-test">TEST TEGO KROKU</button>
+      <button id="seq-play-draft" class="play">▶ ODTWÓRZ SZKIC</button>
+      <button id="seq-clear">wyczyść</button>
+    </div>
+    <div class="seq-steps" id="seq-steps"></div>
+    <div class="seq-form" style="margin-top:10px">
+      <input type="text" id="seq-name" placeholder="nazwa sekwencji (np. szyszka1)" maxlength="40" style="flex:1 1 160px" />
+      <button id="seq-save">ZAPISZ</button>
+    </div>
+    <div class="seq-status" id="seq-status"></div>
+    <div id="sequences-list" style="margin-top: 10px;"></div>
   </div>
 
   <div class="panel">
@@ -278,8 +335,11 @@ function connect() {
     if (mode === 'figure8') modeText.textContent = 'tryb: OSEMKA (auto)';
     else if (mode === 'coverage') modeText.textContent = `tryb: POKRYCIE (auto) — faza: ${data.cov_phase}`;
     else if (mode === 'playback') modeText.textContent = `tryb: ODTWARZANIE — ${data.playback_name}`;
+    else if (mode === 'sequence') modeText.textContent = `tryb: SEKWENCJA ${data.sequence.name} — krok ${data.sequence.index + 1}/${data.sequence.total}: ${data.sequence.step || ''}`;
     else modeText.textContent = 'tryb: manualny';
     if (data.failsafe) modeText.textContent = 'STOP: brak sygnału od operatora';
+    if (data.estop) modeText.textContent = 'E-STOP z telefonu: jazda zablokowana, odblokuj na stronie /stop';
+    renderSequence(data.sequence || {}, data.sequences || {}, data.seq_error);
 
     recordBtn.classList.toggle('active', data.recording);
     recordBtn.textContent = data.recording ? `■ STOP (${data.record_seconds}s)` : '● NAGRAJ';
@@ -390,6 +450,7 @@ for (const el of paramEls) {
 
 document.getElementById('stop-btn').addEventListener('click', () => {
   armPanel.stop();
+  if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: 'stop_sequence' }));
   for (const k of Object.keys(keys)) keys[k] = false;
   if (isRecording) {
     ws.send(JSON.stringify({ type: 'stop_record', name: recordNameInput.value }));
@@ -447,6 +508,160 @@ function renderRecordings(recordings, playbackName) {
     });
   }
 }
+
+// ---------------------------------------------------------------------------
+// Sekwencja: kroki jazda / ramię / czekaj (pinecone_bot/sequence.py, tryb "sequence").
+// Szkic trzymany w przeglądarce (localStorage), zapisane sekwencje na serwerze (sequences/*.json).
+// ---------------------------------------------------------------------------
+const seqEl = {
+  type: document.getElementById('seq-type'), speed: document.getElementById('seq-speed'),
+  steer: document.getElementById('seq-steer'), secs: document.getElementById('seq-secs'),
+  motion: document.getElementById('seq-motion'), wait: document.getElementById('seq-wait'),
+  steps: document.getElementById('seq-steps'), name: document.getElementById('seq-name'),
+  status: document.getElementById('seq-status'), list: document.getElementById('sequences-list'),
+};
+let seqSteps = [];
+try { seqSteps = JSON.parse(localStorage.getItem('seqDraft') || '[]'); } catch (e) { seqSteps = []; }
+
+function seqStepText(st) {
+  if (st.type === 'drive') return `jazda ${st.seconds}s (speed ${st.speed >= 0 ? '+' : ''}${st.speed}, steer ${st.steer >= 0 ? '+' : ''}${st.steer})`;
+  if (st.type === 'arm') return `ramię: ${st.name}`;
+  return `czekaj ${st.seconds}s`;
+}
+
+function seqSend(msg) {
+  if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(msg));
+}
+
+function seqSetStatus(text, err) {
+  seqEl.status.textContent = text || '';
+  seqEl.status.classList.toggle('err', !!err);
+}
+
+function readStepFromForm() {
+  const t = seqEl.type.value;
+  if (t === 'drive') {
+    return { type: 'drive', speed: Number(seqEl.speed.value), steer: Number(seqEl.steer.value), seconds: Number(seqEl.secs.value) };
+  }
+  if (t === 'arm') {
+    if (!seqEl.motion.value) { seqSetStatus('brak ruchów w motions/ - nagraj ruch w sekcji ramienia', true); return null; }
+    return { type: 'arm', name: seqEl.motion.value };
+  }
+  return { type: 'wait', seconds: Number(seqEl.wait.value) };
+}
+
+let seqCurIndex = -1;
+function renderSteps() {
+  try { localStorage.setItem('seqDraft', JSON.stringify(seqSteps)); } catch (e) { /* prywatne okno */ }
+  if (!seqSteps.length) { seqEl.steps.innerHTML = '<div class="hint">brak kroków - dodaj wyżej</div>'; return; }
+  seqEl.steps.innerHTML = seqSteps.map((st, i) => `
+    <div data-i="${i}"><span>${i + 1}. ${seqStepText(st)}</span>
+      <span><button data-act="up" data-i="${i}" title="w górę">↑</button> <button data-act="del" data-i="${i}">✕</button></span></div>`).join('');
+  for (const b of seqEl.steps.querySelectorAll('button')) {
+    b.addEventListener('click', () => {
+      const i = Number(b.dataset.i);
+      if (b.dataset.act === 'del') seqSteps.splice(i, 1);
+      else if (i > 0) { const t = seqSteps[i - 1]; seqSteps[i - 1] = seqSteps[i]; seqSteps[i] = t; }
+      renderSteps();
+    });
+  }
+}
+
+seqEl.type.addEventListener('change', () => {
+  for (const t of ['drive', 'arm', 'wait']) document.getElementById('seq-f-' + t).style.display = seqEl.type.value === t ? '' : 'none';
+});
+
+let seqMotionsKey = '';
+function refreshMotionOptions() {
+  const names = armPanel.motions();
+  const key = names.join(',');
+  if (key === seqMotionsKey) return;
+  seqMotionsKey = key;
+  const cur = seqEl.motion.value;
+  seqEl.motion.innerHTML = names.map(n => `<option value="${n}">${n}</option>`).join('');
+  if (names.includes(cur)) seqEl.motion.value = cur;
+}
+setInterval(refreshMotionOptions, 1000);
+
+document.getElementById('seq-add').addEventListener('click', () => {
+  const st = readStepFromForm();
+  if (!st) return;
+  seqSteps.push(st);
+  renderSteps();
+  seqSetStatus(`dodano: ${seqStepText(st)}`);
+});
+document.getElementById('seq-test').addEventListener('click', () => {
+  const st = readStepFromForm();
+  if (!st) return;
+  if (st.type === 'drive') seqSend({ type: 'drive_step', speed: st.speed, steer: st.steer, seconds: st.seconds });
+  else if (st.type === 'arm') { seqSend({ type: 'save_sequence', name: '_test', steps: [st] }); seqSend({ type: 'play_sequence', name: '_test' }); }
+  else seqSetStatus('krok "czekaj" nie ma czego testować');
+});
+document.getElementById('seq-play-draft').addEventListener('click', () => {
+  if (!seqSteps.length) { seqSetStatus('szkic pusty', true); return; }
+  // szkic idzie na serwer jako "_szkic", zeby odtwarzanie bylo tym samym kodem co zapisane sekwencje
+  seqSend({ type: 'save_sequence', name: '_szkic', steps: seqSteps });
+  seqSend({ type: 'play_sequence', name: '_szkic' });
+});
+document.getElementById('seq-clear').addEventListener('click', () => {
+  if (seqSteps.length && !window.confirm('Wyczyścić szkic sekwencji?')) return;
+  seqSteps = [];
+  renderSteps();
+});
+document.getElementById('seq-save').addEventListener('click', () => {
+  const name = seqEl.name.value.trim();
+  if (!name) { seqSetStatus('podaj nazwę sekwencji', true); return; }
+  if (!seqSteps.length) { seqSetStatus('szkic pusty', true); return; }
+  seqSend({ type: 'save_sequence', name, steps: seqSteps });
+  pendingSave = name;
+  seqSetStatus(`zapisuję "${name}"...`);
+});
+let pendingSave = null;
+
+let lastSeqSig = null;
+let lastSeqStatusSig = null;
+function renderSequence(seq, sequences, seqError) {
+  const statusSig = JSON.stringify([seq, seqError]);
+  if (statusSig !== lastSeqStatusSig) {
+    lastSeqStatusSig = statusSig;
+    if (seqError) seqSetStatus(seqError, true);
+    else if (seq.running) seqSetStatus(`gra "${seq.name}": krok ${seq.index + 1}/${seq.total} - ${seq.step || ''}`);
+    else if (seq.error) seqSetStatus(`"${seq.name}" błąd: ${seq.error}`, true);
+    else if (seq.finished) seqSetStatus(`"${seq.name}": ${seq.finished}`);
+    const cur = seq.running && (seq.name === '_szkic') ? seq.index : -1;
+    if (cur !== seqCurIndex) {
+      seqCurIndex = cur;
+      for (const row of seqEl.steps.querySelectorAll('div[data-i]')) row.classList.toggle('cur', Number(row.dataset.i) === cur);
+    }
+  }
+  const names = Object.keys(sequences).filter(n => !n.startsWith('_'));
+  const sig = JSON.stringify(sequences) + '|' + (seq.running ? seq.name : '');
+  if (sig === lastSeqSig) return;
+  lastSeqSig = sig;
+  if (pendingSave && pendingSave in sequences && !seqError) {
+    seqSetStatus(`zapisano "${pendingSave}" (${sequences[pendingSave].length} kroków) -> sequences/${pendingSave}.json`);
+    pendingSave = null;
+  }
+  if (!names.length) { seqEl.list.innerHTML = '<div class="hint">brak zapisanych sekwencji (pliki sequences/*.json)</div>'; return; }
+  seqEl.list.innerHTML = names.map(name => `
+    <div class="rec-row">
+      <span class="rec-row-name">${name}<span class="rec-row-dur">${sequences[name].length} kroków</span></span>
+      <span class="rec-row-btns">
+        <button class="play" data-action="play" data-name="${name}" ${seq.running ? 'disabled' : ''}>${seq.running && seq.name === name ? 'GRA' : '▶'}</button>
+        <button data-action="edit" data-name="${name}" title="wczytaj do szkicu">✎</button>
+        <button class="del" data-action="del" data-name="${name}">✕</button>
+      </span>
+    </div>`).join('');
+  for (const btn of seqEl.list.querySelectorAll('button')) {
+    btn.addEventListener('click', () => {
+      const name = btn.dataset.name;
+      if (btn.dataset.action === 'play') seqSend({ type: 'play_sequence', name });
+      else if (btn.dataset.action === 'edit') { seqSteps = sequences[name].map(st => ({ ...st })); seqEl.name.value = name; renderSteps(); seqSetStatus(`wczytano "${name}" do szkicu`); }
+      else if (window.confirm(`Usunąć sekwencję "${name}"?`)) seqSend({ type: 'delete_sequence', name });
+    });
+  }
+}
+renderSteps();
 </script>
 </body>
 </html>
