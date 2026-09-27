@@ -15,13 +15,30 @@ Komendy (slowniki, jak przychodza z przegladarki):
     {"cmd": "open"} / {"cmd": "close"}
     {"cmd": "motion", "name": "grasp_mid"}
     {"cmd": "stop"}          (nie idzie do kolejki, dziala od razu)
+    {"cmd": "jog_xyz", "axis": "z", "step_mm": 10}
+        TCP (punkt miedzy szczekami) o step_mm wzdluz osi bazy ramienia, pochylenie chwytaka
+        bez zmian (pinecone_bot/kinematics.py). Wymaga kinematyki (URDF) w panelu.
+    {"cmd": "urdf_zero"}     (od razu, bez kolejki) ramie stoi wyprostowane poziomo do przodu:
+        odczyt pan/lift/elbow/wrist_flex staje sie zerem URDF, offsety ida do pinecone_config.json.
+
+Nagrywanie ruchu z panelu (od razu, bez kolejki; szkic trzymany w panelu):
+    {"cmd": "add_point", "label": "nad szyszka", "seconds": 1.5, "check_gripper": false}
+        dodaje BIEZACA poze: przeguby z odczytu serw (lub ostatniej komendy, gdy
+        odczytu brak), chwytak z ostatniej komendy (po "close" = 0, czyli zacisk;
+        odczyt zamknietego chwytaka to szerokosc szyszki, nie cel).
+    {"cmd": "drop_point"} / {"cmd": "clear_points"}
+    {"cmd": "save_motion", "name": "grasp_cam", "note": "...", "overwrite": false}
+        zapisuje szkic do motions/<name>.json (format jak tools/record_waypoints.py).
 
 Przed pierwszym udanym HOME przyjmowane sa tylko "home" i "stop"
 (serwer po starcie sam wrzuca HOME do kolejki).
 
 manual_only=True (tools/arm_web.py --no-home, np. gdy na ramieniu siedzi kamera):
-bez HOME przy starcie, "home" i "motion" odrzucane (ruchy z motions/ tez koncza
-w pozie HOME), jog i chwytak od razu, liczone od odczytanej pozycji.
+bez HOME przy starcie, "home" odrzucane, jog i chwytak od razu, liczone od
+odczytanej pozycji. Ruchy z motions/ sa dozwolone (nagrywa sie je z panelu pod
+biezacy montaz), ale przy pustym chwycie ramie NIE wraca do HOME (home_on_empty=False).
+UWAGA: stare ruchy (grasp_mid, home, drop_box) koncza w HOME_POSE - w tym trybie
+odtwarzaj tylko ruchy nagrane pod aktualny montaz.
 
 Jog liczy cel od OSTATNIEJ WYSLANEJ komendy (setpoint), a nie od odczytu -
 dzieki temu komenda nie robi sync_read. HOME i ruchy z motions/ odtwarza
@@ -32,26 +49,42 @@ from __future__ import annotations
 import collections
 import logging
 import os
+import re
 import threading
 import time
 from typing import Callable
 
-from .arm import GRIPPER_OPEN, HOME_POSE, JOINT_NAMES, WaypointArm, resolve_motions_dir
+from .arm import (
+    GRIPPER_OPEN,
+    HOME_POSE,
+    JOINT_NAMES,
+    Motion,
+    Waypoint,
+    WaypointArm,
+    motion_path,
+    resolve_motions_dir,
+    save_motion,
+)
 
 log = logging.getLogger(__name__)
 
 GRIPPER_CLOSED = 0.0          # arm_control.close_gripper: 0 = zamkniety
 STEP_CHOICES = (1.0, 5.0, 10.0)
+XYZ_STEPS_MM = (5.0, 10.0, 20.0)
+XYZ_AXES = {"x": 0, "y": 1, "z": 2}
 MAX_QUEUE = 10                # wiecej oczekujacych komend = klikanie na oslep, odrzucamy
 # Staw dalej niz tyle poza zakresem kalibracji = jog zablokowany. Serwo i tak utnie cel do
 # swojego limitu pozycji (EEPROM), wiec "ruch o 1 st" stalby sie skokiem do granicy zakresu.
 OUT_OF_RANGE_TOL = 1.0
+RECOVER_TOL = 10.0            # do tylu st za granica jog w strone zakresu jest dozwolony
+MAX_DRAFT = 40                # waypointow w szkicu ruchu nagrywanego z panelu
+MOTION_NAME_RE = re.compile(r"^[A-Za-z0-9_-]{1,40}$")
 RAW_RESOLUTION = 4095         # STS3215: 4096 krokow, lerobot dzieli przez (4096 - 1)
 
 # Maksymalna zmiana celu na jeden tick (stopnie; gripper w jednostkach 0-100).
-# Przy rate_hz=25: 50 st/s dla przegubow, 100 j/s dla chwytaka.
-DEFAULT_MAX_STEP = {j: 2.0 for j in JOINT_NAMES}
-DEFAULT_MAX_STEP["gripper"] = 4.0
+# Przy rate_hz=25: 25 st/s dla przegubow, 50 j/s dla chwytaka (polowa wartosci z 2026-09-26 rano).
+DEFAULT_MAX_STEP = {j: 1.0 for j in JOINT_NAMES}
+DEFAULT_MAX_STEP["gripper"] = 2.0
 
 
 class Stopped(Exception):
@@ -172,8 +205,12 @@ class ArmPanel:
         max_step: dict | None = None,
         read_period_s: float = 0.5,
         manual_only: bool = False,
+        kinematics=None,
+        config_path: str | None = None,
     ):
         self.cfg = cfg
+        self.kin = kinematics          # So101Kinematics albo None (jog XYZ wylaczony)
+        self.config_path = config_path  # gdzie urdf_zero zapisuje offsety (None = domyslny)
         self.limits = dict(limits)
         self.rate_hz = rate_hz
         self.max_step = dict(max_step or DEFAULT_MAX_STEP)
@@ -182,8 +219,12 @@ class ArmPanel:
         self._clock = clock
 
         self.arm = RecordingArm(arm)
-        # WaypointArm spi przez _sleep, wiec STOP przerywa tez odtwarzanie motions/
-        self.waypoints = WaypointArm(cfg, arm=self.arm, sleep=self._sleep, clock=clock)
+        # WaypointArm spi przez _sleep, wiec STOP przerywa tez odtwarzanie motions/.
+        # manual_only: po pustym chwycie bez powrotu do HOME (kamera na ramieniu).
+        self.waypoints = WaypointArm(
+            cfg, arm=self.arm, sleep=self._sleep, clock=clock, home_on_empty=not manual_only
+        )
+        self.draft: list = []      # Waypoint-y nagrywane z panelu (add_point), do save_motion
 
         self._lock = threading.Lock()
         self._wake = threading.Condition(self._lock)
@@ -209,8 +250,25 @@ class ArmPanel:
         if cmd == "stop":
             self.stop()
             return True, "STOP"
-        if cmd not in ("jog", "home", "open", "close", "motion"):
+        if cmd in ("add_point", "drop_point", "clear_points", "save_motion"):
+            return self._draft_cmd(cmd, data)
+        if cmd == "urdf_zero":
+            return self._urdf_zero()
+        if cmd not in ("jog", "jog_xyz", "home", "open", "close", "motion"):
             return False, f"nieznana komenda '{cmd}'"
+        if cmd == "jog_xyz":
+            if self.kin is None:
+                return False, "jog XYZ wylaczony (brak kinematyki/URDF)"
+            axis = data.get("axis")
+            if axis not in XYZ_AXES:
+                return False, f"os musi byc jedna z {tuple(XYZ_AXES)}"
+            try:
+                step_mm = float(data.get("step_mm"))
+            except (TypeError, ValueError):
+                return False, "zly krok"
+            if abs(step_mm) not in XYZ_STEPS_MM:
+                return False, f"krok musi byc jednym z {XYZ_STEPS_MM} mm"
+            data = {"cmd": "jog_xyz", "axis": axis, "step_mm": step_mm}
         if cmd == "jog":
             joint = data.get("joint")
             if joint not in JOINT_NAMES:
@@ -227,8 +285,8 @@ class ArmPanel:
             if name not in list_motions(self.cfg.arm.motions_dir):
                 return False, f"brak ruchu '{name}' w motions/"
             data = {"cmd": "motion", "name": name}
-        if self.manual_only and cmd in ("home", "motion"):
-            return False, "HOME i ruchy z motions/ wylaczone (--no-home)"
+        if self.manual_only and cmd == "home":
+            return False, "HOME wylaczone (--no-home)"
         with self._lock:
             if not self.homed and cmd != "home":
                 return False, "najpierw HOME"
@@ -245,13 +303,125 @@ class ArmPanel:
             self._wake.notify()
         log.info("STOP")
 
+    # --- kinematyka (jog XYZ) ----------------------------------------------
+
+    def _urdf_zero(self) -> tuple:
+        """Biezacy ODCZYT pan/lift/elbow/wrist_flex = zero URDF. Offsety do configu i do kinematyki."""
+        from .kinematics import IK_JOINTS
+
+        if self.kin is None:
+            return False, "brak kinematyki/URDF"
+        with self._lock:
+            read = dict(self.positions)
+            busy = self._running is not None or bool(self._queue)
+        if busy:
+            return False, "ramie w ruchu - poczekaj"
+        missing = [j for j in IK_JOINTS if j not in read]
+        if missing:
+            return False, f"brak odczytu {missing} - poczekaj na odczyt"
+        offsets = dict(self.cfg.arm.urdf_offset_deg)
+        for joint in IK_JOINTS:
+            offsets[joint] = round(-self.kin.sign[joint] * read[joint], 2)
+        self.cfg.arm.urdf_offset_deg = offsets
+        self.kin.offset_deg.update(offsets)
+        try:
+            path = self.cfg.save(self.config_path)
+        except OSError as exc:
+            return False, f"offsety ustawione, ale zapis nieudany: {exc}"
+        log.info("zero URDF: %s -> %s", offsets, path)
+        return True, "zero URDF zapisane: " + ", ".join(f"{j} {v:+.1f}" for j, v in offsets.items() if j in IK_JOINTS)
+
+    def tcp(self) -> dict | None:
+        """Pozycja TCP (mm) i pochylenie chwytaka (st) z odczytu serw, brak odczytu -> z komendy."""
+        if self.kin is None:
+            return None
+        from .kinematics import ARM_JOINTS
+
+        with self._lock:
+            pose = {**self.arm.last_sent, **self.positions}
+        if any(j not in pose for j in ARM_JOINTS):
+            return None
+        xyz, pitch = self.kin.tcp(pose)
+        return {"x": round(xyz[0] * 1000, 1), "y": round(xyz[1] * 1000, 1), "z": round(xyz[2] * 1000, 1),
+                "pitch": round(pitch, 1)}
+
+    # --- nagrywanie ruchu z panelu -------------------------------------------
+
+    def current_pose(self) -> dict:
+        """Poza do zapisu: przeguby z odczytu (brak -> ostatnia komenda), chwytak z komendy.
+
+        Odczyt zamknietego chwytaka to szerokosc trzymanej szyszki, a nie cel zacisku;
+        ostatnia komenda ("close" = 0) jest tym, co ruch ma potem powtorzyc.
+        """
+        sent = dict(self.arm.last_sent)
+        with self._lock:
+            read = dict(self.positions)
+        pose = {}
+        for joint in JOINT_NAMES:
+            if joint == "gripper":
+                val = sent.get(joint, read.get(joint))
+            else:
+                val = read.get(joint, sent.get(joint))
+            if val is None:
+                raise RuntimeError(f"nie znam pozycji {joint} - poczekaj na odczyt albo rusz stawem")
+            pose[joint] = float(val)
+        return pose
+
+    def _draft_cmd(self, cmd: str, data: dict) -> tuple:
+        if cmd == "add_point":
+            if len(self.draft) >= MAX_DRAFT:
+                return False, f"szkic ma juz {MAX_DRAFT} punktow"
+            try:
+                pose = self.current_pose()
+                seconds = float(data.get("seconds", 1.5))
+            except (RuntimeError, TypeError, ValueError) as exc:
+                return False, str(exc)
+            if not 0.0 <= seconds <= 30.0:
+                return False, "czas dojazdu 0..30 s"
+            label = str(data.get("label") or f"wp{len(self.draft)}")[:40]
+            wp = Waypoint(label=label, pose=pose, seconds=seconds, check_gripper=bool(data.get("check_gripper")))
+            self.draft.append(wp)
+            return True, f"punkt {len(self.draft)}: {label}"
+        if cmd == "drop_point":
+            if not self.draft:
+                return False, "szkic pusty"
+            wp = self.draft.pop()
+            return True, f"usunieto '{wp.label}'"
+        if cmd == "clear_points":
+            self.draft = []
+            return True, "szkic wyczyszczony"
+        # save_motion
+        name = str(data.get("name") or "")
+        if not MOTION_NAME_RE.match(name):
+            return False, "nazwa: litery, cyfry, '-' i '_' (max 40)"
+        if not self.draft:
+            return False, "szkic pusty - najpierw dodaj punkty"
+        path = motion_path(self.cfg.arm.motions_dir, name)
+        if os.path.exists(path) and not data.get("overwrite"):
+            return False, f"ruch '{name}' juz istnieje (zaznacz nadpisanie)"
+        motion = Motion(name=name, waypoints=list(self.draft), note=str(data.get("note") or "")[:300])
+        try:
+            save_motion(self.cfg.arm.motions_dir, motion)
+        except OSError as exc:
+            return False, f"zapis nieudany: {exc}"
+        self.draft = []
+        log.info("zapisano ruch %s (%d punktow)", path, len(motion.waypoints))
+        return True, f"zapisano motions/{name}.json ({len(motion.waypoints)} punktow)"
+
     # --- stan dla przegladarki --------------------------------------------
 
     def snapshot(self) -> dict:
         sent = dict(self.arm.last_sent)  # kopia: watek roboczy dopisuje bez blokady
+        draft = [
+            {"label": wp.label, "seconds": wp.seconds, "check_gripper": wp.check_gripper,
+             "pose": {j: round(v, 1) for j, v in wp.pose.items()}}
+            for wp in list(self.draft)
+        ]
+        tcp = self.tcp()  # przed blokada: tcp() sam bierze _lock
         with self._lock:
             running = self._running.data if self._running else None
             return {
+                "draft": draft,
                 "positions": {j: round(v, 2) for j, v in self.positions.items()},
                 "setpoint": {j: round(v, 2) for j, v in sent.items()},
                 "limits": {j: [round(lo, 1), round(hi, 1)] for j, (lo, hi) in self.limits.items()},
@@ -265,6 +435,8 @@ class ArmPanel:
                 "motions": list_motions(self.cfg.arm.motions_dir),
                 "joints": JOINT_NAMES,
                 "steps": list(STEP_CHOICES),
+                "xyz_steps": list(XYZ_STEPS_MM) if self.kin is not None else [],
+                "tcp": tcp,
             }
 
     # --- watek roboczy ----------------------------------------------------
@@ -322,14 +494,34 @@ class ArmPanel:
             start = self._setpoint()[joint]
             lo, hi = self.limits[joint]
             for label, val in (("komenda", start), ("odczyt", self.positions.get(joint))):
-                if val is not None and not (lo - OUT_OF_RANGE_TOL <= val <= hi + OUT_OF_RANGE_TOL):
+                if val is None or lo - OUT_OF_RANGE_TOL <= val <= hi + OUT_OF_RANGE_TOL:
+                    continue
+                # Lekko za granica (np. wrist_roll z kamera ugina sie pod ciezarem o kilka st za limit):
+                # jog W STRONE zakresu jest bezpieczny - cel lezy w zakresie, skok <= RECOVER_TOL + krok.
+                inward = (val < lo and step > 0) or (val > hi and step < 0)
+                if not (inward and min(abs(val - lo), abs(val - hi)) <= RECOVER_TOL):
                     raise RuntimeError(
                         f"{joint} poza zakresem kalibracji ({label} {val:.1f}, zakres {lo:.1f}..{hi:.1f}): "
-                        f"serwo skoczyloby do granicy o {min(abs(val - lo), abs(val - hi)):.0f} st - ustaw recznie"
+                        f"serwo skoczyloby do granicy o {min(abs(val - lo), abs(val - hi)):.0f} st - jog w strone zakresu"
+                        f" (do {RECOVER_TOL:.0f} st za granica) albo ustaw recznie"
                     )
             target = jog_target(start, step, *self.limits[joint])
             self._step_to({joint: target})
             return f"{joint}: {start:.1f} -> {target:.1f}"
+        if cmd == "jog_xyz":
+            from .kinematics import IK_JOINTS
+
+            pose = self._setpoint()
+            for joint in IK_JOINTS:
+                lo, hi = self.limits[joint]
+                for label, val in (("komenda", pose[joint]), ("odczyt", self.positions.get(joint))):
+                    if val is not None and not (lo - OUT_OF_RANGE_TOL <= val <= hi + OUT_OF_RANGE_TOL):
+                        raise RuntimeError(f"{joint} poza zakresem kalibracji ({label} {val:.1f}) - najpierw jog stawu")
+            delta = [0.0, 0.0, 0.0]
+            delta[XYZ_AXES[data["axis"]]] = data["step_mm"] / 1000.0
+            target = self.kin.jog_xyz(pose, delta, self.limits)
+            self._step_to(target)
+            return f"TCP {data['axis']} {data['step_mm']:+.0f} mm"
         raise ValueError(f"nieznana komenda {cmd}")
 
     def _setpoint(self) -> dict:

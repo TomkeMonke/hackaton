@@ -156,3 +156,25 @@ def test_file_camera_single_image_and_make_camera(tmp_path):
         make_camera(Config(), "sim")
     with pytest.raises(FileNotFoundError):
         make_camera(Config(), str(tmp_path / "missing"))
+
+
+def test_hue_range_wrapping_through_180_joins_both_ends():
+    """lo H > hi H: szyszka z odcieniem 175 i 5 (obie strony zera) to jeden blob."""
+    hsv = np.zeros((H, W, 3), dtype=np.uint8)
+    hsv[:, :] = (60, 30, 140)                      # 'trawa': jasna, poza V hi
+    hsv[200:260, 300:330] = (175, 80, 60)          # lewa polowa szyszki, H tuz pod 180
+    hsv[200:260, 330:360] = (5, 80, 60)            # prawa polowa, H tuz nad 0
+    bgr = cv2.cvtColor(hsv, cv2.COLOR_HSV2BGR)
+
+    wrap = DetectorConfig(min_area_px=100)
+    wrap.hsv.lo, wrap.hsv.hi = (140, 20, 20), (15, 130, 95)
+    dets = HsvConeDetector(wrap).detect(bgr)
+    assert len(dets) == 1
+    assert abs(dets[0].px - 330) <= TOL_PX and abs(dets[0].py - 230) <= TOL_PX
+
+    # Zwykly zakres 140..179 widzi tylko lewa polowe (srodek przesuniety w lewo).
+    plain = DetectorConfig(min_area_px=100)
+    plain.hsv.lo, plain.hsv.hi = (140, 20, 20), (179, 130, 95)
+    dets = HsvConeDetector(plain).detect(bgr)
+    assert len(dets) == 1
+    assert dets[0].px < 320

@@ -26,7 +26,10 @@ sterowane z Raspberry Pi 5 (zamiast Windows PC).
   repo: `~/.cache/huggingface/lerobot/calibration/robots/so_follower/so101.json`
   (id ramienia `so101`) - na laptopie i osobno na Pi, trzeba kopiowac
   recznie (nie jest w gicie).
-- **Kamera Intel RealSense D415** - USB. Serial 105422060821, firmware
+- **Kamera na robocie (sprawdzone 2026-09-27, pyrealsense2 na Pi): Intel RealSense D435**
+  (PID 0B07, firmware 5.11.1.100, USB 3.2), siedzi na ramieniu. Pomiary w pulapkach 16-27 byly robione
+  na D415 - dla D435 moga sie roznic (D435 ma szersze pole widzenia i inna martwa strefe).
+- **Kamera Intel RealSense D415** (wczesniej) - USB. Serial 105422060821, firmware
   5.17.0.10. Montaz docelowy: platforma robota, 12 cm nad ziemia.
 - **udev / stabilne nazwy portow na Pi** (`deploy/99-robot.rules`):
   `/dev/robot-arm` = kontroler ramienia (CH343, `1a86:55d3`),
@@ -284,3 +287,65 @@ dziala stabilnie. Szczegoly i decyzje - patrz issue #8.
     KAZDEJ zmianie trybu** (`set_mode`), nie tylko przy naturalnym
     zakonczeniu odtwarzania - inaczej UI panelu pokazuje "duchy"
     poprzedniego stanu.
+
+34. **`pinecone_config.json` jest w gicie, a `deploy/push_to_pi.sh` go
+    NADPISUJE na Pi przy kazdym pushu.** Wartosc zmierzona i wpisana
+    recznie na sprzecie (np. nowy prog HSV) przetrwa tylko do
+    nastepnego pushu, jesli nie trafi do repo (commit/PR) - inaczej push
+    przywraca stara wersje z brancha/mastera i pomiar przepada. Tak
+    stracono raz wpisany na Pi prog HSV i sekcje "camera". Wartosci
+    zmierzone na sprzecie wpisywac do configu W REPO, nie tylko lokalnie
+    na Pi.
+
+35. **Sesja tmux odpalona z NIEINTERAKTYWNEGO polaczenia ssh na Pi
+    ginie po rozlaczeniu ssh** - nawet z `nohup`/`setsid` przezyla tylko
+    jedno rozlaczenie, przy drugim zniknela. Interaktywne narzedzia
+    ramienia (np. `tools/record_motion.py`, `tools/arm_play.py`)
+    odpalac we WLASNYM terminalu operatora, interaktywnie:
+    `ssh -t robot@<ip> "cd ~/hackaton && .venv/bin/python tools/..."`,
+    nie z automatycznej (nieinteraktywnej) sesji.
+
+36. **phyphox na iPhonie slucha na porcie 80, nie 8080** (8080 to Android;
+    serwer `GCDWebServer`). iPhone-hotspot ma adres 172.20.10.1, wiec
+    `heading.phyphox_url` = `http://172.20.10.1`. Serwer znika, gdy phyphox
+    pojdzie w tlo albo zgasnie ekran (`Connection refused`) - Blokada
+    automatyczna ekranu: Nigdy, phyphox na wierzchu. Pomiar startuje sam
+    (`/control?cmd=start`). Test: `python tools/phyphox_check.py`.
+
+37. **Skret hovera: martwa strefa zalezy od tego, czy robot stal.** Zmierzone
+    zyroskopem telefonu (`tools/calibrate_turn.py`): z miejsca rusza dopiero od
+    |b| ~160, a juz krecacy sie kreci od ~100; 10 jednostek wyzej to +0.3..0.7
+    rad/s, przy tym samym b 160 raz 0.43, raz 1.08 rad/s. Stala tabela
+    `xiao_steer_min/max` tego nie opisze - obrot po zyroskopie
+    (`pinecone_bot/turn_loop.py`). `xiao_steer_min` 60 z configu nie rusza
+    robota wcale.
+
+38. **Przed pomiarem kamera sprawdz, gdzie patrzy.** Kamera siedzi na ramieniu;
+    raz patrzyla w sufit i `calibrate_drive.py` "zmierzyl" 2 cm, choc robot
+    przejechal 40 cm. Narzedzie zapisuje teraz `frames/calibrate_drive.jpg` i
+    ostrzega, gdy glebia sie nie zmienia.
+
+39. **`./arm.sh move` po ruchu wylacza moment w serwach** (lerobot
+    `disconnect`), ramie opada. Do trzymania pozycji (np. kamera poziomo) -
+    `tools/arm_web.py --no-home` i jog przez panel albo `POST /api/cmd`
+    `{"cmd":"jog","joint":"wrist_flex","step":5}`.
+
+40. **RealSense pamieta opcje po poprzednim procesie.** Program z `camera.lock_auto` zamraza
+    ekspozycje (np. 166 w cieniu); nastepny program bez blokady dostaje ta sama reczna ekspozycje
+    i na sloncu obraz jest bialy. `RealSenseCamera` bez `lock_auto` wlacza teraz auto z powrotem.
+
+41. **Mapa do lokalizacji: nagrywac w tej samej pozie kamery, w ktorej robot bedzie sie
+    lokalizowal** (`motions/patrz.json`, `tools/arm_hold.py patrz`), wolno, na koniec wrocic na
+    start. Nagranie `ogrod1` (329 s): RTAB-Map skleil tylko czesc, fragment przy plocie odpadl i ze
+    startu przy plocie lokalizacja nie lapala. Punkty mapy brac do 6 m (plot 4-5 m od robota).
+
+42. **`tools/estop_server.py` zabija tylko programy z listy `TARGETS`.** Nowy program, ktory
+    jezdzi baza, trzeba tam dopisac (zygzak nie byl na liscie).
+
+43. **`deploy/push_to_pi.sh` nadpisuje pliki, ktore sa tylko na Pi.** Kopiuje `motions/` i
+    `pinecone_config.json` z laptopa (rsync, a bez rsync `scp -r` - laptop z git-bash rsync nie ma).
+    Prawdziwy `motions/drop_box.json` i zmierzone wartosci configu z Pi przepadaja (w repo jest placeholder).
+    Bezpieczniej wysylac wybrane pliki:
+    `git archive origin/<branch> <sciezki> | ssh robot@172.20.10.4 "tar -x -C ~/hackaton"`.
+    (zglosila sesja "Dostep do kamer", 2026-09-27)
+

@@ -45,7 +45,14 @@ class HsvConeDetector:
         hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
         lo = np.array(self.cfg.hsv.lo, dtype=np.uint8)
         hi = np.array(self.cfg.hsv.hi, dtype=np.uint8)
-        m = cv2.inRange(hsv, lo, hi)
+        if lo[0] > hi[0]:
+            # Zakres H przechodzi przez 180 (brazowo-czerwone szyszki maja odcien
+            # 140..179 i 0..15 naraz): suma dwoch przedzialow, S i V wspolne.
+            top = cv2.inRange(hsv, lo, np.array([179, hi[1], hi[2]], dtype=np.uint8))
+            bottom = cv2.inRange(hsv, np.array([0, lo[1], lo[2]], dtype=np.uint8), hi)
+            m = cv2.bitwise_or(top, bottom)
+        else:
+            m = cv2.inRange(hsv, lo, hi)
         m = cv2.morphologyEx(m, cv2.MORPH_OPEN, self._kernel)
         m = cv2.morphologyEx(m, cv2.MORPH_CLOSE, self._kernel)
         self.last_mask = m

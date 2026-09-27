@@ -110,6 +110,11 @@ class RealSenseCamera:
                                      float(intr.ppx), float(intr.ppy),
                                      int(intr.width), int(intr.height))
 
+        # Kamera pamieta opcje po poprzednim procesie: jesli ktos wczesniej zamrozil ekspozycje
+        # (lock_auto), bez tego zostaje reczna wartosc i na sloncu obraz jest bialy.
+        if not cfg.camera.lock_auto:
+            self._enable_auto(profile)
+
         # Rozgrzanie auto-ekspozycji i auto white balance, jak w rs_snapshot.py. Bez tego
         # pierwsze klatki sa ciemne albo maja zle kolory i prog HSV na nich nie trafia.
         if warmup_frames is None:
@@ -125,6 +130,23 @@ class RealSenseCamera:
         if cfg.camera.lock_auto:
             self.locked = self._lock_auto(profile, last)
 
+    def _color_sensor(self, profile):
+        rs = self._rs
+        for s in profile.get_device().query_sensors():
+            if s.supports(rs.option.enable_auto_white_balance) or s.supports(rs.option.white_balance):
+                return s
+        return None
+
+    def _enable_auto(self, profile) -> None:
+        """Wlacz AWB i auto-ekspozycje koloru, jesli poprzedni proces je wylaczyl."""
+        rs = self._rs
+        sensor = self._color_sensor(profile)
+        if sensor is None:
+            return
+        for opt in (rs.option.enable_auto_white_balance, rs.option.enable_auto_exposure):
+            if sensor.supports(opt) and sensor.get_option(opt) != 1:
+                sensor.set_option(opt, 1)
+
     def _lock_auto(self, profile, frames) -> dict[str, float]:
         """
         Zamroz AWB i auto-ekspozycje koloru na wartosciach z ostatniej klatki rozgrzewki.
@@ -134,11 +156,7 @@ class RealSenseCamera:
         """
         rs = self._rs
         color = frames.get_color_frame() if frames is not None else None
-        sensor = None
-        for s in profile.get_device().query_sensors():
-            if s.supports(rs.option.enable_auto_white_balance) or s.supports(rs.option.white_balance):
-                sensor = s
-                break
+        sensor = self._color_sensor(profile)
         if sensor is None:
             return {}
         pairs = [

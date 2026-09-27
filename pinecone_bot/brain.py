@@ -23,6 +23,11 @@ from .config import Config
 from .detector import Detection
 
 
+def _wrap(a: float) -> float:
+    """Kat do przedzialu (-pi, pi]."""
+    return math.atan2(math.sin(a), math.cos(a))
+
+
 class State(str, Enum):
     SEARCH = "SEARCH"
     APPROACH = "APPROACH"
@@ -97,8 +102,9 @@ class Controller:
 
 class Brain:
     def __init__(self, cfg: Config, camera, detector, base, arm, clock=None,
-                 log_path: str | None = None, on_frame=None, verbose: bool = True):
+                 log_path: str | None = None, on_frame=None, verbose: bool = True, heading=None):
         self.cfg = cfg
+        self.heading = heading  # zrodlo kursu (pinecone_bot/heading.py) albo None = pasy z czasu
         self.camera = camera
         self.detector = detector
         self.base = base
@@ -127,6 +133,16 @@ class Brain:
         self._retry_count = 0
         self._explore_t = 0.0
         self._explore_last_t: float | None = None
+        # pasy po kursie: lista odcinkow i postep w biezacym (patrz _explore_heading_cmd)
+        self._segments = self._lane_segments()
+        self._seg_idx = 0
+        self._seg_progress = 0.0    # line: metry, spin: radiany
+        self._seg_time = 0.0        # sekundy w SEARCH na tym odcinku (bezpiecznik, gdy kurs nie zbiega)
+        self._seg_last_yaw: float | None = None
+        self._explore_last_v = 0.0
+        self._h0: float | None = None   # kurs na starcie wzorca = kierunek pierwszego pasa
+        self._yaw_lost_since: float | None = None
+        self._last_yaw: float | None = None
         self._last_det: Detection | None = None
         self._last_cmd = Command()
 
@@ -135,7 +151,8 @@ class Brain:
         if log_path:
             self._log_fh = open(log_path, "w", newline="", encoding="ascii")
             self._log = csv.writer(self._log_fh)
-            self._log.writerow(["t", "state", "n_det", "px", "py", "err_x", "err_y", "v", "w", "collected"])
+            self._log.writerow(["t", "state", "n_det", "px", "py", "err_x", "err_y", "v", "w", "collected",
+                                "yaw_deg"])
 
     # --- pomocnicze ------------------------------------------------------
     def _goto(self, new: State, why: str = "") -> None:
@@ -148,6 +165,8 @@ class Brain:
             self._state_since = t
             if new == State.SEARCH:
                 self._explore_last_t = None
+                self._explore_last_v = 0.0
+                self._seg_last_yaw = None   # obrot w APPROACH nie liczy sie do pelnego obrotu
             self._settle = 0
             self._align_frames = 0
 
@@ -169,6 +188,8 @@ class Brain:
         c = self.cfg.control
         if c.search_pattern != "lanes":
             return self._elapsed() > c.search_timeout_s
+        if self.heading is not None:
+            return self._seg_idx >= len(self._segments)
         w_s = max(c.search_w, 1e-3)
         v_s = max(c.search_drive_v, 1e-3)
         spin_s = 2 * math.pi / w_s
@@ -189,6 +210,20 @@ class Brain:
         spin_drive: pelny obrot, kawalek prosto, od nowa. Prostsze, ale bladzi losowo.
         """
         c = self.cfg.control
+        if self.heading is not None and c.search_pattern == "lanes":
+            yaw = self.heading.yaw()
+            self._last_yaw = yaw
+            if yaw is not None:
+                self._yaw_lost_since = None
+                return self._explore_heading_cmd(now, yaw)
+            if self._yaw_lost_since is None:
+                self._yaw_lost_since = now
+            if now - self._yaw_lost_since <= self.cfg.heading.lost_s:
+                # stoj i czekaj na kurs; ten czas nie liczy sie do pasa
+                self._explore_last_t = now
+                self._explore_last_v = 0.0
+                return 0.0, 0.0
+            self._heading_fallback(f"brak kursu od {self.cfg.heading.lost_s:.1f} s")
         if self._explore_last_t is not None:
             self._explore_t += max(0.0, now - self._explore_last_t)
         self._explore_last_t = now
@@ -218,6 +253,106 @@ class Brain:
         if phase_t < gap_s:
             return c.search_drive_v, 0.0
         return 0.0, turn_dir
+
+    def _lane_segments(self) -> list[tuple[str, float, float]]:
+        """
+        Pasy jako odcinki (rodzaj, ile, kurs docelowy wzgledem kursu startowego):
+        spin = pelny obrot (ile w radianach), line = prosto (ile w metrach) z trzymaniem kursu,
+        turn = obrot do kursu. Ta sama geometria co pasy z czasu w _explore_cmd.
+        """
+        c = self.cfg.control
+        segs = [("spin", 2 * math.pi, 0.0)]
+        for i in range(c.lane_count):
+            lane_h, end_h = (0.0, math.pi) if i % 2 == 0 else (math.pi, 0.0)
+            segs += [("line", c.lane_length_m, lane_h), ("turn", 0.0, math.pi / 2),
+                     ("line", c.lane_spacing_m, math.pi / 2), ("turn", 0.0, end_h)]
+        return segs
+
+    def _seg_nominal_s(self, kind: str, amount: float) -> float:
+        c = self.cfg.control
+        w_s = max(c.search_w, 1e-3)
+        v_s = max(c.search_drive_v, 1e-3)
+        if kind == "spin":
+            return amount / w_s
+        if kind == "turn":
+            return (math.pi / 2) / w_s
+        return amount / v_s
+
+    def _next_segment(self) -> None:
+        self._seg_idx += 1
+        self._seg_progress = 0.0
+        self._seg_time = 0.0
+        self._seg_last_yaw = None
+        self._explore_last_v = 0.0
+
+    def _turn_w(self, err: float) -> float:
+        """Obrot w miejscu do kursu: P, ograniczony do search_w, nie wolniej niz w_min."""
+        c, h = self.cfg.control, self.cfg.heading
+        w = min(max(h.kp * err, -c.search_w), c.search_w)
+        if abs(w) < h.w_min:
+            w = math.copysign(h.w_min, err)
+        return w * c.steer_sign
+
+    def _heading_fallback(self, why: str) -> None:
+        """Kurs niedostepny albo nie zbiega: dalej pasy z czasu, od miejsca, w ktorym jestesmy we wzorcu."""
+        t = sum(self._seg_nominal_s(k, a) for k, a, _ in self._segments[:self._seg_idx])
+        if self._seg_idx < len(self._segments):
+            kind, amount, _ = self._segments[self._seg_idx]
+            if kind == "line":
+                t += self._seg_progress / max(self.cfg.control.search_drive_v, 1e-3)
+            elif kind == "spin":
+                t += max(0.0, self._seg_progress) / max(self.cfg.control.search_w, 1e-3)
+        print(f"UWAGA: pasy po kursie wylaczone ({why}), dalej pasy z czasu")
+        self.stats.transitions.append((round(self.clock.now(), 2), "SEARCH", "SEARCH", f"bez kursu: {why}"))
+        self.heading = None
+        self._explore_t = t
+
+    def _explore_heading_cmd(self, now: float, yaw: float) -> tuple[float, float]:
+        """
+        Pasy po kursie (zyroskop albo odometria). Obroty koncza sie, gdy kurs dojdzie do celu, a nie po czasie,
+        wiec poslizg kol i rozne silniki nie skrecaja pasow. Na prostej regulator P trzyma kurs pasa.
+        Dlugosc prostej dalej liczona z czasu i search_drive_v (zyroskop nie mierzy drogi).
+        Po podjezdzie do szyszki robot najpierw obraca sie z powrotem na kurs pasa, potem jedzie dalej.
+        """
+        c, h = self.cfg.control, self.cfg.heading
+        dt = 0.0 if self._explore_last_t is None else max(0.0, now - self._explore_last_t)
+        self._explore_last_t = now
+        if self._h0 is None:
+            self._h0 = yaw
+        # postep z poprzedniej komendy (predkosc do przodu dotyczy biezacego odcinka)
+        self._seg_progress += dt * self._explore_last_v
+        self._seg_time += dt
+        self._explore_last_v = 0.0
+        tol = math.radians(h.tol_deg)
+        while self._seg_idx < len(self._segments):
+            kind, amount, target = self._segments[self._seg_idx]
+            if self._seg_time > 3 * self._seg_nominal_s(kind, amount) + 10.0:
+                self._heading_fallback(f"odcinek {self._seg_idx} ({kind}) trwa za dlugo - sprawdz "
+                                       f"heading.sign i control.steer_sign")
+                return self._explore_cmd(now)
+            if kind == "spin":
+                if self._seg_last_yaw is not None:
+                    self._seg_progress += _wrap(yaw - self._seg_last_yaw)
+                self._seg_last_yaw = yaw
+                if self._seg_progress >= amount - tol:
+                    self._next_segment()
+                    continue
+                return 0.0, c.search_w * c.steer_sign
+            err = _wrap(self._h0 + target - yaw)
+            if kind == "turn":
+                if abs(err) <= tol:
+                    self._next_segment()
+                    continue
+                return 0.0, self._turn_w(err)
+            if self._seg_progress >= amount:
+                self._next_segment()
+                continue
+            if abs(err) > math.radians(h.align_deg):
+                return 0.0, self._turn_w(err)
+            w = min(max(h.kp * err, -c.search_w), c.search_w) * c.steer_sign
+            self._explore_last_v = c.search_drive_v
+            return c.search_drive_v, w
+        return 0.0, 0.0
 
     def _pick_target(self, dets: list[Detection]) -> Detection | None:
         """
@@ -260,6 +395,9 @@ class Brain:
         det = self._pick_target(dets)
         now = self.clock.now()
         self.stats.frames += 1
+        if self._h0 is None and self.heading is not None:
+            # kierunek pierwszego pasa = kurs na starcie, zanim ewentualny podjazd do szyszki obroci robota
+            self._h0 = self.heading.yaw()
         if det is not None:
             self._last_seen = now
             self._last_det = det
@@ -371,6 +509,7 @@ class Brain:
                 f"{det.px:.1f}" if det else "", f"{det.py:.1f}" if det else "",
                 f"{cmd.err_x:.1f}", f"{cmd.err_y:.1f}",
                 f"{self._last_cmd.v:.3f}", f"{self._last_cmd.w:.3f}", self.stats.collected,
+                f"{math.degrees(self._last_yaw):.1f}" if self._last_yaw is not None else "",
             ])
         if self.on_frame is not None:
             self.on_frame(frame, dets, self.state, cmd)
