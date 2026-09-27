@@ -677,6 +677,74 @@ odpowiada pod 172.20.10.1:8080, znak kursu, czy ekran nie gasnie. Dlugosc pasa d
 **Nastepny krok:** phyphox na telefonie, `python tools/phyphox_check.py` na Pi, obrot recznie o 90 st w lewo -> ~+90.
 **Sprzet:** nie
 
+## 2026-09-27 - frane + Claude - research gotowych polityk lerobot
+**Zrobione:** Przegladniete z polki: lerobot (ACT, SmolVLA, MolmoAct2, Flux3), DOT (IliaLarchenko), MolmoAct
+("moloko"). Wynik w `docs/POLICIES_LEROBOT.md`. Skrot: gotowych wag do szyszek nie ma. Jedyny zero-shot pod
+SO-101 to MolmoAct2 (5B, 21.8 GB fp32, lerobot `main`, GPU >= 24 GB) - nie odpali na RTX 3070 8 GB ani na Pi.
+DOT nie zmergowany do lerobot (PR #739 stale), tylko fork ze stara kalibracja - odpada. Realna sciezka: lerobot
+ACT (jest w 0.6.1) na wlasnych ~50 epizodach, inference przez async policy server na laptopie, Pi jako klient;
+SmolVLA fine-tune (Colab) jako plan B. Blokery wspolne: brak leader arm (zamiennik: teleop telefonem
+`lerobot[phone]`, IK na naszym URDF) i tylko jedna kamera, na ramieniu (potrzebna druga, statyczna).
+**Nie dziala / otwarte:** nic nie uruchamiane; decyzja zespolu, czy ML idzie rownolegle do petli z RUNBOOK.
+**Nastepny krok:** jesli tak: `pip install "lerobot[phone]"` na laptopie, kopia `so101.json` z Pi, teleop telefonem
+przy stole z wylacznikiem; potem druga kamera i nagranie 50 epizodow.
+**Sprzet:** nie
+
+## 2026-09-27 - frane + Claude - lerobot do ACT: instalacja laptop + Pi
+**Zrobione:** Decyzja frane: robimy ACT rownolegle do petli deterministycznej; laptop = serwer (trening, policy
+server), Pi = klient robota (teleop telefonem, nagranie, robot_client), bo `placo` (IK teleopu) nie ma kola na
+Windows. Laptop (`.venv`, Python 3.12): torch 2.11.0+cu128 (CUDA widzi RTX 3070 8 GB), lerobot 0.6.1
+[phone,feetech,async], numpy 2.5.3 -> 2.2.6 (pin lerobota), opencv naprawione po konflikcie headless; importy teleopu
+OK; 128 testow zielonych. `so101.json` skopiowany z Pi do cache lerobota na laptopie (MD5 zgodne). Na Pi odtworzony
+`~/hackaton/examples/phone_to_so100/` (skrypty z tagu v0.6.1 + `SO101/` z SO-ARM100: URDF identyczny z repo + 31 STL).
+Dokumentacja: `docs/SETUP.md` sekcja "lerobot do ACT" z komendami i pulapkami (placo/Windows, override torcha na Pi,
+hebi-py tylko sdist, brak `examples/` po pip install). Torch cu128 po hotspocie: ~1 h.
+**Nie dziala / otwarte:** instalacja extras na Pi: pierwszy `uv pip install lerobot[phone,...]` cofal sie po wersjach
+hebi-py (sdist ~92 MB kazdy) i chcial wymienic torch 2.14+cpu na generyczny z PyPI (2 GB CUDA); rozwiazane przez
+`--override` + jawne skladniki extra `phone` (dry-run czysty), ale wlasciwa instalacja padla na "network unreachable"
+przy `cmeel-assimp` - hotspot sie zrestartowal (laptop dostal nowy adres), Pi nie wrocilo do sieci przez 10+ min.
+`pkill -f` przez ssh zabil sam siebie 2x (HARDWARE pulapka 31) - uzywac `pgrep -x uv`. Uwaga: `shoulder_pan` ma w
+kalibracji zakres tylko 1786..2308 tickow (~46 st) - IK z telefonu bedzie ograniczone na boki.
+**Dokonczone w tej samej sesji (10:27-10:38):** przyczyna "znikniecia" Pi: laptop sam przeskoczyl na WiFi
+"hacker-bloc", Pi caly czas bylo na hotspocie pod 172.20.10.4. Po powrocie laptopa na hotspot instalacja na Pi
+przeszla (90 paczek, 4 MB/s): torch 2.14.0+cpu zostal, torchvision 0.29.0+cpu, numpy 2.2.6, placo 0.9.15,
+hebi-py 2.11.0, grpcio. Weryfikacja OK: importy teleopu, IK placo na URDF z examples/, robot_client, pyrealsense2,
+pinecone_bot. Placo ostrzega o samokolizjach URDF w pozie neutralnej (nieszkodliwe).
+Testy repo na Pi po zmianie numpy: 195/202 zielone; 7 czerwonych to NIE numpy, tylko osierocone pliki na Pi z
+niezmergowanego brancha `claude/robot-pinecone-test-plan-e4ca8e` (`tests/test_calibrate_target.py` - 6, wola
+`collect_average`, ktorego nie ma w `tools/calibrate_target.py` na Pi; `tests/test_web_control_estop.py` - 1,
+`/stop` 404 na starszym `web_control.py`, test wisi ~2 min czekajac na HTTP). Katalog `tests/` na Pi to mieszanka
+branchy po kolejnych `push_to_pi.sh` - `deploy/push_to_pi.sh` kopiuje, nie synchronizuje z usuwaniem.
+Notatka Tomka `docs/STACK.md` (branch `tomek/docs-stack`) zgodna z tym opisem: zero ML w glownym stosie, lerobot
+tylko jako sterownik serw. Wspomina `teleop_mirror.py` (leader -> follower, id `so101_leader`) - jesli ramie
+leader fizycznie istnieje, nagrywamy `lerobot-record --teleop.type=so101_leader` i telefon/placo sa zbedne.
+Odpowiedz frane: leader JEST (sala 435 D). Bez kalibracji (brak `so101_leader.json` na Pi i laptopie). Pulapka:
+leader ma ten sam CH343 co follower - regula udev po idVendor/idProduct dalaby obu `/dev/robot-arm`; odczytany serial
+followera `5B41532803`, `deploy/99-robot.rules` rozroznia teraz `robot-arm` (ten serial) i `robot-leader` (inny CH343).
+SETUP.md: sekcja "Wariant z leaderem" (kalibracja TYLKO leadera, teleop test, record lokalnie, train na laptopie).
+**Nastepny krok:** wgrac regule udev na Pi, wpiac leader, `lerobot-calibrate --teleop.*` (bez `--robot.*`),
+`lerobot-teleoperate` z wylacznikiem, potem `lerobot-record` (SETUP.md). Stary plan (gdyby leadera nie bylo): `lerobot-record` z leaderem (moze byc z laptopa,
+bez placo). Jesli nie: `teleoperate.py` na Pi z podmienionym portem (`/dev/robot-arm`), `id="so101"` i kamera,
+z wylacznikiem w rece; iPhone z HEBI Mobile I/O w tej samej sieci co Pi. Potem druga (statyczna) kamera i nagranie.
+**Sprzet:** dotkniety zdalnie (tylko instalacja pakietow i odczyt pliku kalibracji na Pi; ramie i baza nie ruszane)
+
+## 2026-09-27 - frane + Claude - zera stawow vs URDF i kalibracja reka-oko (narzedzia)
+**Zrobione:** Pytanie frane "nie mamy juz ruchu ramienia dla pozycji szczeki?" - nie: IK (`legacy/ik_approach`, ikpy)
+nigdy nie zweryfikowane na sprzecie, zera lerobot vs URDF niesprawdzone (HARDWARE 12), transformata kamera-ramie
+oszacowana. GraspGenX (NVIDIA, generator poz chwytu 6-DOF z chmury punktow) odlozony: potrzebuje IK, kalibracji
+kamera-ramie i segmentacji, a rozwiazuje tylko "gdzie chwycic" (dla szyszki latwe). Zeby to nadrobic, dwa narzedzia:
+`tools/frame_check.py` (dla kazdego stawu ruch +delta, FK placo na URDF, opis przesuniecia koncowki slowami,
+werdykt operatora t/n, raport JSON; `--fake` bez sprzetu) i `tools/hand_eye_calib.py` (marker ArUco -> collect z
+torque off jak record_motion -> AX=XB Park-Martin w numpy (cv2.calibrateHandEye tylko jako kontrola: CI ma OpenCV 5.0
+bez tej funkcji) -> `camera_on_arm.json` = T_gripper_cam, residua, `predict`
+pozycji kamery z FK). Testy: `tests/test_frame_check.py` (5, atrapa ramienia i plaska kinematyka),
+`tests/test_hand_eye_calib.py` (9, syntetyczne AX=XB odzyskuje X z bledem < 0.1 mm, marker syntetyczny wykrywany).
+142 testy zielone. Instrukcja dla sesji przy Pi: `docs/ARM_FRAMES.md`. RUNBOOK: dwa wiersze w tabeli narzedzi.
+**Nie dziala / otwarte:** nic z tego nie odpalone na sprzecie. Osie X/Y podstawy URDF nieznane (Z = gora pewne),
+ustala operator na `shoulder_pan`. placo ostrzega o samokolizjach URDF w pozie neutralnej (nieszkodliwe).
+**Nastepny krok:** sesja przy Pi wg `docs/ARM_FRAMES.md`: push_to_pi, `frame_check.py --fake`, potem z ramieniem
+(wylacznik), potem marker + `hand_eye_calib.py collect/solve`; wyniki do LOG, `camera_on_arm.json` do repo.
+**Sprzet:** nie (tylko odczyt FK na Pi bez ruchu)
 ## 2026-09-27 - frane + Claude - wolniejszy skret w panelu
 **Zrobione:** `web_control.py`: `MAX_STEER` 400 -> 200 (A/D w panelu jazdy skreca o polowe wolniej). `MAX_PWM` bez zmian (500).
 **Nie dziala / otwarte:** na branchach `frane/*` jest `MAX_PWM = 100`, na master dalej 500 - do ustalenia, co ma byc na master.
