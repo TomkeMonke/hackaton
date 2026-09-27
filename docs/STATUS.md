@@ -18,6 +18,9 @@ zadania i przypisania na tablicy Projects (link nizej). Czego nie ma tutaj albo 
   logi na zywo i ZIP (`/logs.zip`, z `pinecone_log.csv`), zdrowie Pi, zdarzenia, "co zbudowalismy" (liczby z repo).
   `/show` = tryb pokazu na projektor (bez sterowania, NIE trzyma heartbeatu jazdy). Sprawdzony na laptopie w `--demo`
   (ramie-atrapa, kamera z symulatora): liczenie, restart uslug, logi, telefon 375 px. 20 nowych testow, 164 zielone.
+- Podglad kamery OBOK lerobot: `tools/cam_preview.py lerobot-record|lerobot-rollout ...` (port 8081) - serwer MJPEG
+  w tym samym procesie, podglada `read_latest()` kamery lerobot (nie zajmuje jej drugi raz). `act_pick.py` uzywa go
+  domyslnie. Testy 6 + sprawdzone z prawdziwym lerobot `OpenCVCamera` na laptopie; NA PI z RealSense NIE sprawdzone.
 - Kamera D415: podglad `rs_mjpeg_server.py` (glebia 424x240 -> mniejszy MinZ, bliski dywan ma ciagla glebie), kolory glebi jak w RealSense Viewer (`--colormap viewer`, domyslnie; stara skala liniowa: `--colormap fixed`), detekcja szyszek z glebi (`scan_cones.py`, rozrzut < 2 mm).
 - Nowy stos `pinecone_bot` (PR #14 + poprawki PR #16): symulacja na laptopie zbiera 5/5 szyszek, 66 testow zielonych.
   Ramie odtwarza nagrane punkty, baza ustawia szyszke z obrazu, maszyna stanow, szukanie pasami. Bez IK, bez ML.
@@ -92,9 +95,16 @@ zadania i przypisania na tablicy Projects (link nizej). Czego nie ma tutaj albo 
   Laptop GOTOWY: torch 2.11 cu128 (CUDA na RTX 3070), lerobot 0.6.1 [phone,feetech,async], `so101.json` skopiowany z Pi.
   Pi GOTOWE: lerobot 0.6.1 + placo (IK), hebi-py/teleop (telefon), grpcio (async client), torchvision; importy i IK na URDF sprawdzone.
   `~/hackaton/examples/phone_to_so100/` na Pi (skrypty v0.6.1 + SO101 z STL, poza gitem). Teleop telefonem, druga kamera,
-  nagranie datasetu: nic nie odpalone. JEST leader SO-101 (sala 435 D) -> sciezka glowna to `lerobot-record` z leaderem
-  (SETUP.md "Wariant z leaderem"), telefon/placo tylko awaryjnie. Leader bez kalibracji; nowa regula udev `robot-leader`
-  (po serialu CH343) w `deploy/99-robot.rules`, WGRANA na Pi.
+  JEST leader SO-101 -> `lerobot-record` z leaderem (SETUP.md "Wariant z leaderem"), telefon/placo tylko awaryjnie.
+  2026-09-27: leader na Pi jako `/dev/robot-leader` (w miejscu kabla hovera - Pi nie ma wolnego USB), kalibracja leadera
+  = KOPIA `so101.json` followera (decyzja frane) + gripper przez `tools/calibrate_joint.py`; czesc osi leadera odwrocona
+  (dane dla ACT i tak poprawne: akcja = cel followera). Kamera D435 serial 030522070668 (nie 105422060821 z SETUP).
+  Podzial na 2 etapy: ACT uczy sie TYLKO chwytu (HOME -> szyszka -> zamkniecie -> uniesienie, 15 s), wrzut do sloika
+  robi nagrany `motions/drop_box.json` (tylko na Pi: tam i z powrotem, 15 s). Datasety na Pi `~/datasets/`:
+  `so101_grasp` (7 ep.), `so101_grasp2` (50 ep., gotowy). Na Pi doinstalowane `lerobot[dataset]` z torch cpu przypietym
+  (override), spadek napiecia uszkodzil `pyarrow`/`av` - przeinstalowane. `tools/act_pick.py` = etap 1 (`lerobot-rollout`
+  z ACT, torque zostaje) + etap 2 (`arm_play drop_box --home-after`), testy 7, podglad kamery :8081; NIE uruchomiony (wagi sa, patrz nizej).
+  Laptop pawel120 (Intel Arc, bez NVIDIA, bez venv) NIE nadaje sie do treningu - trening na laptopie z RTX 3070.
 - ACT (2026-09-27 po poludniu): dataset `datasets/so101_grasp2` (50 epizodow, 22451 klatek, kamera wrist D435 serial
   030522070668, leader skalibrowany 12:30) NAGRANY na Pi przez druga sesje i wrzucony na master (wideo w Git LFS).
   Trening na laptopie (`tools/train_win.py`, batch 8, AMP, ~3 kroki/s po podpieciu zasilacza): loss 26 -> 1.24 przy
@@ -114,6 +124,8 @@ Dwa tory rownolegle. Tor mapa + zygzak (frane/mapa-d435, `docs/MAPA.md`):
 3. Poza ramienia "szukaj" (kamera 38 st w dol) i szyszki w zygzaku (detektor + podjazd z `brain.py`); merge frane/mapa-d435.
 
 Tor ACT / ramie (master):
+A. (ACT) wagi `pretrained_model` na Pi, `python tools/act_pick.py --policy <katalog> --skip-drop`
+   z wylacznikiem w rece, potem bez `--skip-drop`.
 0. (sesja przy Pi, rownolegle z ACT) `docs/ARM_FRAMES.md`: `tools/frame_check.py` z wylacznikiem, potem
    `tools/hand_eye_calib.py collect/solve` z markerem ArUco -> `camera_on_arm.json` do repo.
 1. Wpisac nowy prog HSV na Pi (albo push z brancha po merge) i sprawdzic na zywo; odczytac limity EEPROM barku, potem `tools/arm_play.py --motion grasp_near` z reka na wylaczniku.
