@@ -1008,3 +1008,18 @@ bez rsync `deploy/push_to_pi.sh` idzie przez scp i nadpisuje na Pi `motions/drop
 **Nastepny krok:** zdecydowac, ktora kalibracja/jazda zostaje (raczej zygzak po mapie z frane/mapa-d435); Xiao
 wpiac z powrotem (teraz w jego USB jest leader), test na robocie z wylacznikiem.
 **Sprzet:** nie
+
+## 2026-09-27 - pawel120 (Claude) - panel: zbieranie ACT + sloik
+**Zrobione:** Branch `pawel/panel-sloik`: przycisk "Zbierz szyszke" w `tools/robot_panel.py` (zadanie `act_pick.py`,
+wagi 007000; panel zatrzymuje ramie i kamere na czas chwytu i sam je wznawia, odmawia gdy chodza poza panelem; STOP i
+"Przerwij" zabijaja grupe procesow, wiec tez `lerobot-rollout`). Nowy ruch `motions/sloik.json` ze sciezki nagranej reka
+(`tools/live_grasp/data/jar_cycle.json`, JAR_UP/JAR_BACK z `pick.py`); `act_pick.py` wrzuca nim zamiast placeholdera
+`drop_box`. `grasp_mid` i `drop_box` z `"panel": false` - schowane w panelu ramienia. Testy: 308 zielonych, UI w `--demo`.
+Wczesniej w sesji: panel na Pi po kablu 192.168.137.5 (Pi zrestartowalo sie ok. 16:03), prog HSV na zewnatrz wpisany
+tylko na Pi (lo [104,40,40] hi [130,125,200], kopia starego configu `.bak-20260927-1620-hala`). Zygzak nie ruszyl:
+phyphox na iPhonie nie odpowiadal (port 80 zamkniety, ping OK).
+**Nie dziala / otwarte:** przycisk na robocie niesprawdzony; wagi 007000 na Pi niekompletne (2 MB, zawieszony `tar`
+od 16:22); ACT nie sprawdza chwytu przed `sloik`; prog HSV nie w repo. Na laptopie `stash@{0}` (docs + kopie modeli,
+identyczne z origin/master) i `.git/index.lock` po przerwanym `git pull` (lock usuniety).
+**Nastepny krok:** review + merge, push na Pi, wagi 007000, test z wylacznikiem: najpierw `sloik` z panelu ramienia.
+**Sprzet:** dotkniety (Pi: start panelu, restart kamery, prog HSV w configu; ramie i baza nie ruszane przez Claude)

@@ -3,7 +3,7 @@
 Jeden ekran. Aktualizuje go KAZDY PR (checkbox w szablonie PR). Historia jest w `docs/LOG.md`,
 zadania i przypisania na tablicy Projects (link nizej). Czego nie ma tutaj albo w issue, nie istnieje.
 
-**Stan na:** 2026-09-27 15:00 (ACT: dataset 50 epizodow leaderem, trening na RTX 3070, checkpointy na Pi i masterze; mapa ogrodu D435 + zygzak po mapie - `docs/MAPA.md`)
+**Stan na:** 2026-09-27 17:00 (panel: przycisk "Zbierz szyszke" = ACT + sloik, PR pawel/panel-sloik; ACT: dataset 50 epizodow leaderem, trening na RTX 3070, checkpointy na Pi i masterze; mapa ogrodu D435 + zygzak po mapie - `docs/MAPA.md`)
 **Robot (kto ma sprzet, do kiedy):** frane (sesja trwa)
 **Tablica zadan:** TODO wkleic link do GitHub Projects (zaklada pawel120, patrz docs/CONTRIBUTING.md)
 
@@ -51,6 +51,17 @@ zadania i przypisania na tablicy Projects (link nizej). Czego nie ma tutaj albo 
 
 ## Nie dziala / nie sprawdzone
 
+- Przycisk "Zbierz szyszke" w panelu `tools/robot_panel.py` (branch pawel/panel-sloik): zadanie `act_pick.py` (wagi
+  `~/models/act_so101_grasp2/007000`, `--policy`/`ROBOT_ACT_POLICY`), na czas chwytu panel zatrzymuje ramie i kamere,
+  po koncu wznawia; STOP (spacja) i "Przerwij" zabijaja cala grupe procesow (tez `lerobot-rollout`). Wrzut: nowy
+  `motions/sloik.json` ze sciezki nagranej reka (`tools/live_grasp/data/jar_cycle.json`, sloik przy podstawie ok. -22 st).
+  Testy zielone, UI sprawdzone w `--demo`; NA ROBOCIE NIE SPRAWDZONE. Wagi 007000 na Pi byly niekompletne (2 MB z 207 MB,
+  zawieszony `tar`). ACT nie sprawdza, czy chwycil: `sloik` jedzie takze z pustym chwytakiem.
+  `grasp_mid` i `drop_box` maja `"panel": false` (schowane z przyciskow). Pulapka z LOG: `push_to_pi.sh` nadpisze na Pi
+  `motions/drop_box.json`, jesli tam lezy wersja nagrana na sprzecie.
+- Prog HSV na Pi (tylko na Pi, 2026-09-27 16:20, kopia starego: `pinecone_config.json.bak-20260927-1620-hala`):
+  lo [104,40,40] hi [130,125,200] - na zewnatrz, balans bieli zamrozony na 4600 K daje niebieski obraz, szyszki H 111-116.
+  3/3 szyszki, 0 falszywych na trawie i chwytaku (2 klatki). Nie w repo: push z mastera go nadpisze.
 - Jog XYZ w panelu ramienia (`pinecone_bot/kinematics.py`, sekcja JOG XYZ): testy + atrapa, NIE sprawdzony na ramieniu. Najpierw ZERO URDF (ramie prosto poziomo do przodu), potem sprawdzic, czy GORA jedzie w gore (inaczej `arm.urdf_sign`).
 - 2026-09-26: ROBOT WJECHAL W RAMIE I JE USZKODZIL (panel jazdy po hotspocie z duzym opoznieniem). Stan ramienia do oceny, serwa nie zasilac przed ogledzinami. Pi przestal odpowiadac (ping 100% strat).
 - `tools/drive_calib.py` (branch pawel/drive-calib, draft PR): kalibracja jazdy bez miarki - droga z glebi RealSense
@@ -142,8 +153,8 @@ Dwa tory rownolegle. Tor mapa + zygzak (frane/mapa-d435, `docs/MAPA.md`):
 3. Poza ramienia "szukaj" (kamera 38 st w dol) i szyszki w zygzaku (detektor + podjazd z `brain.py`); merge frane/mapa-d435.
 
 Tor ACT / ramie (master):
-A. (ACT) wagi `pretrained_model` na Pi, `python tools/act_pick.py --policy <katalog> --skip-drop`
-   z wylacznikiem w rece, potem bez `--skip-drop`.
+A. (ACT) review + merge pawel/panel-sloik, `deploy/push_to_pi.sh`, wagi 007000 na Pi w calosci (ubic wiszacy `tar`),
+   przycisk "Zbierz szyszke" z wylacznikiem w rece; najpierw sam `sloik` z panelu ramienia z szyszka w chwytaku.
 0. (sesja przy Pi, rownolegle z ACT) `docs/ARM_FRAMES.md`: `tools/frame_check.py` z wylacznikiem, potem
    `tools/hand_eye_calib.py collect/solve` z markerem ArUco -> `camera_on_arm.json` do repo.
 0. Chwytanie samym ramieniem: czyste uczenie (1 szyszka naraz, jeden styl chwytu, 12 pozycji), `fit.py`, test `pick.py`
