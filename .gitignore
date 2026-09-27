@@ -12,3 +12,6 @@ frames/
 
 # klatki z tools/snap_frames.py
 frames*/
+
+# sekwencje tymczasowe z panelu (szkic / test kroku)
+sequences/_*.json
