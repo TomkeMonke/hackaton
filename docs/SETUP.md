@@ -168,6 +168,21 @@ potrzebuje internetu), jedna paczka 100 akcji liczy sie ~0.65 s na CPU -> rollou
 Kamera na Pi to D435, serial `030522070668` (NIE 105422060821 z HARDWARE.md), klucz w datasecie
 `observation.images.wrist`, 640x480@30.
 
+### Rollout polityki ACT na Pi (lokalnie, CPU)
+
+Wagi w `~/models/act_so101_grasp2/<krok>/pretrained_model` (patrz wyzej). Ramie w wolnej przestrzeni,
+szyszka jak przy nagraniach, wylacznik w rece, leader odpiety. W terminalu operatora:
+
+```
+ssh -t robot@172.20.10.4 "cd ~/hackaton && .venv/bin/lerobot-rollout --strategy.type=base \n  --policy.path=/home/robot/models/act_so101_grasp2/001000/pretrained_model --policy.device=cpu \n  --robot.type=so101_follower --robot.port=/dev/robot-arm --robot.id=so101 --robot.max_relative_target=20 \n  --robot.cameras=\"{ wrist: {type: intelrealsense, serial_number_or_name: 030522070668, width: 640, height: 480, fps: 30}}\" \n  --task='Pick up the pine cone' --duration=30"
+```
+
+Start ~30 s (ladowanie modelu), potem co ~3 s paczka 100 akcji (0.65 s liczenia) odtwarzana z 30 Hz.
+`--robot.max_relative_target=20` ogranicza skok stawu na tick (bezpiecznik; za "gumowy" ruch -> 30).
+Ruch od razu w zla strone = wylacznik i `docs/ARM_FRAMES.md` krok 1 (zera stawow). ACT ignoruje tekst
+`--task`. Klucz kamery MUSI byc `wrist` (tak w datasecie). Alternatywa przy slabym CPU: policy server na
+laptopie + `robot_client` na Pi (sekcja "Async" w docs/POLICIES_LEROBOT.md), ale hotspot ma 100-240 ms.
+
 ### Pi (venv `~/hackaton/.venv`, Python 3.12, `uv`)
 
 Pi ma internet przez hotspot (PyPI odpowiada, ~0.3 MB/s), `uv` jest w
