@@ -11,7 +11,7 @@ zadania i przypisania na tablicy Projects (link nizej). Czego nie ma tutaj albo 
 
 - Ramie SO-101: skalibrowane po naprawie barku, `./arm.sh home|status|open|close`. NIE uruchamiac `lerobot calibrate`.
 - Podwozie: Xiao + panel webowy (`python web_control.py`, WASD, osemka, pokrycie), `drive_step.py` do pojedynczych krokow.
-- Panel zbiorczy `tools/robot_panel.py` (:8090, branch pawel/robot-panel): jedno okno SSH zamiast trzech. Sam odpala
+- Panel zbiorczy `tools/robot_panel.py` (:8090, PR #52): jedno okno SSH zamiast trzech. Sam odpala
   jazde (`web_control.py`), ramie (`tools/arm_web.py --no-home`) i kamere (`tools/vision_web.py`, :8020), pokazuje
   podglad z ramkami szyszek, liczbe szyszek w kadrze + wykres z minuty, odleglosc z glebi, pasek "jak widzi robot"
   (obraz -> maska HSV -> szyszki -> glebia), tarcze stawow, WASD, STOP (spacja: jazda + ramie), uslugi start/stop/restart,
