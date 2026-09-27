@@ -129,9 +129,10 @@ class HeadingConfig:
     odometry: kat z base.odometry() (bipropellant z hallotronow; w symulacji prawdziwy kat)
     """
     source: str = "none"
-    # iPhone jako hotspot ma zawsze 172.20.10.1; port i nazwy buforow jak w eksperymencie
+    # iPhone jako hotspot ma zawsze 172.20.10.1; phyphox na iOS slucha na porcie 80 (Android: 8080).
+    # Nazwy buforow jak w eksperymencie
     # phyphox "Gyroscope (rotation rate)"
-    phyphox_url: str = "http://172.20.10.1:8080"
+    phyphox_url: str = "http://172.20.10.1"
     gyro_buffer: str = "gyrZ"
     time_buffer: str = "gyr_time"
     sign: float = 1.0          # -1, jesli obrot w lewo daje ujemny kurs (telefon ekranem w dol)
