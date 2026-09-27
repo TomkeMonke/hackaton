@@ -242,7 +242,10 @@ Uruchomienie:
    rate)" -> menu -> "Allow remote access" -> start. Ekran nie moze zgasnac.
 2. Na Pi: `python tools/phyphox_check.py`, obroc robota recznie o 90 st w lewo.
    Kurs ma urosnac o ~+90. Maleje -> `"heading": {"sign": -1.0}` w configu.
-3. `python -m pinecone_bot.main --dry-run --heading phyphox`, potem `--real`.
+3. `python -m pinecone_bot.main --dry-run --heading phyphox`: robot stoi, obracaj go
+   recznie (360 st, potem 90 st) i patrz, czy komendy przechodza obrot -> prosto -> skret.
+   Potem `--real --no-arm --heading phyphox` (ramie tylko drukuje, portu ramienia nie otwiera):
+   pierwsza jazda z `lane_count` 1 i `lane_length_m` 1.0, reka na STOP.
    `--heading` nadpisuje `heading.source` z configu (`none` = pasy z czasu).
 
 Bezpieczniki: brak kursu dluzej niz `lost_s` albo odcinek, ktory trwa ponad

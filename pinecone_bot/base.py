@@ -174,6 +174,16 @@ class XiaoBase:
             self._line = line
             self._write_locked(line)
 
+    def set_raw(self, speed_pwm: int, steer_pwm: int) -> None:
+        """PWM wprost, z pominieciem mapowania m/s -> PWM (petla obrotu na zyroskopie, turn_loop.py)."""
+        speed_pwm = int(_clamp(speed_pwm, -XIAO_SPEED_LIMIT, XIAO_SPEED_LIMIT))
+        steer_pwm = int(_clamp(steer_pwm, -XIAO_STEER_LIMIT, XIAO_STEER_LIMIT))
+        self.speed_pwm, self.steer_pwm = speed_pwm, steer_pwm
+        line = self.command_line(speed_pwm, steer_pwm)
+        with self._lock:
+            self._line = line
+            self._write_locked(line)
+
     def stop(self) -> None:
         self.set_speed(0.0, 0.0)  # wysyla "a0 b0\n" od razu, watek dalej powtarza
 
