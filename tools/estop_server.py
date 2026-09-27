@@ -20,7 +20,7 @@ import serial
 
 PORT = int(os.environ.get("ESTOP_PORT", "8001"))
 DRIVE_PORT = os.environ.get("ROBOT_DRIVE_PORT", "/dev/robot-drive")
-TARGETS = ("tools/base_test.py", "pinecone_bot.main")
+TARGETS = ("tools/base_test.py", "pinecone_bot.main", "tools/calibrate_turn.py")
 
 PAGE = b"""<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>STOP</title><style>
