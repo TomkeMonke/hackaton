@@ -3,7 +3,7 @@
 Jeden ekran. Aktualizuje go KAZDY PR (checkbox w szablonie PR). Historia jest w `docs/LOG.md`,
 zadania i przypisania na tablicy Projects (link nizej). Czego nie ma tutaj albo w issue, nie istnieje.
 
-**Stan na:** 2026-09-27 (kurs z telefonu, petla obrotu na zyroskopie, kalibracja glebia; branch frane/lidar)
+**Stan na:** 2026-09-27 popoludnie (mapa ogrodu z D435, lokalizacja w mapie, zygzak po mapie; branch frane/mapa-d435 = frane/lidar + mapa)
 **Robot (kto ma sprzet, do kiedy):** frane (sesja trwa)
 **Tablica zadan:** TODO wkleic link do GitHub Projects (zaklada pawel120, patrz docs/CONTRIBUTING.md)
 
@@ -45,7 +45,16 @@ zadania i przypisania na tablicy Projects (link nizej). Czego nie ma tutaj albo 
 
 - `pinecone_bot` NIE JECHAL jeszcze na sprzecie. Wszystko ponizej to pierwsze uruchomienie (docs/RUNBOOK.md).
 - Nowy prog HSV (branch, commit 2ba7fc9) NIE jest jeszcze wpisany na Pi - do wypchniecia razem z blokada AWB/ekspozycji (`lock_auto`, sekcja "camera" configu, PR #30), ktora jest na masterze, ale NIE na Pi (`pinecone_bot/camera.py`/`config.py` na Pi sa starsze). Reka w kadrze ma podobny odcien co szyszka (bloby 9000-31500 px, szyszka max ~4000 px) - `max_area_px` 40000 tego nie odrzuca, warto zmniejszyc do ~8000 (niezmienione).
-- `lsusb` zglasza kamere jako D435 (8086:0b07), docs mowia D415 - sprawdzic model.
+- Kamera na robocie to D435 (sprawdzone pyrealsense2, fw 5.11.1.100) - pomiary glebi w HARDWARE 16-27 byly na D415.
+- Mapa ogrodu (branch frane/mapa-d435): `tools/record_rgbd.py` na Pi (15 Hz, zero dziur) -> kopia na laptop ->
+  `tools/rtabmap_build.py` (RTAB-Map 0.23.8 win64 w `C:/Users/pawel/tools/bin`) -> `python -m pinecone_bot.localize build`.
+  ogrod1 i ogrod2: mapa rozpada sie na 5-9 kawalkow, w mapie ok. 120 poz z pierwszych 2/3 nagrania. Lokalizacja
+  z jednego zdjecia: mediana 3-4 cm / 1 st, ale tylko 45-58% klatek, 90% bledow < 0.4 m. Ze startu przy plocie
+  (ogrod1) NIE lapala - tego fragmentu nie bylo w mapie. ogrod2 na zywo niesprawdzona (Pi zajety `lerobot-record`).
+- Zygzak po mapie `python -m pinecone_bot.zygzak` (kod na Pi w `~/mapa_test`, nie w `~/hackaton`): tylko dry-run do
+  pierwszej lokalizacji (nie zlapal). NIE JECHAL. Szyszki w zygzaku niepodpiete (potrzebna poza "szukaj" ramienia).
+- Pi padl w trakcie kopiowania nagrania (restart, uptime 3 min) - zasilanie. Kopia nagrania: `scp -r` przerwane zostawia dziury
+  w srodku (kolejnosc plikow dowolna); `rtabmap_build.py` teraz to wykrywa.
 - Kamera stoi za nisko: miejsce chwytu (17 cm przed kamera) jest w martwej strefie glebi (~31 cm). Trzeba przestawic.
 - Panel ramienia (`tools/arm_web.py --no-home`) chodzi na Pi, jog NIE sprawdzony na ramieniu. Nagrywanie ruchu z panelu i sekwencje
   (jazda + ramie) tylko na atrapie; na Pi trzeba zrestartowac oba serwery (`web_control.py` woli `http://127.0.0.1:8010`, env `ROBOT_ARM_PANEL`).
@@ -68,10 +77,10 @@ zadania i przypisania na tablicy Projects (link nizej). Czego nie ma tutaj albo 
 
 ## Nastepne 3 kroki (w tej kolejnosci)
 
-1. `tools/calibrate_drive.py` na Pi: robot przodem do pustej sciany 2-3 m, kamera poziomo (sprawdzic `frames/calibrate_drive.jpg`), potem `--write`.
-2. Pierwsza jazda pasami: `python -m pinecone_bot.main --real --no-arm --heading phyphox --source ~/pusty.png` z `lane_count` 1,
-   `lane_length_m` 1.0; STOP `tools/estop_server.py` (:8001). Sprawdza petle obrotu na robocie.
-3. Merge #44, #46 i `frane/lidar` (po polaczeniu z druga sesja o glebi/lidarze), push na Pi z mastera.
+1. Lokalizacja ze startu: `tools/arm_hold.py patrz`, zdjecie z miejsca startu zygzaka, `localize` na ogrod2. Nie lapie ->
+   lepsza mapa (strojenie odometrii RTAB-Map na zewnatrz albo nagranie krotsze i wolniejsze, tylko pole zygzaka).
+2. Zygzak `--dry-run`, potem `--real` na 2 pasach po 2 m (STOP z `~/mapa_test/tools/estop_server.py`, zna zygzak).
+3. Poza ramienia "szukaj" (kamera 38 st w dol) i szyszki w zygzaku (detektor + podjazd z `brain.py`); merge frane/mapa-d435.
 
 ## Blokery
 

@@ -779,3 +779,22 @@ Do polaczenia z druga sesja o glebi/lidarze: branch `frane/lidar` (= `frane/gyro
 <- `frane/pi-sync`). Pliki o glebi: `tools/calibrate_drive.py`, `tests/test_calibrate_drive.py`; o kursie/obrocie:
 `pinecone_bot/heading.py`, `pinecone_bot/turn_loop.py`, `tools/calibrate_turn.py`, `tools/phyphox_check.py`,
 `pinecone_bot/sim.py` (SimXiaoDrive, SimGyro), `heading.*` w `pinecone_bot/config.py`.
+
+## 2026-09-27 - frane + Claude - mapa ogrodu D435, zygzak po mapie (branch frane/mapa-d435)
+**Zrobione:**
+- Polaczone sesje o "lidarze": lidara nie ma, to glebia RealSense; kamera to D435 (nie D415).
+- `tools/record_rgbd.py`: nagranie na Pi prosto w formacie RTAB-Map (kolor + glebia wyrownana, ostrzezenia o szybkim
+  obrocie, malej glebi, dziurach). `tools/rtabmap_build.py`: mapa jedna komenda na laptopie (RTAB-Map 0.23.8 win64;
+  0xC0000135 = brak msvcr110/msvcp110 - skopiowane x64 z Office do bin).
+- `pinecone_bot/localize.py`: lokalizacja z jednego zdjecia (ORB + PnP do klatek kluczowych mapy), na Pi 0.5 s.
+- `pinecone_bot/zygzak.py`: pasy od miejsca startu, obrot na zyroskopie, co 1 m stop + zdjecie + poprawka, uczenie
+  prawdziwej predkosci; `--first-turn`, poza ramienia `motions/patrz.json` na start. Symulacja: robot 0.6x wolniejszy
+  trafia w punkty < 0.3 m, bez zdjec chybia > 0.5 m.
+- `camera.py`: bez `lock_auto` odmraza auto-ekspozycje (kamera pamietala 166 -> bialy obraz na sloncu).
+- `estop_server.py`: zabija tez zygzak i calibrate_drive. `tools/arm_hold.py`: poza trzymana do Ctrl+C.
+- Nagrania ogrod1 (329 s) i ogrod2 (235 s), mapy z obu.
+**Nie dziala / otwarte:** mapy rozpadaja sie na kawalki (5-9), ok. 1/3 nagrania poza mapa; ze startu przy plocie brak
+lokalizacji (ogrod1). ogrod2 na zywo niesprawdzona. Zygzak nie jechal. Szyszki w zygzaku niepodpiete. Pi padl raz.
+**Nastepny krok:** zdjecie ze startu na ogrod2; jesli nie lapie - strojenie odometrii RTAB-Map / krotsze nagranie pola.
+**Sprzet:** tak (kamera, ramie w pozie patrz, jazda panelem przy nagraniu; Pi restart)
+
