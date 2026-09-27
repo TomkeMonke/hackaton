@@ -676,3 +676,16 @@ poslizgu: 0.10 m od idealu z kursem, 3.5 m bez. 128 testow zielonych.
 odpowiada pod 172.20.10.1:8080, znak kursu, czy ekran nie gasnie. Dlugosc pasa dalej z czasu (zyroskop nie mierzy drogi).
 **Nastepny krok:** phyphox na telefonie, `python tools/phyphox_check.py` na Pi, obrot recznie o 90 st w lewo -> ~+90.
 **Sprzet:** nie
+
+## 2026-09-27 - frane + Claude - research gotowych polityk lerobot
+**Zrobione:** Przegladniete z polki: lerobot (ACT, SmolVLA, MolmoAct2, Flux3), DOT (IliaLarchenko), MolmoAct
+("moloko"). Wynik w `docs/POLICIES_LEROBOT.md`. Skrot: gotowych wag do szyszek nie ma. Jedyny zero-shot pod
+SO-101 to MolmoAct2 (5B, 21.8 GB fp32, lerobot `main`, GPU >= 24 GB) - nie odpali na RTX 3070 8 GB ani na Pi.
+DOT nie zmergowany do lerobot (PR #739 stale), tylko fork ze stara kalibracja - odpada. Realna sciezka: lerobot
+ACT (jest w 0.6.1) na wlasnych ~50 epizodach, inference przez async policy server na laptopie, Pi jako klient;
+SmolVLA fine-tune (Colab) jako plan B. Blokery wspolne: brak leader arm (zamiennik: teleop telefonem
+`lerobot[phone]`, IK na naszym URDF) i tylko jedna kamera, na ramieniu (potrzebna druga, statyczna).
+**Nie dziala / otwarte:** nic nie uruchamiane; decyzja zespolu, czy ML idzie rownolegle do petli z RUNBOOK.
+**Nastepny krok:** jesli tak: `pip install "lerobot[phone]"` na laptopie, kopia `so101.json` z Pi, teleop telefonem
+przy stole z wylacznikiem; potem druga kamera i nagranie 50 epizodow.
+**Sprzet:** nie
