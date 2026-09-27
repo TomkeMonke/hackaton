@@ -52,7 +52,7 @@ nieliniowe kola, port szeregowy).
 | `bag_to_rtabmap.py`, `render_map_preview.py` | mapa ogrodu RTAB-Map (issue #7, odlozone) |
 | `so101_urdf/` | model URDF ramienia |
 | `deploy/` | `setup_pi.sh` (instalacja na Pi), `push_to_pi.sh` (wyslanie kodu), udev, autostart panelu |
-| `docs/` | STATUS (stan), SETUP, RUNBOOK, HARDWARE, LOG (dziennik sesji), CONTRIBUTING (zasady) |
+| `docs/` | STATUS (stan), SETUP, PANEL, RUNBOOK, HARDWARE, LOG (dziennik sesji), CONTRIBUTING (zasady) |
 | `legacy/` | odlozone: IK i slepy podjazd, nagrania sprzed naprawy barku, stare skrypty jazdy ([legacy/README.md](legacy/README.md)) |
 | `requirements-pinecone.txt` | zaleznosci laptopa (numpy, opencv, pyserial, pytest); Pi: `requirements-pi.txt` |
 
@@ -61,6 +61,7 @@ nieliniowe kola, port szeregowy).
 - [docs/STATUS.md](docs/STATUS.md): stan projektu, aktualizowany w kazdym PR.
 - [docs/LOG.md](docs/LOG.md): dziennik sesji, tylko dopisywanie.
 - [docs/RUNBOOK.md](docs/RUNBOOK.md): jak odpalic robota krok po kroku.
+- [docs/PANEL.md](docs/PANEL.md): polaczenie z Pi i odpalenie panelu jazdy + ramienia.
 - [docs/SETUP.md](docs/SETUP.md): instalacja laptop / Pi.
 - [docs/HARDWARE.md](docs/HARDWARE.md): sprzet i pulapki.
 - [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md): jak pracujemy.
