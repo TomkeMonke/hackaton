@@ -117,9 +117,7 @@ def test_dataset_problem_detects_partial_copy(tmp_path):
     for i in (1, 2):
         (tmp_path / "rgb" / ("%06d.jpg" % i)).write_bytes(b"x")
         (tmp_path / "depth" / ("%06d.png" % i)).write_bytes(b"x")
-    (tmp_path / "stamps.txt").write_text("1.0
-2.0
-")
+    (tmp_path / "stamps.txt").write_text("1.0\n2.0\n")
     assert dataset_problem(str(tmp_path)) is None
     os.remove(tmp_path / "rgb" / "000002.jpg")
     assert "rgb 1, depth 2" in dataset_problem(str(tmp_path))
