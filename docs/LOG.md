@@ -955,3 +955,15 @@ Stan maszyny stanow (SEARCH/APPROACH/...) w panelu jest schematem, nie na zywo: 
 **Nie dziala / otwarte:** `robot-web.service` nie zainstalowany (brak autostartu). Na Pi lezy `tests/test_calibrate_target.py` z niezmergowanego brancha `claude/robot-pinecone-test-plan-e4ca8e` (6 bledow, pomijac `--ignore`). `push_to_pi.sh` bez rsync nie usuwa starych plikow.
 **Nastepny krok:** zainstalowac autostart (`deploy/setup_pi.sh` krok 7) albo zostac przy recznym starcie w tmux.
 **Sprzet:** dotkniety (Pi: SSH, testy, start paneli przez uzytkownika; Claude tylko odczyt stanu)
+
+## 2026-09-27 - pawel120 + Claude - drive_calib (kalibracja jazdy bez miarki)
+**Zrobione:** `tools/drive_calib.py` + `tests/test_drive_calib.py` (9, cale tests zielone): 2x prosto (glebia
+RealSense do sciany przed/po), 2x obrot (phyphox, na zmiane lewo/prawo), pytanie operatora l/p; dopasowanie prostej
+pwm = p0 + s*v -> xiao_pwm_min/max i xiao_steer_min/max, znaki steer_sign i heading.sign, `--write` do configu.
+**Nie dziala / otwarte:** nie uruchomione na Pi. Dopiero po napisaniu znalezione istniejace prace na niezmergowanych
+branchach: `pawel/base-calibration` (base_test --measure, landmarks.py), `frane/gyro-rate-loop` (turn_loop.py: stala
+tabela w->PWM nie opisze hovera), `frane/mapa-d435` (localize.py + zygzak.py, jazda po mapie RTAB-Map). Pulapka:
+bez rsync `deploy/push_to_pi.sh` idzie przez scp i nadpisuje na Pi `motions/drop_box.json` (tylko na Pi) placeholderem.
+**Nastepny krok:** zdecydowac, ktora kalibracja/jazda zostaje (raczej zygzak po mapie z frane/mapa-d435); Xiao
+wpiac z powrotem (teraz w jego USB jest leader), test na robocie z wylacznikiem.
+**Sprzet:** nie
