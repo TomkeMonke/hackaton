@@ -214,7 +214,9 @@ class SimDrive:
         return self.x, self.y, self.theta
 
     def advance(self, dt: float) -> None:
-        self.theta += self.w * dt
+        s = self.cfg.sim
+        drift = s.drift_w if abs(self.v) > 1e-6 else 0.0
+        self.theta += (self.w * s.turn_gain + drift) * dt
         self.x += self.v * math.cos(self.theta) * dt
         self.y += self.v * math.sin(self.theta) * dt
 

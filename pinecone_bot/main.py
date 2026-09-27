@@ -11,10 +11,12 @@ from __future__ import annotations
 
 import argparse
 import sys
+import time
 
 from .brain import Brain, WallClock
 from .config import Config
 from .detector import HsvConeDetector
+from .heading import OdometryHeading, make_heading
 
 
 class PrintBase:
@@ -54,6 +56,8 @@ def run_sim(args) -> int:
     from .sim import SimArmSimple, SimCamera, SimClock, SimDrive, SimWorld, calibrate_grasps
 
     cfg = Config.load(args.config) if args.config else Config()
+    if args.heading:
+        cfg.heading.source = args.heading
     if args.seed is not None:
         cfg.sim.seed = args.seed
     base = SimDrive(cfg)
@@ -63,6 +67,8 @@ def run_sim(args) -> int:
     camera = SimCamera(world)
     arm = SimArmSimple(world, clock)
     detector = HsvConeDetector(cfg.detector)
+    # w symulacji kazde zrodlo kursu to prawdziwy kat robota (idealny zyroskop)
+    heading = OdometryHeading(base) if cfg.heading.source != "none" else None
 
     show = None
     if args.show:
@@ -78,7 +84,8 @@ def run_sim(args) -> int:
 
     print(f"szyszki: {[(round(c.x, 2), round(c.y, 2)) for c in world.cones]}")
     print(f"kalibracja: cx={cfg.cx:.1f} " + " ".join(f"{g.name}={g.target_row:.1f}" for g in cfg.grasps))
-    brain = Brain(cfg, camera, detector, base, arm, clock=clock, log_path=args.log, on_frame=show)
+    brain = Brain(cfg, camera, detector, base, arm, clock=clock, log_path=args.log, on_frame=show,
+                  heading=heading)
     try:
         stats = brain.run(max_seconds=args.seconds)
     except KeyboardInterrupt:
@@ -92,6 +99,8 @@ def run_real(args, dry: bool) -> int:
     from .camera import make_camera
 
     cfg = Config.load(args.config)
+    if args.heading:
+        cfg.heading.source = args.heading
     camera = make_camera(cfg, args.source)
     detector = HsvConeDetector(cfg.detector)
     if dry:
@@ -114,7 +123,16 @@ def run_real(args, dry: bool) -> int:
             if cv2.waitKey(1) & 0xFF == ord("q"):
                 raise KeyboardInterrupt
 
-    brain = Brain(cfg, camera, detector, base, arm, clock=WallClock(), log_path=args.log, on_frame=show)
+    heading = make_heading(cfg, base)
+    if heading is not None:
+        # kurs startowy = kierunek pierwszego pasa: poczekaj na pierwsze dane, zanim robot ruszy
+        t0 = time.monotonic()
+        while heading.yaw() is None and time.monotonic() - t0 < cfg.heading.lost_s:
+            time.sleep(0.1)
+        ok = heading.yaw() is not None
+        print(f"kurs: {cfg.heading.source} " + ("OK" if ok else "BRAK DANYCH - pasy z czasu, jesli sie nie pojawi"))
+    brain = Brain(cfg, camera, detector, base, arm, clock=WallClock(), log_path=args.log, on_frame=show,
+                  heading=heading)
     print("Start. Ctrl+C zatrzymuje baze. Trzymaj wylacznik w rece.")
     try:
         brain.run(max_seconds=args.seconds)
@@ -123,6 +141,8 @@ def run_real(args, dry: bool) -> int:
     finally:
         base.stop()
         base.close()
+        if heading is not None:
+            heading.close()
         arm.close()
         camera.close()
     return 0
@@ -140,6 +160,8 @@ def main(argv=None) -> int:
     p.add_argument("--seconds", type=float, default=None, help="limit czasu")
     p.add_argument("--log", default="pinecone_log.csv")
     p.add_argument("--show", action="store_true", help="okno z podgladem")
+    p.add_argument("--heading", choices=["none", "phyphox", "odometry"], default=None,
+                   help="zrodlo kursu dla pasow (nadpisuje heading.source z configu)")
     args = p.parse_args(argv)
     if args.sim:
         return run_sim(args)

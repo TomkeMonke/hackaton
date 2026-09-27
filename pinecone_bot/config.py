@@ -116,6 +116,30 @@ class CameraConfig:
 
 
 @dataclass
+class HeadingConfig:
+    """
+    Zrodlo kursu (kata obrotu robota) dla pasow w SEARCH. Bez niego pasy ida z czasu i predkosci zadanych.
+    none:     brak, pasy z czasu (jak dotad)
+    phyphox:  zyroskop telefonu przyklejonego plasko do bazy, aplikacja phyphox z "Allow remote access"
+    odometry: kat z base.odometry() (bipropellant z hallotronow; w symulacji prawdziwy kat)
+    """
+    source: str = "none"
+    # iPhone jako hotspot ma zawsze 172.20.10.1; port i nazwy buforow jak w eksperymencie
+    # phyphox "Gyroscope (rotation rate)"
+    phyphox_url: str = "http://172.20.10.1:8080"
+    gyro_buffer: str = "gyrZ"
+    time_buffer: str = "gyr_time"
+    sign: float = 1.0          # -1, jesli obrot w lewo daje ujemny kurs (telefon ekranem w dol)
+    poll_hz: float = 20.0
+    stale_s: float = 1.0       # tyle bez nowych probek = kurs nieznany
+    lost_s: float = 3.0        # tyle bez kursu w SEARCH -> dalej pasy z czasu
+    kp: float = 1.5            # rad/s na radian bledu kursu
+    w_min: float = 0.08        # rad/s; ponizej tego kola nie ruszaja, a obrot ma dojsc do celu
+    tol_deg: float = 3.0       # obrot uznany za skonczony
+    align_deg: float = 15.0    # na prostej: blad wiekszy -> najpierw obrot w miejscu
+
+
+@dataclass
 class SimConfig:
     """Geometria kamery i swiata dla symulatora (i do zgrubnej kalibracji na sucho)."""
     cam_height_m: float = 0.45
@@ -128,6 +152,10 @@ class SimConfig:
     field_m: float = 2.2
     n_cones: int = 5
     seed: int = 1
+    # niedoskonalosci napedu (domyslnie idealny): obrot faktyczny = zadany * turn_gain (poslizg),
+    # a przy jezdzie do przodu robot sam skreca z drift_w rad/s (rozne silniki przy tym samym PWM)
+    turn_gain: float = 1.0
+    drift_w: float = 0.0
 
 
 @dataclass
@@ -145,6 +173,7 @@ class Config:
     base: BaseConfig = field(default_factory=BaseConfig)
     arm: ArmConfig = field(default_factory=ArmConfig)
     camera: CameraConfig = field(default_factory=CameraConfig)
+    heading: HeadingConfig = field(default_factory=HeadingConfig)
     sim: SimConfig = field(default_factory=SimConfig)
     log_csv: str = "pinecone_log.csv"
 

@@ -660,3 +660,19 @@ Panel jazdy i ramienia w jednym miejscu: UI ramienia w `arm_panel.js`, montowane
   nagrac `drop_box` (`tools/record_motion.py --name drop_box`), dopisac chwyty do `cfg.grasps`,
   `tools/calibrate_target.py`; potem `tools/base_test.py`, `--dry-run`, `--real` z wylacznikiem.
 **Sprzet:** dotkniety (tylko odczyt kamery i plik configu na Pi; ramie i baza nie ruszane)
+
+## 2026-09-27 - frane + Claude - pasy po kursie z telefonu
+**Zrobione:** Decyzja: plyta hovera jest przerobiona i niedostepna, wiec hallotronow (bipropellant) nie bedzie;
+IMU brak; ROS/SLAM/MuJoCo odlozone. Kurs do pasow bierzemy z zyroskopu telefonu (phyphox, remote access).
+`pinecone_bot/heading.py` (PhyphoxGyro: odpytywanie HTTP, calkowanie trapezami, stale -> None; OdometryHeading),
+`cfg.heading`, `brain.py`: pasy jako odcinki (spin/line/turn), obrot do kata zamiast po czasie, P na kurs na prostej,
+powrot na kurs pasa po chwycie, kurs startowy zapisany przed pierwszym podjazdem. Bezpieczniki: brak kursu > lost_s
+albo odcinek > 3x nominalu -> pasy z czasu od tego samego miejsca. `--heading` w main, kolumna `yaw_deg` w CSV,
+`tools/phyphox_check.py`, niedoskonalosci napedu w symulatorze (`sim.turn_gain`, `sim.drift_w`).
+Symulacja, pole 3.0 m, 10 ziaren x 5 szyszek: naped idealny - z czasu 43/50, z kursem 47/50;
+poslizg obrotow 15% + znoszenie 0.03 rad/s - z czasu 39/50, z kursem 44/50. Koniec wzorca bez szyszek przy
+poslizgu: 0.10 m od idealu z kursem, 3.5 m bez. 128 testow zielonych.
+**Nie dziala / otwarte:** nic nie sprawdzone na telefonie ani robocie: czy phyphox na iPhonie-hotspocie
+odpowiada pod 172.20.10.1:8080, znak kursu, czy ekran nie gasnie. Dlugosc pasa dalej z czasu (zyroskop nie mierzy drogi).
+**Nastepny krok:** phyphox na telefonie, `python tools/phyphox_check.py` na Pi, obrot recznie o 90 st w lewo -> ~+90.
+**Sprzet:** nie
