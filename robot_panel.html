@@ -1,0 +1,804 @@
+<!doctype html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Makarena - panel robota</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@600;800&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+/* Panel zbiorczy (tools/robot_panel.py). Jasny motyw "polowy": czytelny w sloncu na dworze.
+   /show = ciemny motyw na projektor, bez sterowania. Kolory tylko z tokenow ponizej. */
+:root {
+  --paper: #E6EAE0;   /* porost */
+  --card: #F5F6F1;
+  --ink: #1B211D;
+  --muted: #5B665E;
+  --line: #C6CEC0;
+  --resin: #B8650F;   /* zywica, szyszka */
+  --resin-soft: #F0DDC4;
+  --moss: #3E6A33;
+  --alarm: #C0341D;
+  --bark: #3F2B1E;
+  --warn: #B98A12;
+  --view-bg: #101411;
+  --display: "Big Shoulders Display", "Arial Narrow", "Roboto Condensed", sans-serif;
+  --sans: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, Consolas, monospace;
+  --r: 10px;
+}
+body.show {
+  --paper: #14100C;
+  --card: #1E1812;
+  --ink: #F2EADF;
+  --muted: #A89A88;
+  --line: #3A2F24;
+  --resin: #E8922C;
+  --resin-soft: #3A2716;
+  --moss: #7DB364;
+  --alarm: #F0563C;
+  --warn: #E2B544;
+}
+* { box-sizing: border-box; }
+html { background: var(--paper); }
+body { margin: 0; background: var(--paper); color: var(--ink); font: 15px/1.45 var(--sans); }
+button, select, input { font: inherit; color: inherit; }
+button { cursor: pointer; }
+:focus-visible { outline: 3px solid var(--resin); outline-offset: 2px; }
+.mono { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+.muted { color: var(--muted); }
+
+/* --- naglowek ------------------------------------------------------ */
+header {
+  position: sticky; top: 0; z-index: 20; display: flex; align-items: center; gap: 18px; flex-wrap: wrap;
+  padding: 10px 20px; background: var(--paper); border-bottom: 1px solid var(--line);
+}
+.brand { display: flex; align-items: baseline; gap: 10px; margin-right: auto; }
+.brand h1 { margin: 0; font: 800 30px/1 var(--display); letter-spacing: 0.04em; text-transform: uppercase; }
+.brand span { color: var(--muted); font-size: 13px; }
+.links { display: flex; gap: 6px; flex-wrap: wrap; }
+.chip {
+  display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 99px;
+  border: 1px solid var(--line); background: var(--card); font-size: 13px; white-space: nowrap;
+}
+.chip i { width: 8px; height: 8px; border-radius: 50%; background: var(--line); flex-shrink: 0; }
+.chip.ok i { background: var(--moss); }
+.chip.warn i { background: var(--warn); }
+.chip.bad i { background: var(--alarm); }
+.stop {
+  border: 0; border-radius: var(--r); background: var(--alarm); color: #fff;
+  font: 800 22px/1 var(--display); letter-spacing: 0.08em; padding: 12px 26px;
+}
+.stop:active { filter: brightness(0.85); }
+.stop small { display: block; font: 500 10px/1.2 var(--sans); letter-spacing: 0; opacity: 0.85; margin-top: 3px; }
+body.show .op-only { display: none !important; }
+body:not(.show) .show-only { display: none !important; }
+
+/* --- uklad -------------------------------------------------------- */
+main { display: grid; gap: 16px; padding: 16px 20px 40px; grid-template-columns: minmax(0, 1.65fr) minmax(320px, 1fr); max-width: 1500px; margin: 0 auto; }
+.wide { grid-column: 1 / -1; }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: var(--r); padding: 16px; min-width: 0; }
+.card > h2 {
+  margin: 0 0 12px; font: 600 13px/1.2 var(--sans); letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted);
+  display: flex; align-items: baseline; gap: 10px;
+}
+.card > h2 .right { margin-left: auto; text-transform: none; letter-spacing: 0; font-weight: 400; }
+.stack { display: grid; gap: 16px; align-content: start; min-width: 0; }
+
+/* --- wizjer (znak rozpoznawczy) ----------------------------------- */
+.viewfinder { position: relative; background: var(--view-bg); border-radius: var(--r); overflow: hidden; aspect-ratio: 4 / 3; }
+.viewfinder img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; }
+.viewfinder .corner { position: absolute; width: 28px; height: 28px; border: 3px solid var(--resin); }
+.corner.tl { top: 12px; left: 12px; border-right: 0; border-bottom: 0; }
+.corner.tr { top: 12px; right: 12px; border-left: 0; border-bottom: 0; }
+.corner.bl { bottom: 12px; left: 12px; border-right: 0; border-top: 0; }
+.corner.br { bottom: 12px; right: 12px; border-left: 0; border-top: 0; }
+.tally {
+  position: absolute; left: 24px; top: 22px; color: #fff; text-shadow: 0 2px 12px rgba(0,0,0,0.6);
+  display: grid; grid-template-columns: auto auto; column-gap: 12px; align-items: end;
+}
+.tally .n { font: 800 112px/0.8 var(--display); color: #F4B45E; font-variant-numeric: tabular-nums; }
+.tally .lbl { font: 600 15px/1.2 var(--sans); padding-bottom: 6px; max-width: 9em; }
+.tally .cones { grid-column: 1 / -1; display: flex; gap: 4px; margin-top: 10px; min-height: 26px; flex-wrap: wrap; max-width: 60%; }
+.cones svg { width: 20px; height: 26px; }
+.cones .part { opacity: 0.9; }
+.vf-meta {
+  position: absolute; left: 0; right: 0; bottom: 0; display: flex; gap: 16px; align-items: center; flex-wrap: wrap;
+  padding: 10px 24px 14px; color: #E9E4DA; font-size: 13px;
+  background: linear-gradient(to top, rgba(10,12,10,0.8), rgba(10,12,10,0));
+}
+.vf-meta .mono { font-size: 13px; }
+.vf-empty {
+  position: absolute; inset: 0; display: none; place-items: center; text-align: center; color: #D9D3C8; padding: 24px;
+}
+.viewfinder.offline .vf-empty { display: grid; }
+.viewfinder.offline img, .viewfinder.offline .tally, .viewfinder.offline .vf-meta { visibility: hidden; }
+.vf-empty b { display: block; font: 800 28px/1.1 var(--display); letter-spacing: 0.04em; margin-bottom: 6px; color: #F4B45E; }
+.tabs { display: flex; gap: 4px; flex-wrap: wrap; }
+.tabs button {
+  border: 1px solid var(--line); background: var(--card); border-radius: 99px; padding: 5px 12px; font-size: 13px;
+}
+.tabs button[aria-pressed="true"] { background: var(--ink); color: var(--card); border-color: var(--ink); }
+.btn {
+  border: 1px solid var(--line); background: var(--card); border-radius: 8px; padding: 7px 12px; font-size: 14px;
+}
+.btn:hover { border-color: var(--muted); }
+a.btn { color: inherit; text-decoration: none; display: inline-block; }
+.btn.primary { background: var(--ink); border-color: var(--ink); color: var(--card); }
+.btn:disabled { opacity: 0.4; cursor: default; }
+
+/* --- jak widzi robot ---------------------------------------------- */
+.pipeline { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+.step { display: grid; gap: 6px; align-content: start; }
+.step .thumb { position: relative; aspect-ratio: 4 / 3; background: var(--view-bg); border-radius: 6px; overflow: hidden; }
+.step .thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.step b { font: 600 14px/1.2 var(--sans); }
+.step b::before { content: attr(data-arrow); color: var(--resin); margin-right: 4px; }
+.step p { margin: 0; font-size: 12.5px; color: var(--muted); }
+
+/* --- wykres ------------------------------------------------------- */
+.spark { width: 100%; height: 84px; display: block; }
+.spark .area { fill: var(--resin-soft); }
+.spark .line { fill: none; stroke: var(--resin); stroke-width: 2; }
+.spark .grid { stroke: var(--line); stroke-width: 1; }
+.stats { display: flex; gap: 22px; flex-wrap: wrap; margin-top: 8px; }
+.stat b { display: block; font: 800 34px/1 var(--display); font-variant-numeric: tabular-nums; }
+.stat span { font-size: 12px; color: var(--muted); }
+
+/* --- jazda -------------------------------------------------------- */
+.drive { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 18px; align-items: start; }
+.pad { display: grid; grid-template-columns: repeat(3, 58px); grid-template-rows: repeat(2, 58px); gap: 6px; }
+.pad button {
+  border: 1px solid var(--line); background: var(--paper); border-radius: 10px; font: 800 24px/1 var(--display);
+  touch-action: none; user-select: none; -webkit-user-select: none;
+}
+.pad button.on { background: var(--resin); border-color: var(--resin); color: #fff; }
+.pad .w { grid-column: 2; }
+.pad .a { grid-column: 1; grid-row: 2; } .pad .s { grid-column: 2; grid-row: 2; } .pad .d { grid-column: 3; grid-row: 2; }
+.meter { display: grid; grid-template-columns: 58px minmax(0, 1fr) 48px; gap: 8px; align-items: center; font-size: 12px; margin-bottom: 8px; }
+.meter .track { position: relative; height: 10px; background: var(--paper); border: 1px solid var(--line); border-radius: 99px; overflow: hidden; }
+.meter .fill { position: absolute; top: 0; bottom: 0; left: 50%; width: 0; background: var(--resin); }
+.meter .track::after { content: ""; position: absolute; left: 50%; top: -2px; bottom: -2px; width: 1px; background: var(--muted); }
+.row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+input[type=range] { accent-color: var(--resin); }
+.drive-state { font-size: 13px; margin-top: 6px; min-height: 1.4em; }
+.drive-state.bad { color: var(--alarm); font-weight: 600; }
+
+/* --- ramie -------------------------------------------------------- */
+.dials { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 8px; margin-bottom: 14px; }
+.dial { text-align: center; font-size: 11.5px; color: var(--muted); }
+.dial svg { width: 100%; max-width: 90px; display: block; margin: 0 auto; }
+.dial .bg { stroke: var(--line); }
+.dial .val { stroke: var(--resin); }
+.dial .lim { stroke: var(--alarm); }
+.dial b { display: block; color: var(--ink); font: 500 13px/1.2 var(--mono); }
+#arm-root.armp, #arm-root .armp {
+  --armp-ok: var(--moss); --armp-bad: var(--alarm); --armp-warn: var(--warn); --armp-accent: var(--resin);
+  --armp-muted: var(--muted); --armp-text: var(--ink); --armp-btn: var(--paper); --armp-border: var(--line);
+}
+details.more > summary { cursor: pointer; font-weight: 600; font-size: 14px; padding: 4px 0; }
+details.more[open] > summary { margin-bottom: 10px; }
+
+/* --- uslugi, zdrowie, zdarzenia, logi ----------------------------- */
+table { width: 100%; border-collapse: collapse; font-size: 14px; }
+th, td { text-align: left; padding: 8px 6px; border-bottom: 1px solid var(--line); vertical-align: middle; }
+th { font-size: 12px; color: var(--muted); font-weight: 500; }
+td .btn { padding: 4px 10px; font-size: 13px; }
+.state { display: inline-flex; align-items: center; gap: 6px; }
+.state i { width: 9px; height: 9px; border-radius: 50%; background: var(--line); }
+.state.running i { background: var(--moss); }
+.state.external i { background: var(--moss); box-shadow: 0 0 0 2px var(--card), 0 0 0 3px var(--moss); }
+.state.starting i { background: var(--warn); }
+.state.crashed i { background: var(--alarm); }
+.health { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 10px; }
+.health div { border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; }
+.health b { display: block; font: 500 17px/1.2 var(--mono); }
+.health span { font-size: 12px; color: var(--muted); }
+.events { list-style: none; margin: 0; padding: 0; max-height: 220px; overflow: auto; font-size: 13px; }
+.events li { display: grid; grid-template-columns: 64px minmax(0, 1fr); gap: 8px; padding: 5px 0; border-bottom: 1px dashed var(--line); }
+.events li.error { color: var(--alarm); }
+.events time { font-family: var(--mono); color: var(--muted); font-size: 12px; }
+pre.log {
+  margin: 10px 0 0; height: 300px; overflow: auto; background: var(--view-bg); color: #D8E0D3; border-radius: 8px;
+  padding: 10px 12px; font: 12.5px/1.45 var(--mono); white-space: pre-wrap; word-break: break-word;
+}
+
+/* --- co zbudowalismy ---------------------------------------------- */
+.built { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.3fr); gap: 24px; }
+.facts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px 18px; align-content: start; }
+.fact b { display: block; font: 800 44px/1 var(--display); color: var(--resin); font-variant-numeric: tabular-nums; }
+.fact span { font-size: 13px; color: var(--muted); }
+.abilities { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.abilities li { display: grid; grid-template-columns: 110px minmax(0, 1fr); gap: 12px; padding-bottom: 10px; border-bottom: 1px solid var(--line); }
+.abilities li:last-child { border-bottom: 0; }
+.abilities b { font: 800 19px/1.1 var(--display); letter-spacing: 0.03em; text-transform: uppercase; }
+.abilities p { margin: 0; font-size: 14px; }
+.brain { margin-top: 20px; }
+.brain svg { width: 100%; height: auto; display: block; }
+.brain .node rect { fill: var(--card); stroke: var(--ink); stroke-width: 1.5; }
+.brain .node.hi rect { fill: var(--resin-soft); stroke: var(--resin); }
+.brain .node text { fill: var(--ink); font: 700 13px var(--mono); }
+.brain .edge { stroke: var(--muted); stroke-width: 1.5; fill: none; }
+.brain .cap { fill: var(--muted); font: 11px var(--sans); }
+.brain .arrowhead { fill: var(--muted); }
+
+/* --- tryb pokazu ------------------------------------------------- */
+body.show main { grid-template-columns: minmax(0, 1.8fr) minmax(340px, 1fr); }
+body.show .tally .n { font-size: 160px; }
+
+@media (max-width: 980px) {
+  main, body.show main { grid-template-columns: minmax(0, 1fr); padding: 12px 16px 96px; }
+  .built { grid-template-columns: minmax(0, 1fr); }
+  .pipeline { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .dials { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .tally .n, body.show .tally .n { font-size: 76px; }
+  header { padding: 8px 16px; }
+  .brand h1 { font-size: 24px; }
+  body:not(.show) .stop { position: fixed; left: 16px; right: 16px; bottom: 12px; z-index: 30; padding: 16px; }
+}
+@media (max-width: 560px) {
+  .drive { grid-template-columns: minmax(0, 1fr); }
+  .facts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .abilities li { grid-template-columns: minmax(0, 1fr); gap: 2px; }
+  td:nth-child(3), th:nth-child(3) { display: none; }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .tally .n { transition: color 0.3s; }
+  .tally.bump .n { color: #fff; }
+}
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="cone" viewBox="0 0 20 26">
+    <path d="M10 1 C15 5 18 11 17 17 C16 22 13 25 10 25 C7 25 4 22 3 17 C2 11 5 5 10 1 Z"/>
+    <path d="M5 10 L10 13 L15 10 M4 15 L10 18 L16 15 M5 20 L10 22.5 L15 20" fill="none" stroke="rgba(0,0,0,0.45)" stroke-width="1.4"/>
+  </symbol>
+</svg>
+
+<header>
+  <div class="brand"><h1>Makarena</h1><span>robot, który zbiera szyszki</span></div>
+  <nav class="links" id="links" aria-label="Połączenia">
+    <span class="chip" id="chip-hub"><i></i>Pi</span>
+    <span class="chip op-only" id="chip-drive"><i></i>Jazda</span>
+    <span class="chip op-only" id="chip-xiao"><i></i>Silniki</span>
+    <span class="chip" id="chip-arm"><i></i>Ramię</span>
+    <span class="chip" id="chip-cam"><i></i>Kamera</span>
+  </nav>
+  <button class="stop op-only" id="stop">STOP<small>spacja: jazda i ramię</small></button>
+  <a class="btn show-only" href="/">Panel operatora</a>
+</header>
+
+<main>
+  <!-- kolumna lewa: kamera ------------------------------------------------ -->
+  <div class="stack">
+    <section class="card" aria-labelledby="h-cam">
+      <h2 id="h-cam">Kamera robota
+        <span class="right tabs" id="views" role="group" aria-label="Widok kamery">
+          <button data-view="overlay" aria-pressed="true">Wykrycia</button>
+          <button data-view="raw" aria-pressed="false">Obraz</button>
+          <button data-view="mask" aria-pressed="false">Maska HSV</button>
+          <button data-view="depth" aria-pressed="false">Głębia</button>
+        </span>
+      </h2>
+      <div class="viewfinder offline" id="vf">
+        <img id="stream" alt="Podgląd z kamery robota z zaznaczonymi szyszkami">
+        <span class="corner tl"></span><span class="corner tr"></span><span class="corner bl"></span><span class="corner br"></span>
+        <div class="tally" id="tally" aria-live="polite">
+          <span class="n" id="count">0</span><span class="lbl" id="count-lbl">szyszek w kadrze</span>
+          <div class="cones" id="cones"></div>
+        </div>
+        <div class="vf-meta">
+          <span>najbliższa <b class="mono" id="nearest">-</b></span>
+          <span>ucięte krawędzią <b class="mono" id="partial">0</b></span>
+          <span class="mono" id="fps">- fps</span>
+          <span class="muted" id="cam-src"></span>
+        </div>
+        <div class="vf-empty"><div><b>Kamera nie odpowiada</b>
+          <span id="cam-hint">Uruchom usługę Kamera w sekcji Usługi. Kamerę może trzymać tylko jeden program naraz.</span></div></div>
+      </div>
+      <div class="row op-only" style="margin-top:10px">
+        <button class="btn" id="snap">Zapisz klatkę</button>
+        <span class="muted" id="snap-msg" style="font-size:13px">zapis do frames/panel/ na Pi, do strojenia progu HSV</span>
+      </div>
+    </section>
+
+    <section class="card" aria-labelledby="h-pipe">
+      <h2 id="h-pipe">Jak robot widzi szyszkę <span class="right muted">na żywo, co sekundę</span></h2>
+      <div class="pipeline">
+        <div class="step"><div class="thumb"><img data-thumb="raw" alt="Surowy obraz"></div>
+          <b data-arrow="">Obraz</b><p>Kolor z kamery RealSense, balans bieli i ekspozycja zablokowane po starcie.</p></div>
+        <div class="step"><div class="thumb"><img data-thumb="mask" alt="Maska HSV"></div>
+          <b data-arrow="-> ">Maska HSV</b><p>Zostają piksele w odcieniu i nasyceniu szyszki. Próg dobrany z 20 160 kombinacji.</p></div>
+        <div class="step"><div class="thumb"><img data-thumb="overlay" alt="Wykryte szyszki"></div>
+          <b data-arrow="-> ">Szyszki</b><p>Kontury filtrowane polem. Najniżej w kadrze = najbliżej robota = cel.</p></div>
+        <div class="step"><div class="thumb"><img data-thumb="depth" alt="Mapa głębi"></div>
+          <b data-arrow="-> ">Odległość</b><p>Głębia ze stereo podaje, ile centymetrów do szyszki.</p></div>
+      </div>
+    </section>
+
+    <section class="card op-only" aria-labelledby="h-drive">
+      <h2 id="h-drive">Jazda <span class="right muted">W A S D albo przytrzymaj strzałkę</span></h2>
+      <div class="drive">
+        <div class="pad" id="pad">
+          <button class="w" data-key="w" aria-label="Do przodu">W</button>
+          <button class="a" data-key="a" aria-label="W lewo">A</button>
+          <button class="s" data-key="s" aria-label="Do tyłu">S</button>
+          <button class="d" data-key="d" aria-label="W prawo">D</button>
+        </div>
+        <div>
+          <div class="meter"><span>prędkość</span><div class="track"><div class="fill" id="m-speed"></div></div><span class="mono" id="v-speed">0</span></div>
+          <div class="meter"><span>skręt</span><div class="track"><div class="fill" id="m-steer"></div></div><span class="mono" id="v-steer">0</span></div>
+          <div class="row" style="font-size:13px">
+            <label for="limit">limit prędkości</label>
+            <input type="range" id="limit" min="0" max="100" value="100" style="flex:1;min-width:120px">
+            <span class="mono" id="limit-v">100%</span>
+          </div>
+          <div class="row" style="margin-top:10px" role="group" aria-label="Tryb jazdy">
+            <button class="btn" data-mode="manual">Ręcznie</button>
+            <button class="btn" data-mode="figure8">Ósemka</button>
+            <button class="btn" data-mode="coverage">Pokrycie terenu</button>
+          </div>
+          <div class="drive-state" id="drive-state">łączę z serwerem jazdy...</div>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <!-- kolumna prawa ------------------------------------------------------ -->
+  <div class="stack">
+    <section class="card" aria-labelledby="h-count">
+      <h2 id="h-count">Szyszki w kadrze <span class="right muted">ostatnia minuta</span></h2>
+      <svg class="spark" id="spark" viewBox="0 0 300 84" preserveAspectRatio="none" role="img" aria-label="Liczba szyszek w czasie"></svg>
+      <div class="stats">
+        <div class="stat"><b id="st-max">0</b><span>rekord sesji</span></div>
+        <div class="stat"><b id="st-avg">0</b><span>średnio w kadrze</span></div>
+        <div class="stat"><b id="st-frames">0</b><span>klatek przeanalizowanych</span></div>
+      </div>
+    </section>
+
+    <section class="card" aria-labelledby="h-arm">
+      <h2 id="h-arm">Ramię SO-101 <span class="right muted" id="arm-age"></span></h2>
+      <div class="dials" id="dials"></div>
+      <details class="more op-only" open>
+        <summary>Sterowanie ramieniem</summary>
+        <div id="arm-root"></div>
+      </details>
+    </section>
+
+    <section class="card op-only" aria-labelledby="h-health">
+      <h2 id="h-health">Raspberry Pi <span class="right muted" id="host"></span></h2>
+      <div class="health" id="health"></div>
+    </section>
+
+    <section class="card" aria-labelledby="h-ev">
+      <h2 id="h-ev">Zdarzenia</h2>
+      <ul class="events" id="events"><li><time></time><span class="muted">Brak zdarzeń od startu panelu.</span></li></ul>
+    </section>
+  </div>
+
+  <!-- uslugi i logi ------------------------------------------------------ -->
+  <section class="card wide op-only" aria-labelledby="h-svc">
+    <h2 id="h-svc">Usługi
+      <span class="right row">
+        <a class="btn" href="/logs.zip">Pobierz wszystkie logi (ZIP)</a>
+        <button class="btn" id="stop-all">Zatrzymaj wszystkie</button>
+      </span>
+    </h2>
+    <table>
+      <thead><tr><th>Usługa</th><th>Stan</th><th>Opis</th><th></th></tr></thead>
+      <tbody id="svc"></tbody>
+    </table>
+    <div class="row" style="margin-top:16px">
+      <label for="log-sel" class="muted" style="font-size:13px">Log usługi</label>
+      <select id="log-sel" class="btn"></select>
+      <label class="row muted" style="font-size:13px;gap:4px"><input type="checkbox" id="log-follow" checked> przewijaj na bieżąco</label>
+    </div>
+    <pre class="log" id="log" aria-live="off">Wybierz usługę.</pre>
+  </section>
+
+  <!-- co zbudowalismy ---------------------------------------------------- -->
+  <section class="card wide" aria-labelledby="h-built">
+    <h2 id="h-built">Co zbudowaliśmy</h2>
+    <div class="built">
+      <div>
+        <div class="facts" id="facts"></div>
+        <div class="brain">
+          <svg viewBox="0 0 640 170" role="img" aria-label="Maszyna stanów robota: szukaj, podjedź, ustaw, chwyć, wrzuć">
+            <defs><marker id="ah" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path class="arrowhead" d="M0 0 L8 4 L0 8 Z"/></marker></defs>
+            <g class="node hi"><rect x="4" y="40" width="104" height="40" rx="6"/><text x="56" y="65" text-anchor="middle">SEARCH</text></g>
+            <g class="node"><rect x="132" y="40" width="104" height="40" rx="6"/><text x="184" y="65" text-anchor="middle">APPROACH</text></g>
+            <g class="node"><rect x="260" y="40" width="104" height="40" rx="6"/><text x="312" y="65" text-anchor="middle">ALIGN</text></g>
+            <g class="node"><rect x="388" y="40" width="104" height="40" rx="6"/><text x="440" y="65" text-anchor="middle">GRASP</text></g>
+            <g class="node"><rect x="516" y="40" width="104" height="40" rx="6"/><text x="568" y="65" text-anchor="middle">DROP</text></g>
+            <g class="node"><rect x="324" y="118" width="104" height="36" rx="6"/><text x="376" y="141" text-anchor="middle">RETRY</text></g>
+            <path class="edge" d="M108 60 H130" marker-end="url(#ah)"/>
+            <path class="edge" d="M236 60 H258" marker-end="url(#ah)"/>
+            <path class="edge" d="M364 60 H386" marker-end="url(#ah)"/>
+            <path class="edge" d="M492 60 H514" marker-end="url(#ah)"/>
+            <path class="edge" d="M568 40 V16 H56 V38" marker-end="url(#ah)"/>
+            <path class="edge" d="M440 80 V136 H430" marker-end="url(#ah)"/>
+            <path class="edge" d="M324 136 H184 V82" marker-end="url(#ah)"/>
+            <text class="cap" x="312" y="11" text-anchor="middle">po wrzucie szuka następnej</text>
+            <text class="cap" x="56" y="100" text-anchor="middle">pasy po kursie</text>
+            <text class="cap" x="184" y="100" text-anchor="middle">szyszka z obrazu</text>
+            <text class="cap" x="500" y="150" text-anchor="middle">nie złapał: cofa się</text>
+          </svg>
+          <p class="muted" style="font-size:13px;margin:6px 0 0">Mózg robota to deterministyczna maszyna stanów (pinecone_bot/brain.py). W symulatorze zbiera 5 z 5 szyszek.</p>
+        </div>
+      </div>
+      <ul class="abilities">
+        <li><b>Wizja</b><p>Detektor HSV z blokadą balansu bieli: 0 błędów na 38 klatkach kontrolnych w dwóch różnych oświetleniach. Głębia ze stereo RealSense.</p></li>
+        <li><b>Ramię</b><p>SO-101 z naprawioną kalibracją barku. Ruchy nagrywane prowadzeniem ręką i odtwarzane, jog stawów z przeglądarki, limity z kalibracji.</p></li>
+        <li><b>Uczenie</b><p>Chwyt uczony z pokazów (lerobot ACT): <span id="ab-episodes">50</span> epizodów nagranych ramieniem-liderem, trening na GPU RTX 3070.</p></li>
+        <li><b>Jazda</b><p>Hoverboard sterowany przez Xiao: jazda ręczna, ósemka, pokrycie terenu pasami, failsafe po 1 s ciszy od operatora.</p></li>
+        <li><b>Geometria</b><p>Kinematyka z URDF i kalibracja kamera-ramię (AX=XB), żeby punkt z kamery zamienić na cel dla chwytaka.</p></li>
+        <li><b>Zespół</b><p>Pięć osób, jeden robot. Każda zmiana z testem, przegląd przed scaleniem, dziennik prób w repo.</p></li>
+      </ul>
+    </div>
+  </section>
+</main>
+
+<script src="/arm_panel.js"></script>
+<script>
+(() => {
+  const SHOW = location.pathname.replace(/\/+$/, '') === '/show';
+  if (SHOW) document.body.classList.add('show');
+  const HOST = location.hostname;
+  const CAM = `http://${HOST}:8020`;
+  const ARM = `http://${HOST}:8010`;
+  const WS_URL = `ws://${HOST}:8765`;
+  const $ = (id) => document.getElementById(id);
+  const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  const setChip = (id, cls, title) => { const el = $(id); el.classList.remove('ok', 'warn', 'bad'); if (cls) el.classList.add(cls); if (title) el.title = title; };
+  const plural = (n) => (n === 1 ? 'szyszka' : (n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 10 || n % 100 >= 20)) ? 'szyszki' : 'szyszek');
+
+  // ---- zdarzenia (z panelu na Pi i z tej strony) -------------------------
+  const evList = $('events');
+  let evEmpty = true;
+  function addEvent(t, text, kind) {
+    if (evEmpty) { evList.innerHTML = ''; evEmpty = false; }
+    const li = document.createElement('li');
+    if (kind === 'error') li.className = 'error';
+    const d = new Date(t * 1000);
+    li.innerHTML = `<time>${d.toTimeString().slice(0, 8)}</time><span>${esc(text)}</span>`;
+    evList.prepend(li);
+    while (evList.children.length > 80) evList.lastChild.remove();
+  }
+  const now = () => Date.now() / 1000;
+
+  // ---- kamera ------------------------------------------------------------
+  let view = 'overlay';
+  const vf = $('vf'), img = $('stream');
+  let camOk = false;
+  function startStream() { img.src = `${CAM}/stream?view=${view}&t=${Date.now()}`; }
+  img.onerror = () => { vf.classList.add('offline'); setTimeout(startStream, 3000); };
+  img.onload = () => vf.classList.remove('offline');
+  $('views').addEventListener('click', (e) => {
+    const b = e.target.closest('button[data-view]');
+    if (!b) return;
+    view = b.dataset.view;
+    for (const x of $('views').querySelectorAll('button')) x.setAttribute('aria-pressed', x === b);
+    startStream();
+  });
+  startStream();
+
+  const conesEl = $('cones');
+  let lastCount = -1, sawCone = false;
+  function renderCones(full, partial) {
+    const shown = Math.min(full + partial, 24);
+    let html = '';
+    for (let i = 0; i < shown; i++) {
+      const part = i >= full;
+      html += `<svg class="${part ? 'part' : ''}" aria-hidden="true"><use href="#cone" fill="${part ? 'none' : '#F4B45E'}" stroke="#F4B45E" stroke-width="${part ? 1.6 : 0}"/></svg>`;
+    }
+    conesEl.innerHTML = html;
+  }
+  function renderSpark(hist) {
+    const svg = $('spark');
+    if (!hist.length) { svg.innerHTML = ''; return; }
+    const maxN = Math.max(3, ...hist.map((h) => h[1]));
+    const x = (t) => 300 * (1 + t / 60);
+    const y = (n) => 80 - 74 * (n / maxN);
+    let d = '';
+    for (const [t, n] of hist) d += (d ? 'L' : 'M') + x(t).toFixed(1) + ' ' + y(n).toFixed(1);
+    const first = x(hist[0][0]).toFixed(1), last = x(hist[hist.length - 1][0]).toFixed(1);
+    let grid = '';
+    for (let n = 1; n <= maxN; n++) grid += `<line class="grid" x1="0" x2="300" y1="${y(n)}" y2="${y(n)}" vector-effect="non-scaling-stroke"/>`;
+    svg.innerHTML = grid + `<path class="area" d="${d}L${last} 80L${first} 80Z"/><path class="line" d="${d}" vector-effect="non-scaling-stroke"/>`;
+    const avg = hist.reduce((s, h) => s + h[1], 0) / hist.length;
+    $('st-avg').textContent = avg.toFixed(1).replace('.', ',');
+  }
+  async function pollCam() {
+    try {
+      const r = await fetch(`${CAM}/api/detections`, { cache: 'no-store' });
+      const s = await r.json();
+      const ok = !s.error && s.age_s !== null && s.age_s < 3;
+      if (ok !== camOk) {
+        camOk = ok;
+        addEvent(now(), ok ? 'Kamera: obraz jest' : `Kamera: brak obrazu${s.error ? ' (' + s.error + ')' : ''}`, ok ? 'info' : 'error');
+        if (ok) startStream();  // po restarcie uslugi stary strumien MJPEG jest martwy
+      }
+      setChip('chip-cam', ok ? 'ok' : 'bad', s.error || `${s.fps} fps, ${s.source}`);
+      $('count').textContent = s.count;
+      $('count-lbl').textContent = `${plural(s.count)} w kadrze`;
+      if (s.count !== lastCount) {
+        const t = $('tally'); t.classList.add('bump'); setTimeout(() => t.classList.remove('bump'), 250);
+        if (s.count > 0 && !sawCone) { sawCone = true; addEvent(now(), `Kamera zobaczyła pierwszą szyszkę`); }
+        lastCount = s.count;
+      }
+      renderCones(s.count, s.partial);
+      $('partial').textContent = s.partial;
+      $('nearest').textContent = s.nearest_m == null ? (s.has_depth ? 'poza zasięgiem głębi' : 'bez głębi') : `${Math.round(s.nearest_m * 100)} cm`;
+      $('fps').textContent = `${s.fps} fps`;
+      $('cam-src').textContent = s.source === 'realsense' ? '' : `źródło: ${s.source}`;
+      $('st-max').textContent = s.max_seen;
+      $('st-frames').textContent = s.frames.toLocaleString('pl-PL');
+      renderSpark(s.history || []);
+    } catch (e) {
+      if (camOk) { camOk = false; addEvent(now(), 'Kamera: brak połączenia z usługą', 'error'); }
+      setChip('chip-cam', 'bad', 'usługa kamery nie odpowiada');
+    }
+  }
+  setInterval(pollCam, 300); pollCam();
+
+  // miniatury "jak widzi robot": pojedyncze klatki co sekunde, bez czterech strumieni naraz
+  const thumbs = [...document.querySelectorAll('img[data-thumb]')];
+  let thumbI = 0;
+  setInterval(() => {
+    if (!camOk) return;
+    const el = thumbs[thumbI++ % thumbs.length];
+    el.src = `${CAM}/frame.jpg?view=${el.dataset.thumb}&t=${Date.now()}`;
+  }, 250);
+
+  $('snap').onclick = async () => {
+    try {
+      const r = await fetch(`${CAM}/api/snapshot`, { method: 'POST' });
+      $('snap-msg').textContent = (await r.json()).msg;
+    } catch (e) { $('snap-msg').textContent = 'Nie zapisano: usługa kamery nie odpowiada.'; }
+  };
+
+  // ---- ramie: tarcze stawow ---------------------------------------------
+  const JOINT_PL = { shoulder_pan: 'obrót', shoulder_lift: 'bark', elbow_flex: 'łokieć', wrist_flex: 'nadgarstek', wrist_roll: 'obrót dłoni', gripper: 'chwytak' };
+  let dialsBuilt = false, armOk = null;
+  function arcPath(f0, f1) {
+    // luk od -120 do +120 stopni, f w [0,1]
+    const a = (f) => (-120 + 240 * f - 90) * Math.PI / 180;
+    const p = (f) => [40 + 30 * Math.cos(a(f)), 40 + 30 * Math.sin(a(f))];
+    const [x0, y0] = p(f0), [x1, y1] = p(f1);
+    const large = (f1 - f0) * 240 > 180 ? 1 : 0;
+    return `M${x0.toFixed(1)} ${y0.toFixed(1)} A30 30 0 ${large} 1 ${x1.toFixed(1)} ${y1.toFixed(1)}`;
+  }
+  function renderDials(st) {
+    const el = $('dials');
+    const joints = st.joints || Object.keys(st.positions || {});
+    if (!dialsBuilt) {
+      el.innerHTML = joints.map((j) => `<div class="dial" data-j="${j}"><svg viewBox="0 0 80 66" aria-hidden="true">
+        <path class="bg" d="${arcPath(0, 1)}" fill="none" stroke-width="6" stroke-linecap="round"/>
+        <path class="val" fill="none" stroke-width="6" stroke-linecap="round"/></svg>
+        <b>-</b>${JOINT_PL[j] || j}</div>`).join('');
+      dialsBuilt = true;
+    }
+    for (const j of joints) {
+      const d = el.querySelector(`[data-j="${j}"]`);
+      if (!d) continue;
+      const v = st.positions ? st.positions[j] : null;
+      const lim = st.limits && st.limits[j];
+      d.querySelector('b').textContent = v == null ? '-' : (j === 'gripper' ? `${v.toFixed(0)}%` : `${v.toFixed(0)}°`);
+      const path = d.querySelector('.val');
+      if (v == null || !lim || lim[1] <= lim[0]) { path.setAttribute('d', ''); continue; }
+      const f = (v - lim[0]) / (lim[1] - lim[0]);
+      const out = f < 0 || f > 1;
+      const fc = Math.min(1, Math.max(0, f));
+      path.setAttribute('d', arcPath(Math.max(0, fc - 0.03), Math.min(1, fc + 0.03)));
+      path.setAttribute('class', out ? 'val lim' : 'val');
+      d.title = `${j}: ${v} (zakres ${lim[0]} .. ${lim[1]})${out ? ' POZA ZAKRESEM' : ''}`;
+    }
+  }
+  async function pollArm() {
+    try {
+      const r = await fetch(`${ARM}/api/state`, { cache: 'no-store' });
+      const st = await r.json();
+      renderDials(st);
+      const ok = !st.error;
+      setChip('chip-arm', ok ? 'ok' : 'warn', st.error || (st.busy ? `ruch: ${st.busy}` : 'gotowe'));
+      $('arm-age').textContent = st.read_age_s == null ? '' : `odczyt ${st.read_age_s} s temu`;
+      if (armOk !== true) { if (armOk === false) addEvent(now(), 'Ramię: połączone'); armOk = true; }
+    } catch (e) {
+      setChip('chip-arm', 'bad', 'usługa ramienia nie odpowiada');
+      if (armOk === true) addEvent(now(), 'Ramię: brak połączenia z usługą', 'error');
+      armOk = false;
+    }
+  }
+  setInterval(pollArm, 600); pollArm();
+  const armPanel = SHOW ? null : mountArmPanel($('arm-root'), { base: ARM });
+
+  // ---- jazda (tylko panel operatora: karta /show nie trzyma robota przy zyciu) --
+  let ws = null, wsOpen = false, failsafeWas = false;
+  const keys = { w: false, a: false, s: false, d: false };
+  const send = (o) => { if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(o)); };
+  const sendKeys = () => send({ type: 'keys', ...keys });
+  function setKey(k, v) {
+    if (keys[k] === v) return;
+    keys[k] = v;
+    const b = document.querySelector(`#pad [data-key="${k}"]`);
+    if (b) b.classList.toggle('on', v);
+    sendKeys();
+  }
+  function releaseKeys() { for (const k of Object.keys(keys)) setKey(k, false); }
+  function meter(el, v) {
+    const f = Math.max(-1, Math.min(1, v || 0));
+    el.style.left = f >= 0 ? '50%' : `${50 + f * 50}%`;
+    el.style.width = `${Math.abs(f) * 50}%`;
+  }
+  const MODE_PL = { manual: 'ręcznie', figure8: 'ósemka', coverage: 'pokrycie terenu', playback: 'odtwarzanie nagrania' };
+  function connectDrive() {
+    ws = new WebSocket(WS_URL);
+    ws.onopen = () => { wsOpen = true; addEvent(now(), 'Jazda: połączono z serwerem'); };
+    ws.onclose = () => {
+      if (wsOpen) addEvent(now(), 'Jazda: rozłączono z serwerem', 'error');
+      wsOpen = false;
+      setChip('chip-drive', 'bad', 'serwer jazdy nie odpowiada');
+      setChip('chip-xiao', '', 'brak danych');
+      $('drive-state').textContent = 'Brak połączenia z serwerem jazdy. Uruchom usługę Jazda.';
+      $('drive-state').className = 'drive-state bad';
+      setTimeout(connectDrive, 1500);
+    };
+    ws.onerror = () => ws.close();
+    ws.onmessage = (ev) => {
+      const s = JSON.parse(ev.data);
+      if (s.type !== 'status') return;
+      setChip('chip-drive', 'ok', 'serwer jazdy połączony');
+      setChip('chip-xiao', s.connected ? 'ok' : 'bad', s.connected ? `Xiao na ${s.port}` : (s.error || `szukam Xiao na ${s.port}`));
+      meter($('m-speed'), s.speed); meter($('m-steer'), s.steer);
+      $('v-speed').textContent = s.pwm_speed; $('v-steer').textContent = s.pwm_steer;
+      if (!$('limit').matches(':active')) $('limit').value = Math.round(s.speed_scale * 100);
+      $('limit-v').textContent = Math.round(s.speed_scale * 100) + '%';
+      for (const b of document.querySelectorAll('[data-mode]')) b.classList.toggle('primary', b.dataset.mode === s.mode);
+      const st = $('drive-state');
+      if (s.failsafe) { st.textContent = 'Stoi: brak sygnału od operatora (failsafe).'; st.className = 'drive-state bad'; }
+      else if (!s.connected) { st.textContent = `Silniki niepodłączone: ${s.error || s.port}`; st.className = 'drive-state bad'; }
+      else { st.textContent = `Tryb: ${MODE_PL[s.mode] || s.mode}${s.cov_phase ? ', faza ' + s.cov_phase : ''}`; st.className = 'drive-state'; }
+      if (s.failsafe && !failsafeWas) addEvent(now(), 'Jazda: failsafe, robot stanął (brak sygnału od operatora)', 'error');
+      failsafeWas = !!s.failsafe;
+    };
+  }
+  if (!SHOW) {
+    connectDrive();
+    setInterval(() => send({ type: 'ping' }), 200);
+    const typing = (e) => e.target.closest('input, select, textarea') && e.target.type !== 'range';
+    addEventListener('keydown', (e) => {
+      if (typing(e)) return;
+      const k = e.key.toLowerCase();
+      if (k in keys) { e.preventDefault(); setKey(k, true); }
+      else if (e.code === 'Space') { e.preventDefault(); stopAll(); }
+    });
+    addEventListener('keyup', (e) => { const k = e.key.toLowerCase(); if (k in keys) setKey(k, false); });
+    addEventListener('blur', releaseKeys);
+    document.addEventListener('visibilitychange', () => { if (document.hidden) releaseKeys(); });
+    for (const b of document.querySelectorAll('#pad [data-key]')) {
+      const k = b.dataset.key;
+      b.addEventListener('pointerdown', (e) => { e.preventDefault(); b.setPointerCapture(e.pointerId); setKey(k, true); });
+      for (const ev of ['pointerup', 'pointercancel', 'lostpointercapture']) b.addEventListener(ev, () => setKey(k, false));
+    }
+    $('limit').addEventListener('input', (e) => send({ type: 'set_speed', value: e.target.value / 100 }));
+    for (const b of document.querySelectorAll('[data-mode]')) b.onclick = () => send({ type: 'set_mode', mode: b.dataset.mode });
+  }
+  function stopAll() {
+    releaseKeys();
+    send({ type: 'set_mode', mode: 'manual' });
+    send({ type: 'keys', w: false, a: false, s: false, d: false });
+    if (armPanel) armPanel.stop();
+    addEvent(now(), 'STOP z panelu: jazda i ramię');
+  }
+  $('stop').onclick = stopAll;
+
+  // ---- uslugi, zdrowie, zdarzenia z Pi ---------------------------------
+  const STATE_PL = { running: 'działa', external: 'działa poza panelem', starting: 'startuje', crashed: 'padła', stopped: 'zatrzymana' };
+  let lastEv = 0, svcNames = '';
+  function fmtUp(s) { if (s == null) return ''; const m = Math.floor(s / 60); return m >= 60 ? `${Math.floor(m / 60)} h ${m % 60} min` : `${m} min`; }
+  function renderSvc(list) {
+    const names = list.map((s) => s.name).join(',');
+    if (names !== svcNames) {
+      svcNames = names;
+      $('log-sel').innerHTML = list.map((s) => `<option value="${s.name}">${esc(s.title)}</option>`).join('');
+      refreshLog();
+    }
+    $('svc').innerHTML = list.map((s) => {
+      const ours = s.state === 'running' || s.state === 'starting';
+      const link = s.link ? `<a href="http://${HOST}:${s.link}/" target="_blank" rel="noopener">:${s.link}</a>` : '';
+      return `<tr><td><b>${esc(s.title)}</b> <span class="muted mono" style="font-size:12px">${link}</span></td>
+        <td><span class="state ${s.state}"><i></i>${STATE_PL[s.state] || s.state}</span>${s.uptime_s != null ? ` <span class="muted" style="font-size:12px">${fmtUp(s.uptime_s)}</span>` : ''}${s.state === 'crashed' ? ` <span class="muted" style="font-size:12px">kod ${s.exit_code}</span>` : ''}</td>
+        <td class="muted" style="font-size:13px">${esc(s.note)}</td>
+        <td style="text-align:right;white-space:nowrap">
+          <button class="btn" data-svc="${s.name}" data-act="start" ${ours || s.state === 'external' ? 'disabled' : ''}>Uruchom</button>
+          <button class="btn" data-svc="${s.name}" data-act="restart" ${ours ? '' : 'disabled'}>Restart</button>
+          <button class="btn" data-svc="${s.name}" data-act="stop" ${ours ? '' : 'disabled'}>Zatrzymaj</button></td></tr>`;
+    }).join('');
+  }
+  $('svc').addEventListener('click', async (e) => {
+    const b = e.target.closest('button[data-svc]');
+    if (!b) return;
+    b.disabled = true;
+    try {
+      const r = await fetch(`/api/svc/${b.dataset.svc}/${b.dataset.act}`, { method: 'POST' });
+      const j = await r.json();
+      if (!j.ok) addEvent(now(), j.msg, 'error');
+    } catch (err) { addEvent(now(), 'Panel na Pi nie odpowiada', 'error'); }
+    pollHub();
+  });
+  $('stop-all').onclick = async () => {
+    if (!confirm('Zatrzymać wszystkie usługi uruchomione z panelu? Jazda i ramię przestaną odpowiadać.')) return;
+    await fetch('/api/stop_all', { method: 'POST' }).catch(() => {});
+    pollHub();
+  };
+  function renderHealth(h) {
+    $('host').textContent = h.host || '';
+    const dev = h.devices || {};
+    const devTxt = Object.keys(dev).length ? Object.entries(dev).map(([k, v]) => `${k.replace('/dev/robot-', '')} ${v ? 'jest' : 'BRAK'}`).join(', ') : 'nie Linux';
+    const cells = [
+      ['temperatura CPU', h.cpu_temp_c == null ? '-' : `${h.cpu_temp_c} °C`],
+      ['obciążenie', h.load1 == null ? '-' : `${h.load1} / ${h.cpus}`],
+      ['pamięć', h.mem_used_pct == null ? '-' : `${h.mem_used_pct}%`],
+      ['opóźnienie', rtt == null ? '-' : `${rtt} ms`],
+      ['zasilanie', h.throttled == null ? '-' : (['0', '0x0'].includes(h.throttled) ? 'OK' : `uwaga ${h.throttled}`)],
+      ['USB', devTxt],
+    ];
+    $('health').innerHTML = cells.map(([k, v]) => `<div><b>${esc(v)}</b><span>${k}</span></div>`).join('');
+  }
+  let rtt = null, hubOk = null;
+  async function pollHub() {
+    const t0 = performance.now();
+    try {
+      const r = await fetch(`/api/status?since=${lastEv}`, { cache: 'no-store' });
+      const s = await r.json();
+      rtt = Math.round(performance.now() - t0);
+      setChip('chip-hub', rtt > 300 ? 'warn' : 'ok', `panel na Pi, ${rtt} ms`);
+      if (hubOk === false) addEvent(now(), 'Panel na Pi: połączenie wróciło');
+      hubOk = true;
+      for (const e of s.events) { addEvent(e.t, e.text, e.kind); lastEv = Math.max(lastEv, e.id); }
+      if (!SHOW) { renderSvc(s.services); renderHealth(s.health); }
+    } catch (e) {
+      setChip('chip-hub', 'bad', 'panel na Pi nie odpowiada');
+      if (hubOk) addEvent(now(), 'Panel na Pi: brak połączenia', 'error');
+      hubOk = false;
+    }
+  }
+  setInterval(pollHub, 1500); pollHub();
+
+  // ---- logi ------------------------------------------------------------
+  const logEl = $('log');
+  async function refreshLog() {
+    const name = $('log-sel').value;
+    if (!name || SHOW) return;
+    try {
+      const r = await fetch(`/api/logs/${name}?n=400`, { cache: 'no-store' });
+      const j = await r.json();
+      logEl.textContent = j.lines.length ? j.lines.join('\n') : 'Log jest pusty: usługa nie była uruchomiona z panelu.';
+      if ($('log-follow').checked) logEl.scrollTop = logEl.scrollHeight;
+    } catch (e) { /* hub offline: widac w chipie Pi */ }
+  }
+  $('log-sel').onchange = refreshLog;
+  setInterval(refreshLog, 2000);
+
+  // ---- dorobek -----------------------------------------------------------
+  fetch('/api/facts').then((r) => r.json()).then((f) => {
+    const eps = Object.values(f.datasets || {}).reduce((a, b) => Math.max(a, b), 0);
+    if (eps) $('ab-episodes').textContent = eps;
+    const items = [
+      [f.tests, 'testów automatycznych'],
+      [f.code_lines, 'linii naszego kodu'],
+      [f.modules && f.modules.length, 'modułów stosu robota'],
+      [f.tools, 'narzędzi do kalibracji i testów'],
+      [eps || null, 'epizodów chwytu do uczenia'],
+      [f.commits, 'commitów'],
+      [f.merged_prs, 'scalonych zmian'],
+      [f.motions && f.motions.length, 'nagranych ruchów ramienia'],
+    ].filter(([v]) => v);
+    $('facts').innerHTML = items.slice(0, 6).map(([v, k]) => `<div class="fact"><b>${Number(v).toLocaleString('pl-PL')}</b><span>${k}</span></div>`).join('');
+  }).catch(() => {});
+})();
+</script>
+</body>
+</html>

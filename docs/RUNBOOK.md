@@ -67,6 +67,8 @@ Kolejnosc ma znaczenie: kazdy krok zapisuje cos, z czego korzysta nastepny.
 | `tools/hand_eye_calib.py`        | Kalibracja reka-oko kamery na ramieniu (ArUco + AX=XB w numpy) -> `camera_on_arm.json`. |
 | `tools/arm_play.py`              | Odtworzenie jednego nagranego ruchu (do testu bez calej petli). |
 | `tools/arm_web.py`               | Panel webowy ramienia na :8010 (jog stawow, HOME, chwytak, `motions/`, STOP); ta sama sekcja jest w panelu jazdy :8000. `--fake` bez sprzetu, `--no-home` bez HOME (kamera na ramieniu). |
+| `tools/robot_panel.py`           | Panel zbiorczy na :8090: kamera z liczba szyszek, jazda, ramie, uslugi (start/stop), logi (ZIP), zdrowie Pi; `/show` = tryb pokazu. Sam odpala `web_control.py`, `tools/arm_web.py --no-home`, `tools/vision_web.py`. `--demo` bez sprzetu. |
+| `tools/vision_web.py`            | Kamera na :8020: MJPEG z ramkami szyszek (`?view=overlay|raw|mask|depth`), `/api/detections` (liczba, odleglosc z glebi), zapis klatki. Trzyma RealSense - nie razem z `rs_mjpeg_server.py` ani `pinecone_bot.main`. |
 | `tools/base_test.py`             | Reczny test podwozia: `forward` / `turn` / `square`, pomiar znaku skretu i mapowania PWM. |
 | `motions/*.json`                 | Nagrane ruchy ramienia (`home`, `grasp_mid` - placeholder, `drop_box` - placeholder). |
 | `tests/`                         | Testy jednostkowe `pinecone_bot/*` (bez sprzetu, bez kamery). |

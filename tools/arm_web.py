@@ -50,7 +50,10 @@ STATIC = {
 }
 HTTP_PORT = 8010
 MAX_BODY = 4096
-DRIVE_PANEL_PORT = 8000  # web_control.py; tylko jego strona moze wolac API z innego originu
+DRIVE_PANEL_PORT = 8000  # web_control.py
+ROBOT_PANEL_PORT = 8090  # tools/robot_panel.py (panel zbiorczy)
+# tylko te strony moga wolac API z innego originu
+PANEL_PORTS = (DRIVE_PANEL_PORT, ROBOT_PANEL_PORT)
 
 log = logging.getLogger("arm_web")
 
@@ -94,10 +97,10 @@ def make_handler(panel: ArmPanel, own_port: int = HTTP_PORT):
             self._send(code, json.dumps(payload).encode("ascii"), "application/json")
 
         def _cors(self) -> None:
-            # frontend.html (panel jazdy, :8000) pyta ten serwer z innego portu. Nie "*":
+            # frontend.html (:8000) i robot_panel.html (:8090) pytaja ten serwer z innego portu. Nie "*":
             # inaczej dowolna strona otwarta w przegladarce w tej sieci moglaby ruszac ramieniem.
             origin = self.headers.get("Origin") or ""
-            if origin_port_ok(origin, [DRIVE_PANEL_PORT]):
+            if origin_port_ok(origin, PANEL_PORTS):
                 self.send_header("Access-Control-Allow-Origin", origin)
                 self.send_header("Vary", "Origin")
 
@@ -126,7 +129,7 @@ def make_handler(panel: ArmPanel, own_port: int = HTTP_PORT):
             # Komendy tylko z naszych stron. application/json wymusza preflight CORS, wiec obca
             # strona nie przemyci komendy "prostym" POST-em (text/plain), ktory idzie bez pytania.
             origin = self.headers.get("Origin")
-            if origin and not origin_port_ok(origin, [DRIVE_PANEL_PORT, own_port]):
+            if origin and not origin_port_ok(origin, [*PANEL_PORTS, own_port]):
                 self._json(403, {"ok": False, "msg": "obcy origin"})
                 return
             if not (self.headers.get("Content-Type") or "").startswith("application/json"):

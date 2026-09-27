@@ -11,6 +11,13 @@ zadania i przypisania na tablicy Projects (link nizej). Czego nie ma tutaj albo 
 
 - Ramie SO-101: skalibrowane po naprawie barku, `./arm.sh home|status|open|close`. NIE uruchamiac `lerobot calibrate`.
 - Podwozie: Xiao + panel webowy (`python web_control.py`, WASD, osemka, pokrycie), `drive_step.py` do pojedynczych krokow.
+- Panel zbiorczy `tools/robot_panel.py` (:8090, branch pawel/robot-panel): jedno okno SSH zamiast trzech. Sam odpala
+  jazde (`web_control.py`), ramie (`tools/arm_web.py --no-home`) i kamere (`tools/vision_web.py`, :8020), pokazuje
+  podglad z ramkami szyszek, liczbe szyszek w kadrze + wykres z minuty, odleglosc z glebi, pasek "jak widzi robot"
+  (obraz -> maska HSV -> szyszki -> glebia), tarcze stawow, WASD, STOP (spacja: jazda + ramie), uslugi start/stop/restart,
+  logi na zywo i ZIP (`/logs.zip`, z `pinecone_log.csv`), zdrowie Pi, zdarzenia, "co zbudowalismy" (liczby z repo).
+  `/show` = tryb pokazu na projektor (bez sterowania, NIE trzyma heartbeatu jazdy). Sprawdzony na laptopie w `--demo`
+  (ramie-atrapa, kamera z symulatora): liczenie, restart uslug, logi, telefon 375 px. 20 nowych testow, 164 zielone.
 - Kamera D415: podglad `rs_mjpeg_server.py` (glebia 424x240 -> mniejszy MinZ, bliski dywan ma ciagla glebie), detekcja szyszek z glebi (`scan_cones.py`, rozrzut < 2 mm).
 - Nowy stos `pinecone_bot` (PR #14 + poprawki PR #16): symulacja na laptopie zbiera 5/5 szyszek, 66 testow zielonych.
   Ramie odtwarza nagrane punkty, baza ustawia szyszke z obrazu, maszyna stanow, szukanie pasami. Bez IK, bez ML.
@@ -41,6 +48,9 @@ zadania i przypisania na tablicy Projects (link nizej). Czego nie ma tutaj albo 
 - Bipropellant na plycie hovera: plyta jest przerobiona i niedostepna (2026-09-27), wiec hallotronow nie bedzie; kurs z telefonu zamiast nich. Stary test (nieaktualny):
   `python tools/bip_probe.py --port /dev/ttyAMA0` (nie rusza silnikow, sprawdza ASCII i protokol binarny na 3 baudach).
 - WiFi na Pi DZIALA (wczesniej ten plik mowil, ze nie): eth0 192.168.137.5 (kabel) i wlan0 172.20.10.4 (hotspot "iPhone pawel", DHCP - adres moze sie zmienic). Kod na Pi nadal wchodzi przez `deploy/push_to_pi.sh` / scp (internet/`git pull` na Pi niesprawdzone).
+- Panel zbiorczy (`tools/robot_panel.py --autostart`) NIE uruchomiony na Pi: RealSense przez `tools/vision_web.py`,
+  temperatura/`get_throttled`, `/dev/robot-*` i zatrzymanie uslug SIGINT (Xiao dostaje `a0 b0`) sprawdzone tylko w kodzie.
+  Tarcze stawow pokazuja odczyt wzgledem zakresu kalibracji, nie sylwetke ramienia (zera vs URDF niesprawdzone).
 - Po restarcie Pi zadne panele nie wstaja same: `web_control.py` i `tools/arm_web.py` trzeba odpalac recznie, `robot-web.service` nie jest zainstalowany. Nadal nie odpalone w tej sesji.
 - Zasilanie z akumulatora 12 V: issue #8, nie zaczete.
 - Polityki uczone (ML): decyzja frane 2026-09-27 - robimy lerobot ACT rownolegle (`docs/POLICIES_LEROBOT.md`, SETUP.md sekcja "lerobot do ACT").

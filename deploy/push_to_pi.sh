@@ -6,7 +6,7 @@
 #     bash deploy/push_to_pi.sh
 #
 # Copies: pinecone_bot/, tools/, motions/, tests/, requirements-pinecone.txt,
-# arm_control.py, web_control.py, frontend.html, arm_panel.html/.js
+# arm_control.py, web_control.py, frontend.html, arm_panel.html/.js, robot_panel.html
 # and pinecone_config.json (if it exists locally). Uses rsync when
 # available (fast, deletes files removed locally, resumable); falls back to
 # scp -r otherwise (plain copy, no delete).
@@ -40,8 +40,9 @@ step() { printf '\n==> %s\n' "$*"; }
 cd "$REPO_DIR"
 
 # arm_control.py: WaypointArm i tools/arm_web.py; web_control.py + frontend.html + arm_panel.*: panel jazdy i ramienia
+# robot_panel.html: panel zbiorczy (tools/robot_panel.py)
 ITEMS=(pinecone_bot tools motions tests requirements-pinecone.txt
-       arm_control.py web_control.py frontend.html arm_panel.html arm_panel.js)
+       arm_control.py web_control.py frontend.html arm_panel.html arm_panel.js robot_panel.html)
 if [[ -f pinecone_config.json ]]; then
   ITEMS+=(pinecone_config.json)
 else
