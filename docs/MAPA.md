@@ -25,6 +25,19 @@ Deterministycznie, bez ML i bez ROS.
 
 Nagranie ~5 MB/s (10 min = 3 GB). `map_features.npz` wystarczy do jazdy - reszta tylko do budowy mapy.
 
+## Na innym laptopie
+
+Mapy (bez `raw.db`) i nagrania leza tez na Pi w `~/mapy/ogrod1`, `~/mapy/ogrod2` (skopiowane 2026-09-27).
+Do samej jazdy zygzakiem laptop niepotrzebny - `map_features.npz` jest na Pi. Do budowy nowej mapy:
+
+```
+scp -r robot@172.20.10.4:mapy/ogrod2 C:/Users/<ty>/mapy/
+```
+
+RTAB-Map 0.23.8 win64: `RTABMap-0.23.8-win64.zip` z GitHuba introlab/rtabmap (168 MB), rozpakowac, do `bin`
+skopiowac `msvcr110.dll` i `msvcp110.dll` x64 (np. z `C:/Program Files/Microsoft Office/root/vfs/System`),
+`python tools/rtabmap_build.py KATALOG --bin <katalog>/bin`.
+
 ## Kolejnosc (komendy)
 
 Na Pi, kamera w pozie "patrz" (teleop i panel ramienia zamkniete):
