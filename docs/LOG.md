@@ -927,6 +927,36 @@ Koniec: krok 4000, loss 0.575. Checkpointy 1000-4000 na Pi; 2000-4000 w `models/
 Wiecej epizodow (`--resume=true`) i druga statyczna kamera, jesli polityka nie generalizuje po polozeniu szyszki.
 **Sprzet:** dotkniety zdalnie (odczyt kamery `lerobot-find-cameras` na Pi, kopiowanie plikow; ramie nie ruszane)
 
+## 2026-09-27 - frane + Claude - diagnoza padnietego treningu ACT, wznowienie
+**Zrobione:** Pytanie frane "co sie dzieje z trenowaniem, wznowic?". Stan: run2 (`C:/Users/frane/outputs/act_so101_grasp2_run2`)
+zabity przy kroku 3528 (restart sesji ~14:55), checkpointy 1000/2000/3000 z `training_state` cale. Blad `import torch`
+(WinError 1114 `shm.dll`) z poprzedniej sesji to NIE uszkodzony torch: pliki torch 2.11+cu128 zgodne z RECORD (11821
+plikow), reczne ladowanie wszystkich DLL z `torch/lib` przechodzi. Import pada TYLKO wewnatrz sandboxa narzedzia Bash/
+PowerShell w Claude Code; z wylaczonym sandboxem (`dangerouslyDisableSandbox`) `import torch` + CUDA + matmul dzialaja.
+Przeinstalowanie torcha (15:12, `torch_reinstall.log`) bylo niepotrzebne. Wznowienie: `python tools/train_win.py
+--config_path=<run2>/checkpoints/003000/pretrained_model/train_config.json --resume=true` dziala BEZ symlinku `last`
+(lerobot 0.6.1 bierze katalog checkpointu z `config_path`; "Resuming data order at epoch 1, sample 1544"). Odpalone
+15:17:10 jako proces odlaczony (`Start-Process`, przezywa restart sesji), do 7000 krokow.
+**Nie dziala / otwarte:** 20 s pozniej DRUGA sesja Claude (worktree `robot-pinecone-test-plan`) wznowila ten sam
+checkpoint do tego samego katalogu z `--steps=4000` i do tego samego pliku `act_grasp2_run4.log` (ta sama numeracja) -
+oba procesy dzielily GPU (1.7 zamiast 3.3 kroku/s) i obydwa zapisalyby `checkpoints/004000` w tej samej chwili.
+Moj proces zabity (duplikat), trening drugiej sesji zostawiony: 15:24:25 checkpoint 4000 (loss 0.575 (l1 0.255)), koniec.
+Kroki 4000 -> 7000 NIE trenowane; 4000 lezy tylko na laptopie (`.../act_so101_grasp2_run2/checkpoints/004000`).
+Commity z checkpointami 2000/3000 (`models/`, LFS, branch `frane/act-training` w tamtym worktree) NIE sa na origin
+(push nie doszedl; 2 x 207 MB przy 630 MB z 1 GB limitu LFS - kolejne checkpointy do LFS sie nie zmieszcza, wagi
+na Pi przez scp jak w SETUP.md). Pulapka: dwie sesje przy jednym GPU/katalogu `outputs` - przed startem treningu
+`Get-CimInstance Win32_Process | ? Name -eq python.exe` i wlasna nazwa logu.
+15:30 wznowienie 4000 -> 7000 (`--config_path=.../004000/... --resume=true --steps=7000`, 3.4 kroku/s, loss 0.52 przy
+~4300) ZATRZYMANE 15:34 na prosbe frane (nie obciazac laptopa) przy kroku ~4413, przed checkpointem 5000 - te ~400
+krokow przepadlo, stan nadal = checkpoint 4000. Log `act_grasp2_run5_to7000.err`.
+15:42 wznowienie od 004000 raz jeszcze (run6), na prosbe frane pauza 15:52-15:57 przez NtSuspendProcess (GPU 0 %,
+postep zachowany), potem laptop na baterii = 1.1 kroku/s (36 W), po zasilaczu 3.5 kroku/s. 16:05 KONIEC: krok 7000,
+loss 0.301 (l1 0.198, kld 0.010); checkpointy 5000/6000/7000 w `.../act_so101_grasp2_run2/checkpoints/` (laptop).
+Loss po krokach: 3000 0.79 -> 4000 0.575 -> 7000 0.301. Log `act_grasp2_run6_to7000.err`.
+**Nastepny krok:** wagi 7000 na Pi przez scp (SETUP.md), rollout z wylacznikiem; jesli ruch w zla strone - ARM_FRAMES
+krok 1. Checkpoint 7000 NIE do LFS (limit 1 GB).
+**Sprzet:** nie
+
 ## 2026-09-27 - pawel120 + Claude - panel zbiorczy robota (wizytowka)
 **Zrobione:** `tools/robot_panel.py` (:8090) + `robot_panel.html`: jeden panel zamiast trzech okien SSH (panel.md).
 Nadzorca uslug `pinecone_bot/supervisor.py` (start/stop SIGINT -> terminate -> kill, logi w pamieci i `logs/<usluga>.log`,

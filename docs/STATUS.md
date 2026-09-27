@@ -113,11 +113,18 @@ zadania i przypisania na tablicy Projects (link nizej). Czego nie ma tutaj albo 
 - ACT (2026-09-27 po poludniu): dataset `datasets/so101_grasp2` (50 epizodow, 22451 klatek, kamera wrist D435 serial
   030522070668, leader skalibrowany 12:30) NAGRANY na Pi przez druga sesje i wrzucony na master (wideo w Git LFS).
   Trening na laptopie (`tools/train_win.py`, batch 8, AMP, ~3 kroki/s po podpieciu zasilacza): loss 26 -> 1.24 (2000)
-  -> 0.79 (3000) -> 0.575 przy kroku 4000 (KONIEC, 15:24). NAJLEPSZY: `models/act_so101_grasp2/004000/pretrained_model`
-  (master; obiekty LFS moga dojezdzac, uplink hotspotu 50 KB/s) i na Pi `~/models/act_so101_grasp2/004000/`.
+  -> 0.79 (3000) -> 0.575 (4000) -> 0.301 przy kroku 7000 (KONIEC, 16:05). NAJLEPSZY:
+  `models/act_so101_grasp2/007000/pretrained_model` (master, LFS wgrany w calosci); na Pi jest tylko 004000.
   Laptop zrestartowal sie twardo o 14:55 (Kernel-Power 41, prawdopodobnie przegrzanie): uszkodzilo torch (reinstall
   z cache pip) i 2 z 3 mp4 datasetu w ~/datasets (odtworzone z kopii w repo). Wznowienie z 3000 dzialalo. Rollout lokalnie na Pi (0.65 s na 100 akcji): komenda w SETUP.md "Rollout polityki
   ACT na Pi". NIE sprawdzone na robocie w chwili pisania.
+  15:24: run2 padl przy 3528 (restart sesji); wznowienie z 3000 (`--config_path=.../003000/pretrained_model/
+  train_config.json --resume=true`, bez `last`) doszlo do 4000 (loss 0.575 (l1 0.255)), checkpoint `C:/Users/frane/outputs/
+  act_so101_grasp2_run2/checkpoints/004000`. 16:05: trening DOKONCZONY do 7000 (loss 0.301, l1 0.198); checkpointy
+  5000/6000 tylko na laptopie, 7000 na masterze w `models/` (LFS). Na Pi 7000 jeszcze NIE ma - scp jak w models/README.
+  Pulapka: `import torch` pada w sandboxie narzedzia Claude Code (WinError 1114 shm.dll) - trening poza sandboxem,
+  JEDEN proces naraz (dwie sesje naraz dzielily GPU i katalog, LOG 15:20). Checkpointy 2000/3000 w LFS tylko
+  lokalnie (branch `frane/act-training`, push nie doszedl; limit LFS 1 GB).
 - Zera stawow vs URDF i kamera na ramieniu: `tools/frame_check.py` (FK placo + werdykt operatora) i
   `tools/hand_eye_calib.py` (marker/collect/solve/predict, AX=XB) gotowe z testami (28), instrukcja `docs/ARM_FRAMES.md`.
   NIE uruchomione na sprzecie - do zrobienia przez sesje przy Pi. To warunek wstepny dla IK/GraspGenX.
