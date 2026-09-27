@@ -115,6 +115,10 @@ zadania i przypisania na tablicy Projects (link nizej). Czego nie ma tutaj albo 
   `tools/hand_eye_calib.py` (marker/collect/solve/predict, AX=XB) gotowe z testami (28), instrukcja `docs/ARM_FRAMES.md`.
   NIE uruchomione na sprzecie - do zrobienia przez sesje przy Pi. To warunek wstepny dla IK/GraspGenX.
 
+- 2026-09-26 wieczor: chwytanie samym ramieniem (baza stoi), instrukcja: `docs/LIVE_GRASP.md`, kod `tools/live_grasp/`.
+  Dziala: szyszki z glebi w HOME, nagrywanie ruchu reka, odtworzenie cyklu chwyt -> sloik. Nie dziala: autonomiczny chwyt
+  (model z 8 niepewnych probek, blad ok. 6 cm). Nowy HOME w repo, NIE wgrany na Pi.
+
 ## Nastepne 3 kroki (w tej kolejnosci)
 
 Dwa tory rownolegle. Tor mapa + zygzak (frane/mapa-d435, `docs/MAPA.md`):
@@ -128,6 +132,8 @@ A. (ACT) wagi `pretrained_model` na Pi, `python tools/act_pick.py --policy <kata
    z wylacznikiem w rece, potem bez `--skip-drop`.
 0. (sesja przy Pi, rownolegle z ACT) `docs/ARM_FRAMES.md`: `tools/frame_check.py` z wylacznikiem, potem
    `tools/hand_eye_calib.py collect/solve` z markerem ArUco -> `camera_on_arm.json` do repo.
+0. Chwytanie samym ramieniem: czyste uczenie (1 szyszka naraz, jeden styl chwytu, 12 pozycji), `fit.py`, test `pick.py`
+   - dokladne kroki w `docs/LIVE_GRASP.md`. Swiatlo w pokoju konieczne.
 1. Wpisac nowy prog HSV na Pi (albo push z brancha po merge) i sprawdzic na zywo; odczytac limity EEPROM barku, potem `tools/arm_play.py --motion grasp_near` z reka na wylaczniku.
 2. Nagrac `drop_box` (`tools/record_motion.py --name drop_box`), dopisac chwyty do `cfg.grasps`, `tools/calibrate_target.py`.
 3. `tools/base_test.py`, `tools/phyphox_check.py` (znak kursu), potem `python -m pinecone_bot.main --dry-run --heading phyphox`, potem `--real` z wylacznikiem w rece.
