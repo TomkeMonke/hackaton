@@ -287,6 +287,10 @@ def main(argv=None) -> int:
     if not args.no_arm:
         # przed kamera: rozgrzewka auto-ekspozycji ma juz widziec sciany, nie ziemie
         from .arm import make_arm
+        if cfg.arm.driver != "waypoints":
+            print("arm.driver '%s' to nie ramie robota - podaj --config ~/hackaton/pinecone_config.json "
+                  "albo --no-arm" % cfg.arm.driver)
+            return 2
         print("ramie: poza '%s' (kamera na sciany), trzymana do konca jazdy%s" % (
             cfg.nav.look_motion, " - RAMIE RUSZA SIE TEZ W --dry-run" if args.dry_run else ""))
         arm = make_arm(cfg, home_on_empty=False)
