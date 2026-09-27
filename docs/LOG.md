@@ -937,6 +937,8 @@ na Pi przez scp jak w SETUP.md). Pulapka: dwie sesje przy jednym GPU/katalogu `o
 `Get-CimInstance Win32_Process | ? Name -eq python.exe` i wlasna nazwa logu.
 **Nastepny krok:** po checkpoincie 4000 (druga sesja) rollout na Pi z wylacznikiem; jesli ma byc 7000 krokow, ta sama
 komenda `--config_path=.../004000/...` `--resume=true` poza sandboxem, jeden proces naraz.
+**Sprzet:** nie
+
 ## 2026-09-27 - pawel120 + Claude - panel zbiorczy robota (wizytowka)
 **Zrobione:** `tools/robot_panel.py` (:8090) + `robot_panel.html`: jeden panel zamiast trzech okien SSH (panel.md).
 Nadzorca uslug `pinecone_bot/supervisor.py` (start/stop SIGINT -> terminate -> kill, logi w pamieci i `logs/<usluga>.log`,
