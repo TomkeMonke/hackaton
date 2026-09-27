@@ -52,9 +52,11 @@ zadania i przypisania na tablicy Projects (link nizej). Czego nie ma tutaj albo 
   (po serialu CH343) w `deploy/99-robot.rules`, WGRANA na Pi.
 - ACT (2026-09-27 po poludniu): dataset `datasets/so101_grasp2` (50 epizodow, 22451 klatek, kamera wrist D435 serial
   030522070668, leader skalibrowany 12:30) NAGRANY na Pi przez druga sesje i wrzucony na master (wideo w Git LFS).
-  Trening na laptopie (`tools/train_win.py`, batch 8, AMP, ~3 kroki/s po podpieciu zasilacza): loss 26 -> 1.24 przy
-  kroku 2000 (l1 0.31). Checkpointy 1000/2000 na Pi w `~/models/act_so101_grasp2/<krok>/pretrained_model`, 1000 tez
-  na masterze (`models/`, LFS). Rollout lokalnie na Pi (0.65 s na 100 akcji): komenda w SETUP.md "Rollout polityki
+  Trening na laptopie (`tools/train_win.py`, batch 8, AMP, ~3 kroki/s po podpieciu zasilacza): loss 26 -> 1.24 (2000)
+  -> 0.79 przy kroku 3000 (l1 0.27); przerwany na 3528 (restart sesji Claude), budzet 1 h wyczerpany. NAJLEPSZY:
+  `models/act_so101_grasp2/003000/pretrained_model` (master, LFS) i na Pi `~/models/act_so101_grasp2/003000/`
+  (transfer 3000 na Pi NIEPOTWIERDZONY - laptop stracil hotspot). Po restarcie `import torch` na laptopie pada
+  (WinError 1114, shm.dll) - do sprawdzenia po rebocie; trening/inferencja na laptopie do tego czasu nie dziala. Rollout lokalnie na Pi (0.65 s na 100 akcji): komenda w SETUP.md "Rollout polityki
   ACT na Pi". NIE sprawdzone na robocie w chwili pisania.
 - Zera stawow vs URDF i kamera na ramieniu: `tools/frame_check.py` (FK placo + werdykt operatora) i
   `tools/hand_eye_calib.py` (marker/collect/solve/predict, AX=XB) gotowe z testami (28), instrukcja `docs/ARM_FRAMES.md`.

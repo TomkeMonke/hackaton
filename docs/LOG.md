@@ -763,6 +763,11 @@ training]`, CUDA OK. Trening ACT (batch 8, AMP, num_workers 0, pyav): 3 kroki/s 
 **Nie dziala / otwarte:** rollout na robocie NIE sprawdzony w tej sesji (komenda w SETUP.md). Pierwszy trening padl
 po checkpoincie 500 (symlink). Laptop na baterii = GPU 210 MHz (krok 1.6 s zamiast 0.14 s). Zabijanie procesow po
 linii polecen trafilo wlasny push (README zawieral te slowa). LFS: 630 MB z 1 GB darmowego limitu zuzyte.
-**Nastepny krok:** rollout checkpointu koncowego na Pi z wylacznikiem; jesli ruch w zla strone - ARM_FRAMES krok 1.
+**Dokonczenie (15:05):** loss 0.79 przy 3000 (l1 0.27). Sesja Claude zrestartowala sie ok. 14:55 i zabila trening
+(krok 3528), push i transfer; wznowienie z 3000 (`--config_path .../003000/pretrained_model/train_config.json
+--resume=true`) padlo na `import torch`: WinError 1114 przy `torch\lib\shm.dll`, takze bez CUDA i z PowerShell,
+RAM 21 GB wolne, pagefile pusty - przyczyna nieznana, najpewniej pomoze reboot. Checkpointy 2000 i 3000 dodane do
+`models/` (LFS) i pushowane jednym pushem. Laptop znow przeskoczyl na hacker-bloc, wiec 3000 na Pi niepotwierdzone.
+**Nastepny krok:** rollout checkpointu 3000 na Pi z wylacznikiem (SETUP.md); jesli ruch w zla strone - ARM_FRAMES krok 1.
 Wiecej epizodow (`--resume=true`) i druga statyczna kamera, jesli polityka nie generalizuje po polozeniu szyszki.
 **Sprzet:** dotkniety zdalnie (odczyt kamery `lerobot-find-cameras` na Pi, kopiowanie plikow; ramie nie ruszane)
