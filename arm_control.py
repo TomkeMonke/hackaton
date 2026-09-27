@@ -38,12 +38,12 @@ JOINT_NAMES = [
 # z fix_shoulder_offset.py (2026-09-25). Po kazdej zmianie kalibracji spisz na nowo
 # przez `./arm.sh status` w zlozonej pozie.
 HOME_POSE = {
-    "shoulder_pan": 1.27,
-    "shoulder_lift": -85.05,
-    "elbow_flex": 99.0,
-    "wrist_flex": -102.11,
-    "wrist_roll": 89.10,
-    "gripper": 1.69,
+    "shoulder_pan": -5.45,
+    "shoulder_lift": 88.92,
+    "elbow_flex": 7.56,
+    "wrist_flex": -87.87,
+    "wrist_roll": 88.88,
+    "gripper": 41.06,
 }
 
 # Limit ruchu na jedno wywolanie send_action (stopnie / jednostki motoru) - zabezpieczenie

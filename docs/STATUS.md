@@ -18,6 +18,9 @@ zadania i przypisania na tablicy Projects (link nizej). Czego nie ma tutaj albo 
   logi na zywo i ZIP (`/logs.zip`, z `pinecone_log.csv`), zdrowie Pi, zdarzenia, "co zbudowalismy" (liczby z repo).
   `/show` = tryb pokazu na projektor (bez sterowania, NIE trzyma heartbeatu jazdy). Sprawdzony na laptopie w `--demo`
   (ramie-atrapa, kamera z symulatora): liczenie, restart uslug, logi, telefon 375 px. 20 nowych testow, 164 zielone.
+- Podglad kamery OBOK lerobot: `tools/cam_preview.py lerobot-record|lerobot-rollout ...` (port 8081) - serwer MJPEG
+  w tym samym procesie, podglada `read_latest()` kamery lerobot (nie zajmuje jej drugi raz). `act_pick.py` uzywa go
+  domyslnie. Testy 6 + sprawdzone z prawdziwym lerobot `OpenCVCamera` na laptopie; NA PI z RealSense NIE sprawdzone.
 - Kamera D415: podglad `rs_mjpeg_server.py` (glebia 424x240 -> mniejszy MinZ, bliski dywan ma ciagla glebie), kolory glebi jak w RealSense Viewer (`--colormap viewer`, domyslnie; stara skala liniowa: `--colormap fixed`), detekcja szyszek z glebi (`scan_cones.py`, rozrzut < 2 mm).
 - Nowy stos `pinecone_bot` (PR #14 + poprawki PR #16): symulacja na laptopie zbiera 5/5 szyszek, 66 testow zielonych.
   Ramie odtwarza nagrane punkty, baza ustawia szyszke z obrazu, maszyna stanow, szukanie pasami. Bez IK, bez ML.
@@ -42,6 +45,7 @@ zadania i przypisania na tablicy Projects (link nizej). Czego nie ma tutaj albo 
   (speed/steer/sekundy, bez limitu z suwaka) / ramie (ruch z motions/) / czekaj, "TEST TEGO KROKU", szkic w przegladarce, zapis do `sequences/<nazwa>.json`,
   odtwarzanie w trybie "sequence" (`pinecone_bot/sequence.py`, 12 testow; STOP/failsafe/zmiana trybu przerywa i zeruje jazde + STOP ramienia).
   Sprawdzone w przegladarce na atrapie ramienia (`--fake`) i bez Xiao; NIE na sprzecie.
+- Polaczenie laptop -> Pi (hotspot albo kabel) i odpalenie obu paneli (:8000 jazda, :8010 ramie): poradnik `docs/PANEL.md`, sprawdzone 2026-09-26. Na Pi `pytest` 136 zielonych (bez `test_calibrate_target.py`), `./arm.sh status` czyta 6 przegubow.
 - `motions/grasp_mid.json`: chwyt z `demo2_fixed.csv` (aktualna kalibracja). `home.json`, `drop_box.json` (placeholder).
 - `tools/record_motion.py` (commit 40a75aa): ciagle nagranie ruchu ramienia prowadzonego reka (bez jazdy do HOME, kamera na ramieniu), probki 10 Hz, 'q'+Enter konczy i oddaje torque, zapis `motions/<name>.json` (waypointy co 0.25 s w tempie prowadzenia, pierwszy z dojazdem 1.5 s); odtwarzanie `tools/arm_play.py --motion <name>`. Testy `tests/test_record_motion.py` (3). Zastapilo dla operatora `tools/record_waypoints.py` (punkt po punkcie, uciazliwe) i legacy `record_demo.py` (jazda do HOME, stala liczba sekund).
 
@@ -49,6 +53,10 @@ zadania i przypisania na tablicy Projects (link nizej). Czego nie ma tutaj albo 
 
 - Jog XYZ w panelu ramienia (`pinecone_bot/kinematics.py`, sekcja JOG XYZ): testy + atrapa, NIE sprawdzony na ramieniu. Najpierw ZERO URDF (ramie prosto poziomo do przodu), potem sprawdzic, czy GORA jedzie w gore (inaczej `arm.urdf_sign`).
 - 2026-09-26: ROBOT WJECHAL W RAMIE I JE USZKODZIL (panel jazdy po hotspocie z duzym opoznieniem). Stan ramienia do oceny, serwa nie zasilac przed ogledzinami. Pi przestal odpowiadac (ping 100% strat).
+- `tools/drive_calib.py` (branch pawel/drive-calib, draft PR): kalibracja jazdy bez miarki - droga z glebi RealSense
+  do sciany, kat z phyphox, pytanie l/p -> xiao_pwm_*/xiao_steer_*, steer_sign, heading.sign. Testy 9, NA PI NIE
+  uruchomione. Prawdopodobnie dubluje `base_test.py --measure` (pawel/base-calibration), `turn_loop.py`
+  (frane/gyro-rate-loop) i jazde po mapie `zygzak.py` (frane/mapa-d435) - przed uzyciem zdecydowac, co zostaje.
 
 - `pinecone_bot` NIE JECHAL jeszcze na sprzecie. Wszystko ponizej to pierwsze uruchomienie (docs/RUNBOOK.md).
 - Nowy prog HSV (branch, commit 2ba7fc9) NIE jest jeszcze wpisany na Pi - do wypchniecia razem z blokada AWB/ekspozycji (`lock_auto`, sekcja "camera" configu, PR #30), ktora jest na masterze, ale NIE na Pi (`pinecone_bot/camera.py`/`config.py` na Pi sa starsze). Reka w kadrze ma podobny odcien co szyszka (bloby 9000-31500 px, szyszka max ~4000 px) - `max_area_px` 40000 tego nie odrzuca, warto zmniejszyc do ~8000 (niezmienione).
@@ -92,9 +100,16 @@ zadania i przypisania na tablicy Projects (link nizej). Czego nie ma tutaj albo 
   Laptop GOTOWY: torch 2.11 cu128 (CUDA na RTX 3070), lerobot 0.6.1 [phone,feetech,async], `so101.json` skopiowany z Pi.
   Pi GOTOWE: lerobot 0.6.1 + placo (IK), hebi-py/teleop (telefon), grpcio (async client), torchvision; importy i IK na URDF sprawdzone.
   `~/hackaton/examples/phone_to_so100/` na Pi (skrypty v0.6.1 + SO101 z STL, poza gitem). Teleop telefonem, druga kamera,
-  nagranie datasetu: nic nie odpalone. JEST leader SO-101 (sala 435 D) -> sciezka glowna to `lerobot-record` z leaderem
-  (SETUP.md "Wariant z leaderem"), telefon/placo tylko awaryjnie. Leader bez kalibracji; nowa regula udev `robot-leader`
-  (po serialu CH343) w `deploy/99-robot.rules`, WGRANA na Pi.
+  JEST leader SO-101 -> `lerobot-record` z leaderem (SETUP.md "Wariant z leaderem"), telefon/placo tylko awaryjnie.
+  2026-09-27: leader na Pi jako `/dev/robot-leader` (w miejscu kabla hovera - Pi nie ma wolnego USB), kalibracja leadera
+  = KOPIA `so101.json` followera (decyzja frane) + gripper przez `tools/calibrate_joint.py`; czesc osi leadera odwrocona
+  (dane dla ACT i tak poprawne: akcja = cel followera). Kamera D435 serial 030522070668 (nie 105422060821 z SETUP).
+  Podzial na 2 etapy: ACT uczy sie TYLKO chwytu (HOME -> szyszka -> zamkniecie -> uniesienie, 15 s), wrzut do sloika
+  robi nagrany `motions/drop_box.json` (tylko na Pi: tam i z powrotem, 15 s). Datasety na Pi `~/datasets/`:
+  `so101_grasp` (7 ep.), `so101_grasp2` (50 ep., gotowy). Na Pi doinstalowane `lerobot[dataset]` z torch cpu przypietym
+  (override), spadek napiecia uszkodzil `pyarrow`/`av` - przeinstalowane. `tools/act_pick.py` = etap 1 (`lerobot-rollout`
+  z ACT, torque zostaje) + etap 2 (`arm_play drop_box --home-after`), testy 7, podglad kamery :8081; NIE uruchomiony (wagi sa, patrz nizej).
+  Laptop pawel120 (Intel Arc, bez NVIDIA, bez venv) NIE nadaje sie do treningu - trening na laptopie z RTX 3070.
 - ACT (2026-09-27 po poludniu): dataset `datasets/so101_grasp2` (50 epizodow, 22451 klatek, kamera wrist D435 serial
   030522070668, leader skalibrowany 12:30) NAGRANY na Pi przez druga sesje i wrzucony na master (wideo w Git LFS).
   Trening na laptopie (`tools/train_win.py`, batch 8, AMP, ~3 kroki/s po podpieciu zasilacza): loss 26 -> 1.24 przy
@@ -105,6 +120,10 @@ zadania i przypisania na tablicy Projects (link nizej). Czego nie ma tutaj albo 
   `tools/hand_eye_calib.py` (marker/collect/solve/predict, AX=XB) gotowe z testami (28), instrukcja `docs/ARM_FRAMES.md`.
   NIE uruchomione na sprzecie - do zrobienia przez sesje przy Pi. To warunek wstepny dla IK/GraspGenX.
 
+- 2026-09-26 wieczor: chwytanie samym ramieniem (baza stoi), instrukcja: `docs/LIVE_GRASP.md`, kod `tools/live_grasp/`.
+  Dziala: szyszki z glebi w HOME, nagrywanie ruchu reka, odtworzenie cyklu chwyt -> sloik. Nie dziala: autonomiczny chwyt
+  (model z 8 niepewnych probek, blad ok. 6 cm). Nowy HOME w repo, NIE wgrany na Pi.
+
 ## Nastepne 3 kroki (w tej kolejnosci)
 
 Dwa tory rownolegle. Tor mapa + zygzak (frane/mapa-d435, `docs/MAPA.md`):
@@ -114,8 +133,12 @@ Dwa tory rownolegle. Tor mapa + zygzak (frane/mapa-d435, `docs/MAPA.md`):
 3. Poza ramienia "szukaj" (kamera 38 st w dol) i szyszki w zygzaku (detektor + podjazd z `brain.py`); merge frane/mapa-d435.
 
 Tor ACT / ramie (master):
+A. (ACT) wagi `pretrained_model` na Pi, `python tools/act_pick.py --policy <katalog> --skip-drop`
+   z wylacznikiem w rece, potem bez `--skip-drop`.
 0. (sesja przy Pi, rownolegle z ACT) `docs/ARM_FRAMES.md`: `tools/frame_check.py` z wylacznikiem, potem
    `tools/hand_eye_calib.py collect/solve` z markerem ArUco -> `camera_on_arm.json` do repo.
+0. Chwytanie samym ramieniem: czyste uczenie (1 szyszka naraz, jeden styl chwytu, 12 pozycji), `fit.py`, test `pick.py`
+   - dokladne kroki w `docs/LIVE_GRASP.md`. Swiatlo w pokoju konieczne.
 1. Wpisac nowy prog HSV na Pi (albo push z brancha po merge) i sprawdzic na zywo; odczytac limity EEPROM barku, potem `tools/arm_play.py --motion grasp_near` z reka na wylaczniku.
 2. Nagrac `drop_box` (`tools/record_motion.py --name drop_box`), dopisac chwyty do `cfg.grasps`, `tools/calibrate_target.py`.
 3. `tools/base_test.py`, `tools/phyphox_check.py` (znak kursu), potem `python -m pinecone_bot.main --dry-run --heading phyphox`, potem `--real` z wylacznikiem w rece.
