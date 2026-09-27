@@ -23,7 +23,8 @@ cd ~/hackaton && SVT_LOG=1 .venv/bin/lerobot-record --robot.type=so101_follower 
 - 5 miejsc szyszki x 10 epizodow. Koniec epizodu = pozycja startowa `drop_box` (ramie z przodu, nisko, chwytak zamkniety).
 - Warningi `libtorchcodec` i `Svt[...]` sa niegrozne (dekoder -> pyav, log kodera wideo).
 
-Stan 2026-09-27: `so101_grasp` 7 ep. (zamkniety), `so101_grasp2` w toku (cel 50).
+Stan 2026-09-27 14:00: `so101_grasp2` = 50 ep., 22451 klatek, 30 fps - GOTOWY do pelnego treningu (2b).
+`so101_grasp` 7 ep. (do probnego treningu 2a).
 
 ## 2. Laptop z RTX 3070 (Franek): trening
 
@@ -85,4 +86,7 @@ Sam ruch do sloika bez sieci: `.venv/bin/python tools/arm_play.py --motion drop_
 - `lerobot[dataset]` na Pi instalowac z override torcha, inaczej uv sciagnie torch z CUDA:
   `printf 'torch==2.14.0+cpu\ntorchvision==0.29.0+cpu\n' > /tmp/ov.txt` i
   `~/.local/bin/uv pip install --python .venv/bin/python --override /tmp/ov.txt --index-strategy unsafe-best-match --extra-index-url https://download.pytorch.org/whl/cpu 'lerobot[dataset]==0.6.1'`.
+- `Overload error` na `id_=6` przy koncu nagrania = gripper followera dociskal szyszke az zadzialalo zabezpieczenie.
+  Dataset jest zapisany (finalize idzie przed disconnect). Kasowanie: otworzyc gripper, wylaczyc zasilanie serw na kilka s.
+  Przy nagrywaniu zamykac leaderem tylko do oporu - ACT nauczy sie docisku z danych.
 - Bus error przy imporcie = plik uszkodzony po spadku napiecia; `--reinstall --no-deps --no-cache` tego pakietu.
