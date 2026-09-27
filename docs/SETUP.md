@@ -137,6 +137,37 @@ Plik kalibracji ramienia jest poza repo: skopiowany z Pi do
 `~/.cache/huggingface/lerobot/calibration/robots/so_follower/so101.json`
 (ten sam `id=so101`; NIE uruchamiac `lerobot calibrate`, HARDWARE.md pulapka 1).
 
+### Trening ACT na laptopie (Windows) - pulapki z 2026-09-27
+
+- `lerobot-train` wymaga extras `dataset` i `training`: `pip install "lerobot[dataset,training]==0.6.1"`
+  (bez tego `ImportError: 'datasets' is required`). Torch cu128 zostaje (pin torch<2.12 jest spelniony).
+- Wideo datasetu (AV1) dekoduje `pyav` (`--dataset.video_backend=pyav`); `torchcodec` bez ffmpeg w PATH
+  sypie traceback przy starcie, ale lerobot sam przechodzi na pyav - ignorowac.
+- **Laptop na baterii = GPU 210 MHz / 20 W** (flagi power cap + thermal slowdown przy 51 st C), krok 1.6 s
+  zamiast 0.14 s. Zasilacz MUSI byc podpiety; po podpieciu zegary wracaja same, bez restartu.
+- Po zapisie checkpointu lerobot tworzy symlink `checkpoints/last`; Windows bez trybu deweloperskiego
+  odmawia (`WinError 1314`) i trening PADA po pierwszym checkpoincie. Obejscie: `tools/train_win.py`
+  (te same flagi co `lerobot-train`, pomija symlink). `--resume` wtedy nie dziala (wymaga `last`).
+- `num_workers=4` na Windows bylo WOLNIEJSZE (2.8 s/krok) niz `num_workers=0` (0.33 s/krok, GPU 0.14 s,
+  dane 0.19 s). Batch 8 + `--policy.use_amp=true`, ~3 kroki/s na RTX 3070; 4000 krokow = ~22 min.
+- Dataset kopiowany z Pi w trakcie nagrywania ma uciety parquet ("Parquet magic bytes not found") -
+  kopiowac dopiero, gdy `lerobot-record` na Pi sie skonczyl; `tar --exclude="tmp*"` przez ssh.
+- Zabijanie procesow po tresci linii polecen (`wmic`/`Get-CimInstance ... CommandLine -like`) trafia tez
+  wlasne skrypty bash, ktore te slowa zawieraja w heredocu - filtrowac po `Name -eq 'python.exe'`.
+
+Komenda, ktora zadzialala (dataset w repo: `datasets/so101_grasp2`, po `git lfs pull`):
+
+```
+python tools/train_win.py --dataset.repo_id=local/so101_grasp2 --dataset.root=datasets/so101_grasp2 \n  --dataset.video_backend=pyav --policy.type=act --policy.device=cuda --policy.use_amp=true \n  --policy.push_to_hub=false --output_dir=outputs/train/act_so101_grasp2 --job_name=act_so101_grasp2 \n  --steps=7000 --batch_size=8 --num_workers=0 --log_freq=100 --save_freq=1000 --wandb.enable=false
+```
+
+Wagi na Pi: `tar -cf - -C outputs/train/act_so101_grasp2/checkpoints/<krok> pretrained_model | ssh robot@<ip>
+'mkdir -p ~/models/act_so101_grasp2/<krok> && tar -xf - -C ~/models/act_so101_grasp2/<krok>'` (198 MB).
+Na Pi `ACTPolicy.from_pretrained(...)` laduje sie 30 s (pierwszy raz sciaga resnet18 z torch hub - Pi
+potrzebuje internetu), jedna paczka 100 akcji liczy sie ~0.65 s na CPU -> rollout lokalnie na Pi jest OK.
+Kamera na Pi to D435, serial `030522070668` (NIE 105422060821 z HARDWARE.md), klucz w datasecie
+`observation.images.wrist`, 640x480@30.
+
 ### Pi (venv `~/hackaton/.venv`, Python 3.12, `uv`)
 
 Pi ma internet przez hotspot (PyPI odpowiada, ~0.3 MB/s), `uv` jest w
