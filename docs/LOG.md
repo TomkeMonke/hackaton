@@ -724,3 +724,21 @@ Domyslny `phyphox_url` poprawiony, pulapka 36 w HARDWARE.md. Test na Pi szedl z 
 na Pi nie maja kursu, dopoki `pawel/arm-xyz-jog` nie polaczy sie z masterem (push mastera cofnalby panel XYZ).
 **Nastepny krok:** merge `pawel/arm-xyz-jog` z masterem, push na Pi, `--dry-run --heading phyphox`.
 **Sprzet:** tak (telefon, Pi; baza i ramie nie ruszane)
+
+## 2026-09-27 - frane + Claude - kod z Pi z powrotem w repo (frane/pi-sync)
+**Zrobione:** Na Pi byl nie master, tylko mieszanka branchy: `web_control.py`/`frontend.html`/`arm_panel.py` z
+`pawel/drive-s-path`, reszta `pinecone_bot/` z `pawel/arm-xyz-jog` (przez PR #35), `rs_mjpeg_server.py` z
+`pawel/rs-viewer-colormap`, `tools/calibrate_joint.py` z `pawel/drive-revert-heartbeat-half-speed`, plus pliki tylko
+na Pi (`tools/estop_server.py`, `tools/raw_drive.py`, offsety URDF w `pinecone_config.json`). `push_to_pi.sh` z mastera
+cofnalby panel XYZ i zgubil offsety. Branch `frane/pi-sync` = master + `pawel/phone-estop` (zawiera drive-s-path i
+arm-xyz-jog) + PR #35 + `pawel/rs-viewer-colormap` + `frane/phyphox-ios` + pliki z Pi. Porownanie md5 (bez CR) wszystkich
+plikow kopiowanych przez `push_to_pi.sh`: na Pi nic nie zostaje cofniete, roznice to tylko nowsze wersje (master, /stop,
+kurs). Prog HSV i sekcja camera z mastera (nowszy prog, dwa swiatla; PR #30), offsety URDF z Pi. 178 testow zielonych,
+symulacja 5/5 z kursem i bez.
+**Nie dziala / otwarte:** `pinecone_bot/landmarks.py` na Pi to same bajty zerowe (uszkodzony, pewnie pad pendrive'a przy
+zasilaniu z powerbanku); nic go nie importuje, oryginal jest w lokalnym commicie dafd481 (branch `pawel/base-calibration`,
+niewypchniety). `tools/live_grasp/` (niezacommitowany eksperyment z `pawel/arm-home-cam`) poleci na Pi przy pushu z tego
+katalogu, bo push kopiuje katalog roboczy - nieszkodliwe. Na Pi nadal prog HSV z phone-estop (sztuczna trawa) do pushu.
+**Nastepny krok:** review + merge PR, `PI_HOST=robot@172.20.10.4 bash deploy/push_to_pi.sh` z mastera, potem
+`python -m pinecone_bot.main --dry-run --heading phyphox`.
+**Sprzet:** nie (tylko odczyt plikow z Pi)
