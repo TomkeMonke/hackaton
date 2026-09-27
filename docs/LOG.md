@@ -935,6 +935,9 @@ Commity z checkpointami 2000/3000 (`models/`, LFS, branch `frane/act-training` w
 (push nie doszedl; 2 x 207 MB przy 630 MB z 1 GB limitu LFS - kolejne checkpointy do LFS sie nie zmieszcza, wagi
 na Pi przez scp jak w SETUP.md). Pulapka: dwie sesje przy jednym GPU/katalogu `outputs` - przed startem treningu
 `Get-CimInstance Win32_Process | ? Name -eq python.exe` i wlasna nazwa logu.
+15:30 wznowienie 4000 -> 7000 (`--config_path=.../004000/... --resume=true --steps=7000`, 3.4 kroku/s, loss 0.52 przy
+~4300) ZATRZYMANE 15:34 na prosbe frane (nie obciazac laptopa) przy kroku ~4413, przed checkpointem 5000 - te ~400
+krokow przepadlo, stan nadal = checkpoint 4000. Log `act_grasp2_run5_to7000.err`.
 **Nastepny krok:** po checkpoincie 4000 (druga sesja) rollout na Pi z wylacznikiem; jesli ma byc 7000 krokow, ta sama
 komenda `--config_path=.../004000/...` `--resume=true` poza sandboxem, jeden proces naraz.
 **Sprzet:** nie
