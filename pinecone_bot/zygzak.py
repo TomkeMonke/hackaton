@@ -194,8 +194,9 @@ class Zygzak:
         start = Pose2D(self.tr.x, self.tr.y, self.tr.yaw(self._gyro()))
         wps = plan_zigzag(start, c.lane_length_m, c.lane_spacing_m, c.lane_count, n.first_turn_left)
         self.res.total = len(wps)
-        self.log("zygzak: %d pasow po %.1f m, odstep %.2f m, %d punktow" % (
-            c.lane_count, c.lane_length_m, c.lane_spacing_m, len(wps)))
+        self.log("zygzak: %d pasow po %.1f m, odstep %.2f m, pierwszy skret w %s, %d punktow" % (
+            c.lane_count, c.lane_length_m, c.lane_spacing_m,
+            "lewo" if n.first_turn_left else "prawo", len(wps)))
         for k, (wx, wy) in enumerate(wps):
             self.log("punkt %d/%d: (%.2f, %.2f)" % (k + 1, len(wps), wx, wy))
             for _ in range(50):
@@ -250,6 +251,8 @@ def main(argv=None) -> int:
     ap.add_argument("--lanes", type=int, default=None, help="liczba pasow (nadpisuje control.lane_count)")
     ap.add_argument("--length", type=float, default=None, help="dlugosc pasa m (control.lane_length_m)")
     ap.add_argument("--spacing", type=float, default=None, help="odstep pasow m (control.lane_spacing_m)")
+    ap.add_argument("--first-turn", choices=["left", "right"], default=None,
+                    help="strona pierwszego skretu: z lewego dolnego rogu 'right', z prawego 'left'")
     ap.add_argument("--save-looks", default="frames/zygzak", help="zapis zdjec z postojow ('' = nie)")
     args = ap.parse_args(argv)
 
@@ -268,7 +271,11 @@ def main(argv=None) -> int:
         cfg.control.lane_length_m = args.length
     if args.spacing is not None:
         cfg.control.lane_spacing_m = args.spacing
+    if args.first_turn is not None:
+        cfg.nav.first_turn_left = args.first_turn == "left"
     cfg.heading.source = "phyphox"
+    # mapa nagrana z automatyczna ekspozycja; zamrozona na starcie (np. w cieniu) przepala obraz na sloncu
+    cfg.camera.lock_auto = False
     path = os.path.expanduser(args.map or cfg.nav.map_features)
     print("mapa:", path)
     loc = MapLocalizer.load(path)

@@ -125,3 +125,13 @@ def test_missing_gyro_raises():
     z = Zygzak(cfg, drive, lambda: None, lambda p: Pose2D(0, 0, 0), SimClock(drive), log=lambda *a: None)
     with pytest.raises(RuntimeError):
         z.run()
+
+
+def test_first_turn_right_from_left_corner():
+    cfg = _cfg()
+    cfg.nav.first_turn_left = False
+    drive = SlowDrive(cfg, speed_gain=1.0)
+    res, _z = _run(cfg, drive)
+    assert res.reached == res.total
+    assert min(y for _x, y in drive.track) < -1.0    # pasy po prawej (y ujemne)
+    assert max(y for _x, y in drive.track) < 0.3
