@@ -43,7 +43,11 @@ zadania i przypisania na tablicy Projects (link nizej). Czego nie ma tutaj albo 
 - WiFi na Pi DZIALA (wczesniej ten plik mowil, ze nie): eth0 192.168.137.5 (kabel) i wlan0 172.20.10.4 (hotspot "iPhone pawel", DHCP - adres moze sie zmienic). Kod na Pi nadal wchodzi przez `deploy/push_to_pi.sh` / scp (internet/`git pull` na Pi niesprawdzone).
 - Po restarcie Pi zadne panele nie wstaja same: `web_control.py` i `tools/arm_web.py` trzeba odpalac recznie, `robot-web.service` nie jest zainstalowany. Nadal nie odpalone w tej sesji.
 - Zasilanie z akumulatora 12 V: issue #8, nie zaczete.
-- Polityki uczone (ML): research w `docs/POLICIES_LEROBOT.md` (2026-09-27). Gotowych wag do szyszek nie ma; MolmoAct2 zero-shot wymaga GPU >= 24 GB. Realna droga: lerobot ACT na wlasnych 50 epizodach (teleop telefonem, druga kamera). Nic nie uruchamiane, decyzja zespolu.
+- Polityki uczone (ML): decyzja frane 2026-09-27 - robimy lerobot ACT rownolegle (`docs/POLICIES_LEROBOT.md`, SETUP.md sekcja "lerobot do ACT").
+  Laptop GOTOWY: torch 2.11 cu128 (CUDA na RTX 3070), lerobot 0.6.1 [phone,feetech,async], `so101.json` skopiowany z Pi. Pi: extras
+  (`kinematics`=placo, `async`, `hebi-py`, `teleop`) NIE doinstalowane - uv padl na utracie sieci, Pi po restarcie hotspotu nie wrocilo
+  do sieci (do sprawdzenia fizycznie: zasilanie, hotspot). `~/hackaton/examples/phone_to_so100/` na Pi gotowy (skrypty v0.6.1 + SO101 z STL).
+  Teleop telefonem, druga kamera, nagranie datasetu: nic nie odpalone.
 
 ## Nastepne 3 kroki (w tej kolejnosci)
 

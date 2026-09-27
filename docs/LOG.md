@@ -689,3 +689,23 @@ SmolVLA fine-tune (Colab) jako plan B. Blokery wspolne: brak leader arm (zamienn
 **Nastepny krok:** jesli tak: `pip install "lerobot[phone]"` na laptopie, kopia `so101.json` z Pi, teleop telefonem
 przy stole z wylacznikiem; potem druga kamera i nagranie 50 epizodow.
 **Sprzet:** nie
+
+## 2026-09-27 - frane + Claude - lerobot do ACT: instalacja laptop + Pi
+**Zrobione:** Decyzja frane: robimy ACT rownolegle do petli deterministycznej; laptop = serwer (trening, policy
+server), Pi = klient robota (teleop telefonem, nagranie, robot_client), bo `placo` (IK teleopu) nie ma kola na
+Windows. Laptop (`.venv`, Python 3.12): torch 2.11.0+cu128 (CUDA widzi RTX 3070 8 GB), lerobot 0.6.1
+[phone,feetech,async], numpy 2.5.3 -> 2.2.6 (pin lerobota), opencv naprawione po konflikcie headless; importy teleopu
+OK; 128 testow zielonych. `so101.json` skopiowany z Pi do cache lerobota na laptopie (MD5 zgodne). Na Pi odtworzony
+`~/hackaton/examples/phone_to_so100/` (skrypty z tagu v0.6.1 + `SO101/` z SO-ARM100: URDF identyczny z repo + 31 STL).
+Dokumentacja: `docs/SETUP.md` sekcja "lerobot do ACT" z komendami i pulapkami (placo/Windows, override torcha na Pi,
+hebi-py tylko sdist, brak `examples/` po pip install). Torch cu128 po hotspocie: ~1 h.
+**Nie dziala / otwarte:** instalacja extras na Pi: pierwszy `uv pip install lerobot[phone,...]` cofal sie po wersjach
+hebi-py (sdist ~92 MB kazdy) i chcial wymienic torch 2.14+cpu na generyczny z PyPI (2 GB CUDA); rozwiazane przez
+`--override` + jawne skladniki extra `phone` (dry-run czysty), ale wlasciwa instalacja padla na "network unreachable"
+przy `cmeel-assimp` - hotspot sie zrestartowal (laptop dostal nowy adres), Pi nie wrocilo do sieci przez 10+ min.
+`pkill -f` przez ssh zabil sam siebie 2x (HARDWARE pulapka 31) - uzywac `pgrep -x uv`. Uwaga: `shoulder_pan` ma w
+kalibracji zakres tylko 1786..2308 tickow (~46 st) - IK z telefonu bedzie ograniczone na boki.
+**Nastepny krok:** sprawdzic zasilanie Pi i hotspot, powtorzyc komende uv z SETUP.md (cache ma juz ~3.3 GB),
+odpalic weryfikacje (placo IK na URDF, hebi/teleop, robot_client, pyrealsense2). Potem `teleoperate.py` z
+podmienionym portem/id/kamera, z wylacznikiem w rece.
+**Sprzet:** dotkniety zdalnie (tylko instalacja pakietow i odczyt pliku kalibracji na Pi; ramie i baza nie ruszane)

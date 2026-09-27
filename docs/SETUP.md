@@ -59,6 +59,74 @@ wrocil konflikt `opencv-python` / `opencv-python-headless` (patrz
 docs/HARDWARE.md, pulapka 25) - jesli tak, odinstaluj oba i zainstaluj
 od nowa tylko `opencv-python`.
 
+## lerobot do ACT: laptop = serwer, Pi = klient robota
+
+Stan na 2026-09-27: laptop ZROBIONY i sprawdzony importami; na Pi instalacja
+PRZERWANA utrata sieci w polowie pobierania (hotspot sie zrestartowal, Pi nie
+wrocilo do sieci) - komenda ponizej do powtorzenia, uv ma juz wiekszosc paczek
+w cache. Teleop i nagranie jeszcze nie odpalone. Tlo i decyzja:
+`docs/POLICIES_LEROBOT.md`.
+
+Podzial rol jak w async inference lerobota: laptop trenuje ACT na GPU i w czasie
+jazdy jest `policy_server`; Pi obsluguje ramie, kamere i telefon (nagranie
+datasetu, `robot_client`). Teleop telefonem liczy IK przez `placo`, ktore NIE ma
+kola na Windows (tylko Linux/macOS) - dlatego nagrywanie idzie z Pi, nie z laptopa.
+
+### Laptop (Windows, venv `.venv`, Python 3.12)
+
+Torch z PyPI na Windows jest bez CUDA - najpierw torch z indeksu cu128, potem
+lerobot; `lerobot` sciaga `opencv-python-headless`, ktory psuje GUI (HARDWARE.md,
+pulapka 25), wiec na koncu opencv stawiamy od nowa:
+
+```
+python -m pip install "torch==2.11.0" "torchvision==0.26.0" --index-url https://download.pytorch.org/whl/cu128
+python -m pip install "lerobot[phone,feetech,async]==0.6.1"
+python -m pip uninstall -y opencv-python opencv-python-headless
+python -m pip install "opencv-python>=4.9,<4.14"
+python -c "import torch; print(torch.cuda.is_available())"     # True na RTX 3070
+```
+
+Uwagi: `lerobot==0.6.1` pinuje `numpy<2.3`, wiec numpy schodzi z 2.5.3 do 2.2.6
+(na Python 3.12 sa kola, `constraints.txt` NIE jest tu potrzebny; testy 128/128
+zielone po zmianie). Torch cu128 to ~2.6 GB - po hotspocie z telefonu ok. 1 h.
+`from lerobot.model.kinematics import RobotKinematics` importuje sie, ale
+utworzenie obiektu pada bez placo - to oczekiwane na Windows.
+
+Plik kalibracji ramienia jest poza repo: skopiowany z Pi do
+`~/.cache/huggingface/lerobot/calibration/robots/so_follower/so101.json`
+(ten sam `id=so101`; NIE uruchamiac `lerobot calibrate`, HARDWARE.md pulapka 1).
+
+### Pi (venv `~/hackaton/.venv`, Python 3.12, `uv`)
+
+Pi ma internet przez hotspot (PyPI odpowiada, ~0.3 MB/s), `uv` jest w
+`~/.local/bin`. Dwie pulapki instalacji:
+
+- Pi ma `torch 2.14.0+cpu` z indeksu CPU, a lerobot pinuje `torch<2.12`; bez
+  override uv sciaga generyczny torch z PyPI, ktory na aarch64 ciagnie ~2 GB
+  paczek CUDA + triton (LOG 2026-09-26). Override trzyma zainstalowany torch.
+- `hebi-py` (aplikacja HEBI Mobile I/O na iPhone) istnieje tylko jako sdist ~92 MB
+  na wersje; przy pelnym `lerobot[phone]` uv cofal sie po wersjach i sciagal
+  kazda (2.11 -> 2.10.1 -> ... po 5-20 min sztuka). Rozwiazanie: extras bez
+  `phone`, a jego skladniki (`teleop`, `fastapi`, `scipy`, `hebi-py`) podane wprost.
+
+```
+printf "torch==2.14.0+cpu\ntorchvision>=0.22\n" > ~/uv_overrides.txt
+cd ~/hackaton && uv pip install --python .venv/bin/python \
+  --index https://download.pytorch.org/whl/cpu --index-strategy unsafe-best-match \
+  --override ~/uv_overrides.txt \
+  "lerobot[feetech,async,kinematics]==0.6.1" "teleop>=0.1.0,<0.2.0" "fastapi<1.0" scipy "hebi-py>=2.8.0,<2.12"
+```
+
+`pip install lerobot` NIE zawiera katalogu `examples/`, a skrypty teleopu
+telefonem zyja tylko tam. Na Pi odtworzony recznie jako
+`~/hackaton/examples/phone_to_so100/` (poza gitem): `teleoperate.py`, `record.py`,
+`replay.py`, `rollout.py`, `evaluate.py` z tagu lerobot v0.6.1 oraz katalog
+`SO101/` z TheRobotStudio/SO-ARM100 (`Simulation/SO101`: URDF identyczny z naszym
+`so101_urdf/so101_new_calib.urdf` plus 31 plikow STL, ktorych URDF wymaga, a
+ktorych w repo nie ma). Skrypty maja w srodku port `/dev/tty.usbmodem...`,
+`id` i kamery z docs - przed uruchomieniem podmienic na `/dev/robot-arm`,
+`id="so101"` i nasza kamere (`use_degrees=True` zostaje).
+
 ## Raspberry Pi 5
 
 ### Jak sie polaczyc z Pi
