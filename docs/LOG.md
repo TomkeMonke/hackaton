@@ -750,3 +750,16 @@ ustala operator na `shoulder_pan`. placo ostrzega o samokolizjach URDF w pozie n
 **Nie dziala / otwarte:** na branchach `frane/*` jest `MAX_PWM = 100`, na master dalej 500 - do ustalenia, co ma byc na master.
 **Nastepny krok:** sprawdzic skret na robocie, ewentualnie dostroic `MAX_STEER`.
 **Sprzet:** nie
+
+## 2026-09-27 - frane + Claude - ACT: leader, nagrywanie, act_pick
+**Zrobione:** leader na Pi (`/dev/robot-leader`, zamiast kabla hovera), kalibracja leadera skopiowana z followera
+(decyzja frane) + gripper `calibrate_joint.py`. `motions/drop_box.json` nagrany na Pi, przyciety od t8.40, powrot tym
+samym torem bez postoju (15 s; kopie `drop_box_full/_oneway/_old.json`). Na Pi `lerobot[dataset]` (override torch
+2.14 cpu). Undervoltage przy 2 ramionach + kamerze: `frame is too old` w lerobot-record, potem Bus error - uszkodzone
+`pyarrow` i `av` (sprawdzone hashami RECORD calego venv), przeinstalowane; nowe zasilanie -> `throttled=0x0`.
+Nagrane: `so101_grasp_t2` 2 ep., `so101_grasp` 7 ep., `so101_grasp2` 12+ ep. (30 fps, 449 klatek/ep.).
+`tools/act_pick.py` + `tests/test_act_pick.py` (5), 150 testow zielonych.
+**Nie dziala / otwarte:** czesc osi leadera odwrocona (nie poprawione, `drive_mode` w pliku leadera). Brak wag ACT.
+`drop_box.json` tylko na Pi. `torchcodec` na Pi nie laduje sie (torch 2.14 vs 0.11) - lerobot uzywa pyav.
+**Nastepny krok:** 50 epizodow, trening na RTX 3070, `act_pick.py --skip-drop`.
+**Sprzet:** dotkniety (ramiona, kamera, pakiety na Pi)

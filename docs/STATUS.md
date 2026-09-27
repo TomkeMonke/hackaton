@@ -3,8 +3,8 @@
 Jeden ekran. Aktualizuje go KAZDY PR (checkbox w szablonie PR). Historia jest w `docs/LOG.md`,
 zadania i przypisania na tablicy Projects (link nizej). Czego nie ma tutaj albo w issue, nie istnieje.
 
-**Stan na:** 2026-09-27 (pasy po kursie z zyroskopu telefonu, branch frane/zyroskop-pasy)
-**Robot (kto ma sprzet, do kiedy):** frane (sesja trwa)
+**Stan na:** 2026-09-27 (ACT: nagrywanie chwytu z leaderem trwa, `tools/act_pick.py`, branch pawel/act-pick)
+**Robot (kto ma sprzet, do kiedy):** frane (nagrywanie ACT)
 **Tablica zadan:** TODO wkleic link do GitHub Projects (zaklada pawel120, patrz docs/CONTRIBUTING.md)
 
 ## Dziala
@@ -47,15 +47,25 @@ zadania i przypisania na tablicy Projects (link nizej). Czego nie ma tutaj albo 
   Laptop GOTOWY: torch 2.11 cu128 (CUDA na RTX 3070), lerobot 0.6.1 [phone,feetech,async], `so101.json` skopiowany z Pi.
   Pi GOTOWE: lerobot 0.6.1 + placo (IK), hebi-py/teleop (telefon), grpcio (async client), torchvision; importy i IK na URDF sprawdzone.
   `~/hackaton/examples/phone_to_so100/` na Pi (skrypty v0.6.1 + SO101 z STL, poza gitem). Teleop telefonem, druga kamera,
-  nagranie datasetu: nic nie odpalone. JEST leader SO-101 (sala 435 D) -> sciezka glowna to `lerobot-record` z leaderem
-  (SETUP.md "Wariant z leaderem"), telefon/placo tylko awaryjnie. Leader bez kalibracji; nowa regula udev `robot-leader`
-  (po serialu CH343) w `deploy/99-robot.rules`, WGRANA na Pi.
+  JEST leader SO-101 -> `lerobot-record` z leaderem (SETUP.md "Wariant z leaderem"), telefon/placo tylko awaryjnie.
+  2026-09-27: leader na Pi jako `/dev/robot-leader` (w miejscu kabla hovera - Pi nie ma wolnego USB), kalibracja leadera
+  = KOPIA `so101.json` followera (decyzja frane) + gripper przez `tools/calibrate_joint.py`; czesc osi leadera odwrocona
+  (dane dla ACT i tak poprawne: akcja = cel followera). Kamera D435 serial 030522070668 (nie 105422060821 z SETUP).
+  Podzial na 2 etapy: ACT uczy sie TYLKO chwytu (HOME -> szyszka -> zamkniecie -> uniesienie, 15 s), wrzut do sloika
+  robi nagrany `motions/drop_box.json` (tylko na Pi: tam i z powrotem, 15 s). Datasety na Pi `~/datasets/`:
+  `so101_grasp` (7 ep.), `so101_grasp2` (w toku, cel 50). Na Pi doinstalowane `lerobot[dataset]` z torch cpu przypietym
+  (override), spadek napiecia uszkodzil `pyarrow`/`av` - przeinstalowane. `tools/act_pick.py` = etap 1 (`lerobot-rollout`
+  z ACT, torque zostaje) + etap 2 (`arm_play drop_box --home-after`), testy 5; NIE uruchomiony (brak wag).
+  Laptop pawel120 (Intel Arc, bez NVIDIA, bez venv) NIE nadaje sie do treningu - trening na laptopie z RTX 3070.
 - Zera stawow vs URDF i kamera na ramieniu: `tools/frame_check.py` (FK placo + werdykt operatora) i
   `tools/hand_eye_calib.py` (marker/collect/solve/predict, AX=XB) gotowe z testami (28), instrukcja `docs/ARM_FRAMES.md`.
   NIE uruchomione na sprzecie - do zrobienia przez sesje przy Pi. To warunek wstepny dla IK/GraspGenX.
 
 ## Nastepne 3 kroki (w tej kolejnosci)
 
+A. (ACT) dokonczyc 50 epizodow `so101_grasp2`, `scp -r` na laptop z RTX 3070, `lerobot-train --policy.type=act`
+   (SETUP.md krok 5), wagi `pretrained_model` na Pi, potem `python tools/act_pick.py --policy <katalog> --skip-drop`
+   z wylacznikiem w rece, potem bez `--skip-drop`.
 0. (sesja przy Pi, rownolegle z ACT) `docs/ARM_FRAMES.md`: `tools/frame_check.py` z wylacznikiem, potem
    `tools/hand_eye_calib.py collect/solve` z markerem ArUco -> `camera_on_arm.json` do repo.
 1. Wpisac nowy prog HSV na Pi (albo push z brancha po merge) i sprawdzic na zywo; odczytac limity EEPROM barku, potem `tools/arm_play.py --motion grasp_near` z reka na wylaczniku.
