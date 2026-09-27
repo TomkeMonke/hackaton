@@ -66,7 +66,8 @@ Interpretacja wyniku:
 
 Szukamy stalej T_gripper_cam. Potem `T_base_cam = FK(stawy) @ T_gripper_cam` daje pozycje
 i kierunek patrzenia kamery dla dowolnych stawow ("jak rusza sie kamera, gdy rusza sie
-ramie"). Klasyczne AX = XB (`cv2.calibrateHandEye`), zero ML.
+ramie"). Klasyczne AX = XB (Park-Martin w numpy; `cv2.calibrateHandEye` tylko jako kontrola
+krzyzowa, bo OpenCV 5.0 juz tej funkcji nie ma), zero ML.
 
 1. Marker: na laptopie `python tools/hand_eye_calib.py marker --out aruco_marker.png`
    (ArUco DICT_4X4_50, id 0). Wydrukuj, przyklej na cos sztywnego, zmierz linijka bok

@@ -52,14 +52,45 @@ def test_rvec_tvec_to_T_matches_rodrigues():
     assert np.allclose(T[:3, :3], R) and np.allclose(T[:3, 3], [1.0, 2.0, 3.0])
 
 
-def test_solve_hand_eye_recovers_camera_pose_on_synthetic_data():
+def test_rot_log_roundtrip():
+    for axis, deg in (("x", 20.0), ("y", -75.0), ("z", 179.0), ("x", 0.0)):
+        w = he.rot_log(_rot(axis, deg))
+        assert abs(np.degrees(np.linalg.norm(w)) - abs(deg)) < 1e-6
+    R, _ = cv2.Rodrigues(he.rot_log(_rot("y", -75.0)).reshape(3, 1))
+    assert np.allclose(R, _rot("y", -75.0), atol=1e-9)
+
+
+def test_solve_hand_eye_numpy_recovers_camera_pose_on_synthetic_data():
     X_true, T_bm, T_bg, T_cm = _synthetic()
-    X = he.solve_hand_eye(T_bg, T_cm)
+    X = he.solve_hand_eye(T_bg, T_cm)  # domyslnie numpy (Park-Martin)
     assert np.allclose(X[:3, 3], X_true[:3, 3], atol=1e-4)
     assert he.rotation_angle_deg(X[:3, :3].T @ X_true[:3, :3]) < 0.01
     res = he.residuals(T_bg, T_cm, X)
     assert res["pos_rms_mm"] < 0.5 and res["rot_rms_deg"] < 0.05
     assert np.allclose(res["marker_in_base_mean_m"], T_bm[:3, 3], atol=1e-3)
+
+
+def test_solve_hand_eye_numpy_with_noise_stays_close():
+    rng = np.random.default_rng(7)
+    X_true, _, T_bg, T_cm = _synthetic(n=16, seed=11)
+    noisy = []
+    for T in T_cm:
+        dR, _ = cv2.Rodrigues(rng.normal(0.0, np.radians(0.3), 3).reshape(3, 1))
+        noisy.append(he.make_T(dR @ T[:3, :3], T[:3, 3] + rng.normal(0.0, 0.001, 3)))
+    X = he.solve_hand_eye(T_bg, noisy)
+    assert np.linalg.norm(X[:3, 3] - X_true[:3, 3]) < 0.01
+    assert he.rotation_angle_deg(X[:3, :3].T @ X_true[:3, :3]) < 1.5
+
+
+def test_solve_hand_eye_opencv_agrees_when_available():
+    if not hasattr(cv2, "calibrateHandEye"):
+        return  # OpenCV 5: brak funkcji, sciezka numpy jest jedyna
+    X_true, _, T_bg, T_cm = _synthetic()
+    Xc = he.solve_hand_eye(T_bg, T_cm, method="opencv")
+    Xn = he.solve_hand_eye(T_bg, T_cm)
+    assert np.allclose(Xc[:3, 3], Xn[:3, 3], atol=1e-4)
+    assert he.rotation_angle_deg(Xc[:3, :3].T @ Xn[:3, :3]) < 0.01
+    assert np.allclose(Xc[:3, 3], X_true[:3, 3], atol=1e-4)
 
 
 def test_residuals_grow_with_wrong_X():

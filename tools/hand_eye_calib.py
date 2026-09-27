@@ -7,7 +7,7 @@ to zawsze:
 
 FK daje placo z URDF (jak w tools/frame_check.py), a T_gripper_cam to STALA
 transformata kamera -> ramka chwytaka (gripper_frame_link), ktorej szukamy.
-Zero ML: klasyczne AX = XB (cv2.calibrateHandEye) na parach
+Zero ML: klasyczne AX = XB (Park-Martin w numpy; cv2.calibrateHandEye jako kontrola) na parach
 (FK(stawy_i), poza markera ArUco w kamerze_i) dla N poz ramienia, marker lezy
 nieruchomo na stole.
 
@@ -92,17 +92,79 @@ def rpy_deg(R: np.ndarray) -> list[float]:
     return [float(np.degrees(v)) for v in (roll, pitch, yaw)]
 
 
-def solve_hand_eye(T_base_gripper: list[np.ndarray], T_cam_marker: list[np.ndarray],
-                   method: int = cv2.CALIB_HAND_EYE_TSAI) -> np.ndarray:
-    """AX = XB -> X = T_gripper_cam (poza kamery w ramce chwytaka)."""
+def rot_log(R: np.ndarray) -> np.ndarray:
+    """Logarytm obrotu: wektor os*kat [rad]. Stabilny dla malych katow."""
+    c = float(np.clip((np.trace(R) - 1.0) / 2.0, -1.0, 1.0))
+    ang = float(np.arccos(c))
+    w = np.array([R[2, 1] - R[1, 2], R[0, 2] - R[2, 0], R[1, 0] - R[0, 1]], dtype=float)
+    if ang < 1e-9:
+        return 0.5 * w
+    if abs(np.pi - ang) < 1e-6:
+        # kat ~180 st: os z czesci symetrycznej
+        axis = np.sqrt(np.maximum(np.diag(R) + 1.0, 0.0) / 2.0)
+        axis = axis / max(np.linalg.norm(axis), 1e-12)
+        return axis * ang
+    return w * (ang / (2.0 * np.sin(ang)))
+
+
+def _orthonormalize(R: np.ndarray) -> np.ndarray:
+    U, _, Vt = np.linalg.svd(R)
+    Rn = U @ Vt
+    if np.linalg.det(Rn) < 0:
+        U[:, -1] *= -1.0
+        Rn = U @ Vt
+    return Rn
+
+
+def solve_hand_eye_park_martin(T_base_gripper: list[np.ndarray], T_cam_marker: list[np.ndarray]) -> np.ndarray:
+    """AX = XB (Park & Martin 1994), czysty numpy, niezalezne od wersji OpenCV.
+
+    Marker stoi: T_bg_i X T_cm_i = T_bg_j X T_cm_j  =>  A X = X B,
+    A = inv(T_bg_j) T_bg_i (ruch chwytaka), B = T_cm_j inv(T_cm_i) (ruch markera w kamerze).
+    Rotacja: M = sum beta alpha^T, R_X = (M^T M)^(-1/2) M^T. Translacja: LSQ z (R_A - I) t = R_X t_B - t_A.
+    """
+    n = len(T_base_gripper)
+    if n < 3 or n != len(T_cam_marker):
+        raise ValueError("potrzeba >= 3 par (FK, marker) o tej samej liczbie")
+    A_list, B_list = [], []
+    for i in range(n):
+        for j in range(i + 1, n):
+            A_list.append(inv_T(T_base_gripper[j]) @ T_base_gripper[i])
+            B_list.append(T_cam_marker[j] @ inv_T(T_cam_marker[i]))
+    M = np.zeros((3, 3))
+    for A, B in zip(A_list, B_list):
+        alpha = rot_log(A[:3, :3])
+        beta = rot_log(B[:3, :3])
+        M += np.outer(beta, alpha)
+    w, V = np.linalg.eigh(M.T @ M)
+    w = np.maximum(w, 1e-18)
+    R_X = _orthonormalize((V @ np.diag(w ** -0.5) @ V.T) @ M.T)
+    C = np.vstack([A[:3, :3] - np.eye(3) for A in A_list])
+    d = np.concatenate([R_X @ B[:3, 3] - A[:3, 3] for A, B in zip(A_list, B_list)])
+    t_X, *_ = np.linalg.lstsq(C, d, rcond=None)
+    return make_T(R_X, t_X)
+
+
+def solve_hand_eye_opencv(T_base_gripper: list[np.ndarray], T_cam_marker: list[np.ndarray]) -> np.ndarray:
+    """To samo przez cv2.calibrateHandEye (OpenCV 4.x; w 5.0 funkcji nie ma)."""
+    if not hasattr(cv2, "calibrateHandEye"):
+        raise RuntimeError("cv2.calibrateHandEye niedostepne w tej wersji OpenCV")
     if len(T_base_gripper) < 3 or len(T_base_gripper) != len(T_cam_marker):
         raise ValueError("potrzeba >= 3 par (FK, marker) o tej samej liczbie")
     R_g2b = [T[:3, :3] for T in T_base_gripper]
     t_g2b = [T[:3, 3].reshape(3, 1) for T in T_base_gripper]
     R_t2c = [T[:3, :3] for T in T_cam_marker]
     t_t2c = [T[:3, 3].reshape(3, 1) for T in T_cam_marker]
-    R_c2g, t_c2g = cv2.calibrateHandEye(R_g2b, t_g2b, R_t2c, t_t2c, method=method)
+    R_c2g, t_c2g = cv2.calibrateHandEye(R_g2b, t_g2b, R_t2c, t_t2c, method=cv2.CALIB_HAND_EYE_TSAI)
     return make_T(R_c2g, t_c2g)
+
+
+def solve_hand_eye(T_base_gripper: list[np.ndarray], T_cam_marker: list[np.ndarray],
+                   method: str = "numpy") -> np.ndarray:
+    """-> X = T_gripper_cam (poza kamery w ramce chwytaka). method: numpy | opencv."""
+    if method == "opencv":
+        return solve_hand_eye_opencv(T_base_gripper, T_cam_marker)
+    return solve_hand_eye_park_martin(T_base_gripper, T_cam_marker)
 
 
 def residuals(T_base_gripper: list[np.ndarray], T_cam_marker: list[np.ndarray], X: np.ndarray) -> dict:
@@ -273,6 +335,11 @@ def cmd_solve(args) -> int:
     T_bg, T_cm, data = load_pairs(args.samples, kin)
     X = solve_hand_eye(T_bg, T_cm)
     res = residuals(T_bg, T_cm, X)
+    cross = None
+    if hasattr(cv2, "calibrateHandEye"):
+        Xc = solve_hand_eye(T_bg, T_cm, method="opencv")
+        cross = {"translation_diff_mm": round(float(np.linalg.norm(Xc[:3, 3] - X[:3, 3]) * 1000.0), 2),
+                 "rotation_diff_deg": round(rotation_angle_deg(Xc[:3, :3].T @ X[:3, :3]), 3)}
     result = {
         "created": time.strftime("%Y-%m-%d %H:%M:%S"),
         "urdf": urdf,
@@ -283,6 +350,7 @@ def cmd_solve(args) -> int:
         "translation_m": [round(float(v), 4) for v in X[:3, 3]],
         "rpy_deg": [round(v, 2) for v in rpy_deg(X[:3, :3])],
         "residuals": res,
+        "opencv_cross_check": cross,
     }
     with open(args.out, "w", encoding="ascii") as f:
         json.dump(result, f, indent=1)
@@ -291,6 +359,9 @@ def cmd_solve(args) -> int:
           f"orientacja RMS {res['rot_rms_deg']} st (max {res['rot_max_deg']})")
     print("Ocena: RMS < 10 mm i < 2 st = dobrze; wieksze = za malo roznych orientacji, "
           "zly --marker-len albo zle zera stawow (najpierw tools/frame_check.py).")
+    if cross:
+        print(f"kontrola cv2.calibrateHandEye: roznica {cross['translation_diff_mm']} mm, "
+              f"{cross['rotation_diff_deg']} st")
     print(f"Zapisano {args.out}")
     return 0
 

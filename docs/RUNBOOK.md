@@ -64,7 +64,7 @@ Kolejnosc ma znaczenie: kazdy krok zapisuje cos, z czego korzysta nastepny.
 | `tools/calibrate_target.py`      | Pomiar `cfg.cx` i `grasp.target_row` dla kazdego nagranego chwytu. |
 | `tools/record_waypoints.py`      | Nagrywanie ruchu ramienia (waypointy) recznym ustawianiem serw. |
 | `tools/frame_check.py`           | Zera i znaki stawow lerobot vs URDF przez FK placo, werdykt operatora na staw (docs/ARM_FRAMES.md). |
-| `tools/hand_eye_calib.py`        | Kalibracja reka-oko kamery na ramieniu (ArUco + calibrateHandEye) -> `camera_on_arm.json`. |
+| `tools/hand_eye_calib.py`        | Kalibracja reka-oko kamery na ramieniu (ArUco + AX=XB w numpy) -> `camera_on_arm.json`. |
 | `tools/arm_play.py`              | Odtworzenie jednego nagranego ruchu (do testu bez calej petli). |
 | `tools/arm_web.py`               | Panel webowy ramienia na :8010 (jog stawow, HOME, chwytak, `motions/`, STOP); ta sama sekcja jest w panelu jazdy :8000. `--fake` bez sprzetu, `--no-home` bez HOME (kamera na ramieniu). |
 | `tools/base_test.py`             | Reczny test podwozia: `forward` / `turn` / `square`, pomiar znaku skretu i mapowania PWM. |

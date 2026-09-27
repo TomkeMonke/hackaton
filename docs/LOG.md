@@ -735,7 +735,8 @@ oszacowana. GraspGenX (NVIDIA, generator poz chwytu 6-DOF z chmury punktow) odlo
 kamera-ramie i segmentacji, a rozwiazuje tylko "gdzie chwycic" (dla szyszki latwe). Zeby to nadrobic, dwa narzedzia:
 `tools/frame_check.py` (dla kazdego stawu ruch +delta, FK placo na URDF, opis przesuniecia koncowki slowami,
 werdykt operatora t/n, raport JSON; `--fake` bez sprzetu) i `tools/hand_eye_calib.py` (marker ArUco -> collect z
-torque off jak record_motion -> `cv2.calibrateHandEye` -> `camera_on_arm.json` = T_gripper_cam, residua, `predict`
+torque off jak record_motion -> AX=XB Park-Martin w numpy (cv2.calibrateHandEye tylko jako kontrola: CI ma OpenCV 5.0
+bez tej funkcji) -> `camera_on_arm.json` = T_gripper_cam, residua, `predict`
 pozycji kamery z FK). Testy: `tests/test_frame_check.py` (5, atrapa ramienia i plaska kinematyka),
 `tests/test_hand_eye_calib.py` (9, syntetyczne AX=XB odzyskuje X z bledem < 0.1 mm, marker syntetyczny wykrywany).
 142 testy zielone. Instrukcja dla sesji przy Pi: `docs/ARM_FRAMES.md`. RUNBOOK: dwa wiersze w tabeli narzedzi.
