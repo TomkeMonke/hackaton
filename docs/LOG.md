@@ -938,8 +938,12 @@ na Pi przez scp jak w SETUP.md). Pulapka: dwie sesje przy jednym GPU/katalogu `o
 15:30 wznowienie 4000 -> 7000 (`--config_path=.../004000/... --resume=true --steps=7000`, 3.4 kroku/s, loss 0.52 przy
 ~4300) ZATRZYMANE 15:34 na prosbe frane (nie obciazac laptopa) przy kroku ~4413, przed checkpointem 5000 - te ~400
 krokow przepadlo, stan nadal = checkpoint 4000. Log `act_grasp2_run5_to7000.err`.
-**Nastepny krok:** po checkpoincie 4000 (druga sesja) rollout na Pi z wylacznikiem; jesli ma byc 7000 krokow, ta sama
-komenda `--config_path=.../004000/...` `--resume=true` poza sandboxem, jeden proces naraz.
+15:42 wznowienie od 004000 raz jeszcze (run6), na prosbe frane pauza 15:52-15:57 przez NtSuspendProcess (GPU 0 %,
+postep zachowany), potem laptop na baterii = 1.1 kroku/s (36 W), po zasilaczu 3.5 kroku/s. 16:05 KONIEC: krok 7000,
+loss 0.301 (l1 0.198, kld 0.010); checkpointy 5000/6000/7000 w `.../act_so101_grasp2_run2/checkpoints/` (laptop).
+Loss po krokach: 3000 0.79 -> 4000 0.575 -> 7000 0.301. Log `act_grasp2_run6_to7000.err`.
+**Nastepny krok:** wagi 7000 na Pi przez scp (SETUP.md), rollout z wylacznikiem; jesli ruch w zla strone - ARM_FRAMES
+krok 1. Checkpoint 7000 NIE do LFS (limit 1 GB).
 **Sprzet:** nie
 
 ## 2026-09-27 - pawel120 + Claude - panel zbiorczy robota (wizytowka)

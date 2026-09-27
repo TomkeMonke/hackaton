@@ -118,8 +118,8 @@ zadania i przypisania na tablicy Projects (link nizej). Czego nie ma tutaj albo 
   ACT na Pi". NIE sprawdzone na robocie w chwili pisania.
   15:24: run2 padl przy 3528 (restart sesji); wznowienie z 3000 (`--config_path=.../003000/pretrained_model/
   train_config.json --resume=true`, bez `last`) doszlo do 4000 (loss 0.575 (l1 0.255)), checkpoint `C:/Users/frane/outputs/
-  act_so101_grasp2_run2/checkpoints/004000` (laptop, NIE na Pi, NIE w LFS). Kroki 4000 -> 7000 NIE liczone
-  (proba 15:30 zatrzymana na prosbe frane przy ~4413, przed checkpointem 5000; wznowic ta sama komenda od 004000).
+  act_so101_grasp2_run2/checkpoints/004000`. 16:05: trening DOKONCZONY do 7000 (loss 0.301, l1 0.198); checkpointy
+  5000/6000/7000 w tym samym katalogu na laptopie, NIE na Pi, NIE w LFS (limit 1 GB) - na Pi przez scp (SETUP.md).
   Pulapka: `import torch` pada w sandboxie narzedzia Claude Code (WinError 1114 shm.dll) - trening poza sandboxem,
   JEDEN proces naraz (dwie sesje naraz dzielily GPU i katalog, LOG 15:20). Checkpointy 2000/3000 w LFS tylko
   lokalnie (branch `frane/act-training`, push nie doszedl; limit LFS 1 GB).
