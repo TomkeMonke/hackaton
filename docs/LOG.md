@@ -676,3 +676,14 @@ poslizgu: 0.10 m od idealu z kursem, 3.5 m bez. 128 testow zielonych.
 odpowiada pod 172.20.10.1:8080, znak kursu, czy ekran nie gasnie. Dlugosc pasa dalej z czasu (zyroskop nie mierzy drogi).
 **Nastepny krok:** phyphox na telefonie, `python tools/phyphox_check.py` na Pi, obrot recznie o 90 st w lewo -> ~+90.
 **Sprzet:** nie
+
+## 2026-09-27 - frane + Claude - telefon jako zyroskop dziala
+**Zrobione:** phyphox na iPhonie (tym samym, ktory robi hotspot) odpowiada Pi pod `http://172.20.10.1` - port 80,
+nie 8080 jak w dokumentacji phyphox (to port Androida). Znalezione skanem portow z Pi (`GCDWebServer` na :80).
+Bufory `gyrZ`/`gyr_time` zgodne z kodem. Obrot robota recznie o 90 st w lewo -> kurs +90, `heading.sign` 1.0 dobry.
+Domyslny `phyphox_url` poprawiony, pulapka 36 w HARDWARE.md. Test na Pi szedl z osobnego katalogu `~/phyphox_test`
+(config.py, heading.py, phyphox_check.py z mastera), bo na Pi jest kod z `pawel/arm-xyz-jog`, nie master.
+**Nie dziala / otwarte:** serwer phyphox znika po zgaszeniu ekranu. Jazda po kursie nie sprawdzona: `brain.py`/`main.py`
+na Pi nie maja kursu, dopoki `pawel/arm-xyz-jog` nie polaczy sie z masterem (push mastera cofnalby panel XYZ).
+**Nastepny krok:** merge `pawel/arm-xyz-jog` z masterem, push na Pi, `--dry-run --heading phyphox`.
+**Sprzet:** tak (telefon, Pi; baza i ramie nie ruszane)

@@ -301,3 +301,10 @@ dziala stabilnie. Szczegoly i decyzje - patrz issue #8.
     odpalac we WLASNYM terminalu operatora, interaktywnie:
     `ssh -t robot@<ip> "cd ~/hackaton && .venv/bin/python tools/..."`,
     nie z automatycznej (nieinteraktywnej) sesji.
+
+36. **phyphox na iPhonie slucha na porcie 80, nie 8080** (8080 to Android;
+    serwer `GCDWebServer`). iPhone-hotspot ma adres 172.20.10.1, wiec
+    `heading.phyphox_url` = `http://172.20.10.1`. Serwer znika, gdy phyphox
+    pojdzie w tlo albo zgasnie ekran (`Connection refused`) - Blokada
+    automatyczna ekranu: Nigdy, phyphox na wierzchu. Pomiar startuje sam
+    (`/control?cmd=start`). Test: `python tools/phyphox_check.py`.
