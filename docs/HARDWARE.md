@@ -341,3 +341,11 @@ dziala stabilnie. Szczegoly i decyzje - patrz issue #8.
 
 42. **`tools/estop_server.py` zabija tylko programy z listy `TARGETS`.** Nowy program, ktory
     jezdzi baza, trzeba tam dopisac (zygzak nie byl na liscie).
+
+43. **`deploy/push_to_pi.sh` nadpisuje pliki, ktore sa tylko na Pi.** Kopiuje `motions/` i
+    `pinecone_config.json` z laptopa (rsync, a bez rsync `scp -r` - laptop z git-bash rsync nie ma).
+    Prawdziwy `motions/drop_box.json` i zmierzone wartosci configu z Pi przepadaja (w repo jest placeholder).
+    Bezpieczniej wysylac wybrane pliki:
+    `git archive origin/<branch> <sciezki> | ssh robot@172.20.10.4 "tar -x -C ~/hackaton"`.
+    (zglosila sesja "Dostep do kamer", 2026-09-27)
+

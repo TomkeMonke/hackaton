@@ -45,6 +45,10 @@ zadania i przypisania na tablicy Projects (link nizej). Czego nie ma tutaj albo 
 
 - `pinecone_bot` NIE JECHAL jeszcze na sprzecie. Wszystko ponizej to pierwsze uruchomienie (docs/RUNBOOK.md).
 - Nowy prog HSV (branch, commit 2ba7fc9) NIE jest jeszcze wpisany na Pi - do wypchniecia razem z blokada AWB/ekspozycji (`lock_auto`, sekcja "camera" configu, PR #30), ktora jest na masterze, ale NIE na Pi (`pinecone_bot/camera.py`/`config.py` na Pi sa starsze). Reka w kadrze ma podobny odcien co szyszka (bloby 9000-31500 px, szyszka max ~4000 px) - `max_area_px` 40000 tego nie odrzuca, warto zmniejszyc do ~8000 (niezmienione).
+- 2026-09-27 popoludnie: Xiao ODPIETY - w jego USB siedzi leader SO-101 (`/dev/robot-leader`, nagrywanie ACT). Przed jazda:
+  Xiao z powrotem, `pkill -f web_control.py; pkill -f lerobot`, `ls -l /dev/robot-*` ma pokazac `robot-drive`.
+- `pawel/drive-calib` (eefa5a4, bez PR, nie uruchomiony): `tools/drive_calib.py` dubluje `calibrate_drive/turn` i zygzak
+  (ten sam sie uczy predkosci ze zdjec). Decyzja: porzucic albo wziac tylko dopasowanie PWM/znakow.
 - Kamera na robocie to D435 (sprawdzone pyrealsense2, fw 5.11.1.100) - pomiary glebi w HARDWARE 16-27 byly na D415.
 - Mapa ogrodu (branch frane/mapa-d435): `tools/record_rgbd.py` na Pi (15 Hz, zero dziur) -> kopia na laptop ->
   `tools/rtabmap_build.py` (RTAB-Map 0.23.8 win64 w `C:/Users/pawel/tools/bin`) -> `python -m pinecone_bot.localize build`.
