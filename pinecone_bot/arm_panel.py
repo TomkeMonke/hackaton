@@ -37,8 +37,8 @@ manual_only=True (tools/arm_web.py --no-home, np. gdy na ramieniu siedzi kamera)
 bez HOME przy starcie, "home" odrzucane, jog i chwytak od razu, liczone od
 odczytanej pozycji. Ruchy z motions/ sa dozwolone (nagrywa sie je z panelu pod
 biezacy montaz), ale przy pustym chwycie ramie NIE wraca do HOME (home_on_empty=False).
-UWAGA: stare ruchy (grasp_mid, home, drop_box) koncza w HOME_POSE - w tym trybie
-odtwarzaj tylko ruchy nagrane pod aktualny montaz.
+Stare ruchy (grasp_mid pod poprzedni HOME, drop_box = placeholder) maja w pliku "panel": false:
+panel ich nie pokazuje i nie odtwarza (panel_motions). Wrzut do sloika: motions/sloik.json.
 
 Jog liczy cel od OSTATNIEJ WYSLANEJ komendy (setpoint), a nie od odczytu -
 dzieki temu komenda nie robi sync_read. HOME i ruchy z motions/ odtwarza
@@ -47,6 +47,7 @@ WaypointArm (pinecone_bot/arm.py) z tym samym ramieniem.
 from __future__ import annotations
 
 import collections
+import json
 import logging
 import os
 import re
@@ -150,6 +151,24 @@ def list_motions(motions_dir: str) -> list:
     if not os.path.isdir(path):
         return []
     return sorted(f[:-5] for f in os.listdir(path) if f.endswith(".json"))
+
+
+def panel_motions(motions_dir: str) -> list:
+    """Ruchy do przyciskow panelu: bez tych z "panel": false (stare, pod poprzedni montaz albo placeholder).
+
+    Kod robota (brain.py, arm_play.py) dalej je widzi przez load_motion; panel ich nie pokazuje i nie odtwarza.
+    """
+    path = resolve_motions_dir(motions_dir)
+    names = []
+    for name in list_motions(motions_dir):
+        try:
+            with open(os.path.join(path, name + ".json"), encoding="utf-8") as fh:
+                hidden = json.load(fh).get("panel", True) is False
+        except (OSError, ValueError, AttributeError):
+            hidden = False  # zly plik zglosi sie przy odtwarzaniu, tak jak dotad
+        if not hidden:
+            names.append(name)
+    return names
 
 
 # ---------------------------------------------------------------------------
@@ -282,7 +301,7 @@ class ArmPanel:
             data = {"cmd": "jog", "joint": joint, "step": step}
         if cmd == "motion":
             name = data.get("name")
-            if name not in list_motions(self.cfg.arm.motions_dir):
+            if name not in panel_motions(self.cfg.arm.motions_dir):
                 return False, f"brak ruchu '{name}' w motions/"
             data = {"cmd": "motion", "name": name}
         if self.manual_only and cmd == "home":
@@ -432,7 +451,7 @@ class ArmPanel:
                 "error": self.last_error,
                 "result": self.last_result,
                 "read_age_s": None if self.last_read_t is None else round(self._clock() - self.last_read_t, 1),
-                "motions": list_motions(self.cfg.arm.motions_dir),
+                "motions": panel_motions(self.cfg.arm.motions_dir),
                 "joints": JOINT_NAMES,
                 "steps": list(STEP_CHOICES),
                 "xyz_steps": list(XYZ_STEPS_MM) if self.kin is not None else [],

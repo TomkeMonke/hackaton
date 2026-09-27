@@ -361,6 +361,15 @@ body.show .tally .n { font-size: 160px; }
     <section class="card" aria-labelledby="h-arm">
       <h2 id="h-arm">Ramię SO-101 <span class="right muted" id="arm-age"></span></h2>
       <div class="dials" id="dials"></div>
+      <div class="op-only" id="pick" style="margin:10px 0">
+        <div class="row" style="gap:8px;flex-wrap:wrap;align-items:center">
+          <button class="btn primary" id="pick-go">Zbierz szyszkę</button>
+          <button class="btn" id="pick-stop" disabled>Przerwij</button>
+          <a class="btn" id="pick-cam" target="_blank" rel="noopener" style="display:none">Podgląd chwytu</a>
+          <span class="muted" id="pick-state" style="font-size:13px">model ACT chwyta, potem ruch „sloik” wrzuca do słoika</span>
+        </div>
+        <div class="muted" style="font-size:12px;margin-top:4px">Na czas chwytu panel wyłącza sterowanie ramieniem i kamerę, po końcu włącza je sam. Wyłącznik w ręce, szyszka przed chwytakiem, słoik na swoim miejscu.</div>
+      </div>
       <details class="more op-only" open>
         <summary>Sterowanie ramieniem</summary>
         <div id="arm-root"></div>
@@ -690,6 +699,7 @@ body.show .tally .n { font-size: 160px; }
     send({ type: 'set_mode', mode: 'manual' });
     send({ type: 'keys', w: false, a: false, s: false, d: false });
     if (armPanel) armPanel.stop();
+    if (pickOn) fetch('/api/svc/pick/stop', { method: 'POST' }).catch(() => {});
     addEvent(now(), 'STOP z panelu: jazda i ramię');
   }
   $('stop').onclick = stopAll;
@@ -758,7 +768,7 @@ body.show .tally .n { font-size: 160px; }
       if (hubOk === false) addEvent(now(), 'Panel na Pi: połączenie wróciło');
       hubOk = true;
       for (const e of s.events) { addEvent(e.t, e.text, e.kind); lastEv = Math.max(lastEv, e.id); }
-      if (!SHOW) { renderSvc(s.services); renderHealth(s.health); }
+      if (!SHOW) { renderSvc(s.services); renderHealth(s.health); renderPick(s.services); }
     } catch (e) {
       setChip('chip-hub', 'bad', 'panel na Pi nie odpowiada');
       if (hubOk) addEvent(now(), 'Panel na Pi: brak połączenia', 'error');
@@ -766,6 +776,34 @@ body.show .tally .n { font-size: 160px; }
     }
   }
   setInterval(pollHub, 1500); pollHub();
+
+  // ---- zbieranie: chwyt ACT + sloik (zadanie "pick" w tools/robot_panel.py) ----
+  let pickOn = false;
+  function renderPick(list) {
+    const p = list.find((s) => s.name === 'pick');
+    $('pick').style.display = p ? '' : 'none';
+    if (!p) return;
+    pickOn = p.state === 'running' || p.state === 'starting';
+    $('pick-go').disabled = pickOn;
+    $('pick-stop').disabled = !pickOn;
+    $('pick-cam').style.display = pickOn && p.link ? '' : 'none';
+    if (p.link) $('pick-cam').href = `http://${HOST}:${p.link}/`;
+    $('pick-state').textContent = pickOn ? `zbieranie trwa ${fmtUp(p.uptime_s) || '< 1 min'} - STOP albo Przerwij zatrzymuje ramię`
+      : p.state === 'crashed' ? `ostatnie zbieranie przerwane (kod ${p.exit_code}) - log: Usługi, Zbieranie ACT`
+      : 'model ACT chwyta, potem ruch „sloik” wrzuca do słoika';
+  }
+  async function pickAct(act) {
+    try {
+      const r = await fetch(`/api/svc/pick/${act}`, { method: 'POST' });
+      const j = await r.json();
+      addEvent(now(), j.msg, j.ok ? undefined : 'error');
+    } catch (err) { addEvent(now(), 'Panel na Pi nie odpowiada', 'error'); }
+    pollHub();
+  }
+  $('pick-go').onclick = () => {
+    if (confirm('Zbierz szyszkę: model ACT rusza ramieniem, potem wrzut do słoika. Wyłącznik w ręce?')) pickAct('start');
+  };
+  $('pick-stop').onclick = () => pickAct('stop');
 
   // ---- logi ------------------------------------------------------------
   const logEl = $('log');

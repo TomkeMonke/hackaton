@@ -1,5 +1,6 @@
 {
   "name": "grasp_mid",
+  "panel": false,
   "note": "Kluczowe klatki z legacy/arm_recordings/demo2_fixed.csv (reczne demo 2026-09-25, kalibracja po legacy/arm_recordings/fix_shoulder_offset.py). Chwyt 17 cm przed kamera przy pan -13.6 (szyszka ok. 6 cm w lewo od osi). Od zacisku gripper=0: pusty chwytak czyta ~2 (< empty_gripper_below 6). Nie sprawdzone jeszcze w pinecone_bot na sprzecie (interpolacja miedzy punktami zamiast gestej trajektorii).",
   "waypoints": [
     {

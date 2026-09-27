@@ -38,6 +38,8 @@ class ServiceSpec:
     env: dict = field(default_factory=dict)
     link: int | None = None    # port strony uslugi do otwarcia w nowej karcie
     note: str = ""
+    oneshot: bool = False      # zadanie, ktore samo sie konczy (kod 0 = sukces, nie awaria); bez autostartu
+    takes: tuple = ()          # uslugi zatrzymywane na czas zadania i wznawiane po nim (port ramienia, kamera)
 
 
 def port_open(port: int | None, host: str = "127.0.0.1", timeout: float = 0.3) -> bool:
@@ -115,6 +117,10 @@ class Service:
         kwargs = {}
         if os.name == "nt":
             kwargs["creationflags"] = subprocess.CREATE_NEW_PROCESS_GROUP
+        elif self.spec.oneshot:
+            # zadanie odpala dzieci (act_pick -> lerobot-rollout, arm_play): STOP musi trafic w cala grupe,
+            # inaczej rollout jedzie ramieniem dalej po zabiciu rodzica
+            kwargs["start_new_session"] = True
         try:
             self.proc = subprocess.Popen(
                 self.spec.argv, cwd=self.cwd, env=env, stdin=subprocess.DEVNULL,
@@ -142,6 +148,8 @@ class Service:
         self._append(f"=== koniec, kod {code}")
         if self._stopping:
             self.events.add("stop", f"{self.spec.title}: zatrzymany")
+        elif self.spec.oneshot and code == 0:
+            self.events.add("stop", f"{self.spec.title}: zakonczone")
         else:
             self.events.add("error", f"{self.spec.title}: proces sie zakonczyl (kod {code}) - zajrzyj w log")
 
@@ -150,20 +158,46 @@ class Service:
         if proc is None or proc.poll() is not None:
             return False, f"{self.spec.title}: nie chodzi z panelu"
         self._stopping = True
+        group = self.spec.oneshot and os.name != "nt"
         try:
             if os.name == "nt":
                 proc.send_signal(signal.CTRL_BREAK_EVENT)
+            elif group:
+                os.killpg(proc.pid, signal.SIGINT)
             else:
                 proc.send_signal(signal.SIGINT)
             proc.wait(timeout=timeout)
         except (subprocess.TimeoutExpired, OSError, ValueError):
-            proc.terminate()
+            self._kill(proc, signal.SIGTERM if group else None)
             try:
                 proc.wait(timeout=2.0)
             except subprocess.TimeoutExpired:
-                proc.kill()
+                self._kill(proc, signal.SIGKILL if group else None, hard=True)
                 proc.wait(timeout=2.0)
+        if group:
+            # dzieci moga jeszcze sprzatac po SIGINT (lerobot disconnect); potem SIGKILL dla maruderow
+            deadline = time.monotonic() + timeout
+            try:
+                while time.monotonic() < deadline:
+                    os.killpg(proc.pid, 0)  # grupa = pid rodzica; OSError = nikt juz nie zyje
+                    time.sleep(0.1)
+                os.killpg(proc.pid, signal.SIGKILL)
+            except OSError:
+                pass
         return True, f"{self.spec.title}: zatrzymany"
+
+    @staticmethod
+    def _kill(proc: subprocess.Popen, group_sig=None, hard: bool = False) -> None:
+        if group_sig is not None:
+            try:
+                os.killpg(proc.pid, group_sig)
+                return
+            except OSError:
+                pass
+        if hard:
+            proc.kill()
+        else:
+            proc.terminate()
 
     def restart(self) -> tuple[bool, str]:
         if self.running():

@@ -12,6 +12,8 @@ import urllib.request
 import zipfile
 from http.server import ThreadingHTTPServer
 
+import pytest
+
 from pinecone_bot.supervisor import (
     EventLog,
     Service,
@@ -194,3 +196,108 @@ def test_http_api(tmp_path):
         httpd.shutdown()
         if s.running():
             s.stop()
+
+
+# --- zadanie "pick": chwyt ACT + sloik, zabiera ramie i kamere --------------
+
+QUICK = "import time\nprint('zadanie', flush=True)\ntime.sleep(0.3)\n"
+
+
+def named(tmp_path, name, argv, events, port=None, probe=None, **spec_kw):
+    spec = ServiceSpec(name, name.title(), argv, port=port, **spec_kw)
+    kwargs = {"probe": probe} if probe else {}
+    return Service(spec, str(tmp_path), str(tmp_path / "logs"), events, **kwargs)
+
+
+def test_specs_pick_job():
+    import robot_panel
+
+    demo = {s.name: s for s in robot_panel.build_specs(demo=True, python="py", policy="/m/act")}
+    pick = demo["pick"]
+    assert pick.oneshot and pick.takes == ("arm", "vision")
+    assert pick.argv[:5] == ["py", "-u", "tools/act_pick.py", "--policy", "/m/act"]
+    assert "--dry-run" in pick.argv
+    real = {s.name: s for s in robot_panel.build_specs(demo=False, python="py")}
+    assert "--dry-run" not in real["pick"].argv
+    assert real["pick"].argv[4].endswith("act_so101_grasp2/007000/pretrained_model")
+    assert not any(s.oneshot for n, s in real.items() if n != "pick")
+
+
+def test_job_stops_taken_services_and_restores_them(tmp_path):
+    import robot_panel
+
+    ev = EventLog()
+    arm = named(tmp_path, "arm", [sys.executable, "-u", "-c", CHILD], ev)
+    vision = named(tmp_path, "vision", [sys.executable, "-u", "-c", CHILD], ev)
+    job = named(tmp_path, "pick", [sys.executable, "-u", "-c", QUICK], ev, oneshot=True, takes=("arm", "vision"))
+    hub = robot_panel.Hub([arm, vision, job], ev, repo=REPO_ROOT)
+    try:
+        assert arm.start()[0] and vision.start()[0]
+        code, body = hub.action("pick", "start")
+        assert code == 200 and body["ok"]
+        assert not arm.running() and not vision.running()
+        assert wait_for(lambda: not job.running())
+        assert wait_for(lambda: arm.running() and vision.running())
+        assert any("zakonczone" in e["text"] for e in ev.since(0))
+        assert job.status()["state"] == "stopped"
+    finally:
+        for s in (arm, vision, job):
+            if s.running():
+                s.stop()
+
+
+def test_job_refuses_when_taken_service_runs_outside_panel(tmp_path):
+    import robot_panel
+
+    ev = EventLog()
+    arm = named(tmp_path, "arm", [sys.executable, "-c", "pass"], ev, port=8010, probe=lambda port: True)
+    job = named(tmp_path, "pick", [sys.executable, "-u", "-c", QUICK], ev, oneshot=True, takes=("arm",))
+    hub = robot_panel.Hub([arm, job], ev, repo=REPO_ROOT)
+    code, body = hub.action("pick", "start")
+    assert code == 409 and "poza panelem" in body["msg"]
+    assert not job.running()
+
+
+def test_stop_all_during_job_does_not_restore(tmp_path):
+    import robot_panel
+
+    ev = EventLog()
+    arm = named(tmp_path, "arm", [sys.executable, "-u", "-c", CHILD], ev)
+    job = named(tmp_path, "pick", [sys.executable, "-u", "-c", CHILD], ev, oneshot=True, takes=("arm",))
+    hub = robot_panel.Hub([arm, job], ev, repo=REPO_ROOT)
+    try:
+        assert arm.start()[0]
+        assert hub.action("pick", "start")[1]["ok"]
+        hub.stop_all()
+        assert not job.running()
+        time.sleep(0.5)
+        assert not arm.running()
+    finally:
+        for s in (arm, job):
+            if s.running():
+                s.stop()
+
+
+@pytest.mark.skipif(os.name == "nt", reason="grupy procesow tylko na Linuksie (Pi)")
+def test_oneshot_stop_kills_grandchildren(tmp_path):
+    # act_pick uruchamia lerobot-rollout jako dziecko: STOP zadania musi zabic tez wnuka
+    pidfile = tmp_path / "wnuk.pid"
+    parent = ("import subprocess, sys, time\n"
+              f"p = subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(60)'])\n"
+              f"open({str(pidfile)!r}, 'w').write(str(p.pid))\n"
+              "print('start', flush=True)\n"
+              "p.wait()\n")
+    job = named(tmp_path, "pick", [sys.executable, "-u", "-c", parent], EventLog(), oneshot=True)
+    assert job.start()[0]
+    assert wait_for(lambda: pidfile.exists() and pidfile.read_text())
+    grandchild = int(pidfile.read_text())
+    job.stop(timeout=2.0)
+
+    def gone():
+        try:
+            os.kill(grandchild, 0)
+        except OSError:
+            return True
+        return False
+
+    assert wait_for(gone)

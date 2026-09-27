@@ -125,7 +125,7 @@
       </div>
       <div class="armp-sec armp-mot">
         <div class="armp-title">RUCHY Z motions/</div>
-        <div class="armp-warn armp-mot-warn" style="display:none">tryb bez HOME: odtwarzaj tylko ruchy nagrane pod aktualny montaz (grasp_mid/home/drop_box koncza w HOME i uderza w kamere)</div>
+        <div class="armp-warn armp-mot-warn" style="display:none">tryb bez HOME: odtwarzaj tylko ruchy nagrane pod aktualny montaz (sloik = wrzut trzymanej szyszki do sloika, konczy w HOME)</div>
         <div class="armp-row armp-motions"></div>
       </div>
       <div class="armp-sec armp-rec">
