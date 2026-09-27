@@ -1,5 +1,6 @@
 {
   "name": "drop_box",
+  "panel": false,
   "note": "PLACEHOLDER, nie nagrane na sprzecie. Zalozenie: pojemnik po lewej stronie ramienia (shoulder_pan +90 od HOME_POSE, zakres pan wg DANCE_RANGE to ok. +-109). Po zamontowaniu pojemnika nagrac: tools/record_waypoints.py --name drop_box. Start z HOME_POSE z zacisnietym chwytakiem (po grasp_*), koniec w HOME_POSE.",
   "waypoints": [
     {

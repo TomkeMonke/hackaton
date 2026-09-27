@@ -24,6 +24,7 @@ from pinecone_bot.arm_panel import (  # noqa: E402
     jog_target,
     limits_from_calibration,
     list_motions,
+    panel_motions,
 )
 from pinecone_bot.config import Config  # noqa: E402
 
@@ -211,12 +212,12 @@ def test_open_and_close_gripper():
 
 def test_motion_list_and_replay():
     names = list_motions(MOTIONS_DIR)
-    assert {"home", "grasp_mid", "drop_box"} <= set(names)
+    assert {"home", "grasp_mid", "drop_box", "sloik"} <= set(names)
     panel, arm, _ = make_panel()
-    assert panel.submit({"cmd": "motion", "name": "drop_box"})[0]
+    assert panel.submit({"cmd": "motion", "name": "sloik"})[0]
     panel.process_one()
     assert panel.last_error is None, panel.last_error
-    assert "drop_box" in panel.last_result
+    assert "sloik" in panel.last_result
     assert not panel.submit({"cmd": "motion", "name": "../pinecone_config"})[0]
 
 
@@ -247,7 +248,7 @@ def test_stop_interrupts_motion_and_clears_queue():
 
 def test_stop_interrupts_waypoint_replay():
     panel, arm, clock = make_panel()
-    panel.submit({"cmd": "motion", "name": "grasp_mid"})
+    panel.submit({"cmd": "motion", "name": "sloik"})
     ticks = {"n": 0}
 
     def press_stop():
@@ -341,7 +342,7 @@ def test_manual_only_never_homes_and_jogs_from_read():
     ok, msg = panel.submit({"cmd": "home"})
     assert not ok and "no-home" in msg
     # ruchy z motions/ dozwolone (nagrywane z panelu pod biezacy montaz), ale bez powrotu do HOME
-    assert panel.submit({"cmd": "motion", "name": "grasp_mid"})[0]
+    assert panel.submit({"cmd": "motion", "name": "sloik"})[0]
     panel.stop()
     assert panel.submit({"cmd": "jog", "joint": "shoulder_lift", "step": -5})[0]
     panel.process_one()
@@ -387,9 +388,17 @@ def test_jog_blocked_when_joint_outside_calibration_range():
     assert all(set(a) == {"elbow_flex.pos"} for a in arm.actions)
 
 
-def test_manual_only_motion_empty_gripper_does_not_go_home():
+def test_manual_only_motion_empty_gripper_does_not_go_home(tmp_path):
+    # ruch z chwytem (check_gripper): grasp_mid jest w panelu schowany ("panel": false), wiec kopia bez flagi
+    import json
+
+    for name in ("grasp_mid", "home"):
+        with open(os.path.join(MOTIONS_DIR, name + ".json"), encoding="utf-8") as fh:
+            data = json.load(fh)
+        data.pop("panel", None)
+        (tmp_path / (name + ".json")).write_text(json.dumps(data))
     cfg = Config()
-    cfg.arm.motions_dir = MOTIONS_DIR
+    cfg.arm.motions_dir = str(tmp_path)
     clock = FakeClock()
     arm = FakeSO101()  # serwa sledza komendy idealnie: po zacisku odczyt 0 < 6 = pusty chwytak
     limits = limits_from_calibration(FAKE_CALIBRATION, FAKE_NORM_MODES)
@@ -509,3 +518,33 @@ def test_default_speed_is_halved():
 
     assert all(DEFAULT_MAX_STEP[j] == 1.0 for j in JOINT_NAMES if j != "gripper")
     assert DEFAULT_MAX_STEP["gripper"] == 2.0
+
+
+def test_panel_hides_outdated_motions():
+    # grasp_mid (poprzedni HOME) i drop_box (placeholder) maja "panel": false: kod robota je widzi, panel nie
+    shown = panel_motions(MOTIONS_DIR)
+    assert "sloik" in shown and "home" in shown
+    assert "drop_box" not in shown and "grasp_mid" not in shown
+    panel, _, _ = make_panel()
+    assert not panel.submit({"cmd": "motion", "name": "drop_box"})[0]
+    assert panel.snapshot()["motions"] == shown
+
+
+def test_panel_motions_tolerates_broken_file(tmp_path):
+    (tmp_path / "ok.json").write_text('{"waypoints": []}')
+    (tmp_path / "zly.json").write_text("{nie json")
+    (tmp_path / "stary.json").write_text('{"panel": false, "waypoints": []}')
+    assert panel_motions(str(tmp_path)) == ["ok", "zly"]
+
+
+def test_sloik_motion_stays_in_base_range_and_ends_home():
+    from pinecone_bot.arm import load_motion
+
+    m = load_motion(MOTIONS_DIR, "sloik")
+    # podstawa ma w EEPROM zakres tylko +-23 st (docs/LIVE_GRASP.md)
+    assert all(abs(wp.pose["shoulder_pan"]) <= 23.0 for wp in m.waypoints)
+    last = m.waypoints[-1].pose
+    assert all(last[j] == pytest.approx(HOME_POSE[j]) for j in JOINT_NAMES if j != "gripper")
+    opened = [i for i, wp in enumerate(m.waypoints) if wp.pose["gripper"] >= 90]
+    assert opened, "brak otwarcia chwytaka nad sloikiem"
+    assert all(wp.pose["gripper"] < 10 for wp in m.waypoints[:opened[0]])  # szyszka trzymana do sloika

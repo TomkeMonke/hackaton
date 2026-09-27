@@ -1,0 +1,150 @@
+{
+  "name": "sloik",
+  "note": "Wrzut szyszki do sloika po chwycie (ACT albo reka). Sciezka nagrana reka 2026-09-26 (tools/live_grasp/data/jar_cycle.json, w pick.py JAR_UP/JAR_BACK, dzialala przy odtwarzaniu), tempo x1.5 jak w pick.py. Sloik musi stac jak przy nagraniu: podstawa ok. -22 st. Chwytak 6 w czasie przenoszenia (docisk), koniec w HOME z motions/home.json.",
+  "waypoints": [
+    {
+      "label": "podniesienie z szyszka",
+      "pose": {
+        "shoulder_pan": -8.0,
+        "shoulder_lift": 74.4,
+        "elbow_flex": -63.3,
+        "wrist_flex": -72.8,
+        "wrist_roll": 87.58,
+        "gripper": 6.0
+      },
+      "seconds": 1.8
+    },
+    {
+      "label": "w gore",
+      "pose": {
+        "shoulder_pan": -8.0,
+        "shoulder_lift": 36.7,
+        "elbow_flex": -77.5,
+        "wrist_flex": -72.9,
+        "wrist_roll": 87.58,
+        "gripper": 6.0
+      },
+      "seconds": 1.8
+    },
+    {
+      "label": "nad robotem",
+      "pose": {
+        "shoulder_pan": -8.0,
+        "shoulder_lift": -35.3,
+        "elbow_flex": -78.8,
+        "wrist_flex": -73.7,
+        "wrist_roll": 87.58,
+        "gripper": 6.0
+      },
+      "seconds": 2.4
+    },
+    {
+      "label": "obrot do sloika",
+      "pose": {
+        "shoulder_pan": -18.1,
+        "shoulder_lift": -38.5,
+        "elbow_flex": -98.8,
+        "wrist_flex": -74.0,
+        "wrist_roll": 87.58,
+        "gripper": 6.0
+      },
+      "seconds": 1.8
+    },
+    {
+      "label": "zejscie",
+      "pose": {
+        "shoulder_pan": -19.0,
+        "shoulder_lift": -57.8,
+        "elbow_flex": -97.8,
+        "wrist_flex": -84.7,
+        "wrist_roll": 87.58,
+        "gripper": 6.0
+      },
+      "seconds": 1.5
+    },
+    {
+      "label": "nad sloikiem",
+      "pose": {
+        "shoulder_pan": -22.2,
+        "shoulder_lift": -60.8,
+        "elbow_flex": -97.7,
+        "wrist_flex": -84.6,
+        "wrist_roll": 87.58,
+        "gripper": 6.0
+      },
+      "seconds": 1.5
+    },
+    {
+      "label": "otworz nad sloikiem",
+      "pose": {
+        "shoulder_pan": -22.2,
+        "shoulder_lift": -60.8,
+        "elbow_flex": -97.7,
+        "wrist_flex": -84.6,
+        "wrist_roll": 87.58,
+        "gripper": 100.0
+      },
+      "seconds": 0.8
+    },
+    {
+      "label": "odjazd od sloika",
+      "pose": {
+        "shoulder_pan": -21.8,
+        "shoulder_lift": -59.7,
+        "elbow_flex": -76.0,
+        "wrist_flex": -80.3,
+        "wrist_roll": 87.58,
+        "gripper": 60.0
+      },
+      "seconds": 1.5
+    },
+    {
+      "label": "powrot 1",
+      "pose": {
+        "shoulder_pan": -21.9,
+        "shoulder_lift": -45.1,
+        "elbow_flex": -33.3,
+        "wrist_flex": -80.3,
+        "wrist_roll": 87.58,
+        "gripper": 60.0
+      },
+      "seconds": 1.5
+    },
+    {
+      "label": "powrot 2",
+      "pose": {
+        "shoulder_pan": -21.8,
+        "shoulder_lift": -29.8,
+        "elbow_flex": -3.1,
+        "wrist_flex": -80.3,
+        "wrist_roll": 87.58,
+        "gripper": 60.0
+      },
+      "seconds": 1.5
+    },
+    {
+      "label": "powrot 3",
+      "pose": {
+        "shoulder_pan": -13.2,
+        "shoulder_lift": 60.1,
+        "elbow_flex": 17.8,
+        "wrist_flex": -80.2,
+        "wrist_roll": 87.58,
+        "gripper": 60.0
+      },
+      "seconds": 3.0
+    },
+    {
+      "label": "home",
+      "pose": {
+        "shoulder_pan": -5.45,
+        "shoulder_lift": 88.92,
+        "elbow_flex": 7.56,
+        "wrist_flex": -87.87,
+        "wrist_roll": 88.88,
+        "gripper": 41.06
+      },
+      "seconds": 2.5
+    }
+  ]
+}

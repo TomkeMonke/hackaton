@@ -14,6 +14,9 @@ Uslugi (osobne procesy, jak dotad; blad jednej nie zatrzymuje reszty):
     jazda   web_control.py          :8000 strona, :8765 WebSocket (port Xiao z ROBOT_DRIVE_PORT)
     ramie   tools/arm_web.py        :8010 (domyslnie --no-home: kamera siedzi na ramieniu)
     kamera  tools/vision_web.py     :8020 (RealSense; kamere moze trzymac tylko jeden proces)
+    zbieranie tools/act_pick.py     zadanie: chwyt polityka ACT + wrzut do sloika (motions/sloik.json).
+            Na czas zadania panel zatrzymuje ramie i kamere (port ramienia i RealSense na wylacznosc),
+            po koncu wznawia je sam. Podglad chwytu: :8081. Wagi: --policy albo ROBOT_ACT_POLICY.
 Usluga odpalona recznie w SSH jest widoczna jako "poza panelem" i panel z niej korzysta.
 Logi: logs/<usluga>.log, paczka ZIP pod /logs.zip (razem z pinecone_log.csv).
 """
@@ -50,10 +53,11 @@ STATIC = {
     "/arm_panel.js": ("arm_panel.js", "text/javascript; charset=utf-8"),
 }
 EXTRA_LOGS = [os.path.join(REPO_ROOT, "pinecone_log.csv")]
+DEFAULT_POLICY = "~/models/act_so101_grasp2/007000/pretrained_model"
 
 
 def build_specs(demo: bool = False, arm_home: bool = False, vision_source: str | None = None,
-                python: str = sys.executable) -> list[ServiceSpec]:
+                python: str = sys.executable, policy: str | None = None) -> list[ServiceSpec]:
     linux = sys.platform.startswith("linux")
     drive_env = {}
     if "ROBOT_DRIVE_PORT" not in os.environ and linux:
@@ -77,6 +81,14 @@ def build_specs(demo: bool = False, arm_home: bool = False, vision_source: str |
         ServiceSpec("vision", "Kamera", vision_argv, port=8020, link=8020,
                     note=f"detekcja HSV, zrodlo: {source or 'RealSense'}"),
     ]
+    policy = os.path.expanduser(policy or os.environ.get("ROBOT_ACT_POLICY") or DEFAULT_POLICY)
+    pick_argv = [python, "-u", "tools/act_pick.py", "--policy", policy]
+    if demo:
+        pick_argv.append("--dry-run")
+    specs.append(ServiceSpec("pick", "Zbieranie ACT", pick_argv, link=8081, oneshot=True,
+                             takes=("arm", "vision"),
+                             note="chwyt ACT + sloik; zatrzymuje ramie i kamere, po koncu wznawia"
+                                  + (" (demo: tylko komendy)" if demo else "")))
     if os.path.exists(os.path.join(REPO_ROOT, "tools", "estop_server.py")):
         specs.append(ServiceSpec("estop", "E-stop", [python, "-u", "tools/estop_server.py"], port=8001,
                                  link=8001, note="STOP z telefonu"))
@@ -97,6 +109,8 @@ class Hub:
         self.repo = repo
         self.started = time.time()
         self._facts: dict | None = None
+        self._lock = threading.Lock()
+        self._restore: dict[str, list[str]] = {}  # zadanie -> uslugi do wznowienia po nim
 
     def facts(self) -> dict:
         if self._facts is None:
@@ -119,11 +133,57 @@ class Hub:
         svc = self.services.get(name)
         if svc is None or act not in ("start", "stop", "restart"):
             return 404, {"ok": False, "msg": "nie ma takiej uslugi albo akcji"}
-        ok, msg = getattr(svc, act)()
+        if svc.spec.takes and act in ("start", "restart"):
+            ok, msg = self.start_job(svc)
+        else:
+            ok, msg = getattr(svc, act)()
         return (200 if ok else 409), {"ok": ok, "msg": msg}
+
+    def start_job(self, job: Service) -> tuple[bool, str]:
+        """Zadanie z takes: zatrzymaj zabierane uslugi, uruchom zadanie, po jego koncu wznow je."""
+        with self._lock:
+            if job.running():
+                return False, f"{job.spec.title}: juz chodzi"
+            taken = [self.services[n] for n in job.spec.takes if n in self.services]
+            outside = [s.spec.title for s in taken if s.status()["state"] == "external"]
+            if outside:
+                return False, (f"{job.spec.title}: {', '.join(outside)} chodzi poza panelem (okno SSH?) - "
+                               "zamknij tam, bo zadanie potrzebuje portu ramienia i kamery")
+            stopped = []
+            for s in taken:
+                if s.running():
+                    s.stop()
+                    stopped.append(s.spec.name)
+            ok, msg = job.start()
+            if not ok:
+                for name in stopped:
+                    self.services[name].start()
+                return False, msg
+            self._restore[job.spec.name] = stopped
+            proc = job.proc
+        if stopped:
+            self.events.add("stop", f"{job.spec.title}: zatrzymane na czas zadania: "
+                            + ", ".join(self.services[n].spec.title for n in stopped))
+        threading.Thread(target=self._after_job, args=(job, proc), daemon=True,
+                         name=f"job-{job.spec.name}").start()
+        return True, msg
+
+    def _after_job(self, job: Service, proc) -> None:
+        proc.wait()
+        with self._lock:
+            names = self._restore.pop(job.spec.name, [])
+        for name in names:
+            svc = self.services[name]
+            for _ in range(30):  # port chwile zwalnia sie po wyjsciu procesu
+                if not svc._probe(svc.spec.port):
+                    break
+                time.sleep(0.1)
+            svc.start()
 
     def stop_all(self) -> list[str]:
         msgs = []
+        with self._lock:
+            self._restore.clear()  # STOP wszystkiego: po zadaniu niczego nie wznawiamy
         for s in self.services.values():
             if s.running():
                 msgs.append(s.stop()[1])
@@ -214,16 +274,20 @@ def main() -> int:
     parser.add_argument("--demo", action="store_true", help="bez sprzetu: ramie --fake, kamera --source sim")
     parser.add_argument("--arm-home", action="store_true", help="ramie z HOME przy starcie (domyslnie --no-home)")
     parser.add_argument("--vision-source", default=None, help="zrodlo kamery dla tools/vision_web.py --source")
+    parser.add_argument("--policy", default=None,
+                        help=f"wagi ACT dla przycisku Zbierz (domyslnie ROBOT_ACT_POLICY albo {DEFAULT_POLICY})")
     args = parser.parse_args()
 
     events = EventLog()
     services = [Service(spec, REPO_ROOT, LOG_DIR, events)
-                for spec in build_specs(args.demo, args.arm_home, args.vision_source)]
+                for spec in build_specs(args.demo, args.arm_home, args.vision_source, policy=args.policy)]
     hub = Hub(services, events)
     threading.Thread(target=hub.facts, daemon=True).start()  # git i liczenie linii w tle
     events.add("start", "panel wystartowal" + (" (demo)" if args.demo else ""))
     if args.autostart:
         for s in services:
+            if s.spec.oneshot:
+                continue  # zadania (zbieranie) tylko z przycisku
             ok, msg = s.start()
             print(msg, flush=True)
 

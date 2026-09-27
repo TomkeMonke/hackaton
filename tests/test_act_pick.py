@@ -37,7 +37,7 @@ def test_with_preview_keeps_lerobot_args_and_can_be_disabled():
 
 def test_drop_goes_home_after():
     cmd = drop_cmd(port="/dev/x")
-    assert cmd[1:] == ["tools/arm_play.py", "--motion", "drop_box", "--port", "/dev/x", "--home-after"]
+    assert cmd[1:] == ["tools/arm_play.py", "--motion", "sloik", "--port", "/dev/x", "--home-after"]
 
 
 def test_main_runs_stages_in_order_and_repeats():

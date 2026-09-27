@@ -3,8 +3,9 @@
 Etap 1 (uczony): `lerobot-rollout` z wytrenowanym ACT przez --grasp-s sekund. ACT byl uczony
 tylko na chwycie: z HOME do szyszki, zamkniecie chwytaka, lekkie uniesienie
 (dataset local/so101_grasp, docs/POLICIES_LEROBOT.md).
-Etap 2 (deterministyczny): `tools/arm_play.py --motion drop_box --home-after` - nad sloik,
-otwarcie, powrot tym samym torem, HOME. Sloik stoi na robocie, wiec tego nie trzeba uczyc.
+Etap 2 (deterministyczny): `tools/arm_play.py --motion sloik --home-after` - nad sloik,
+otwarcie, powrot, HOME (sciezka nagrana reka, motions/sloik.json). Sloik stoi na robocie, wiec tego
+nie trzeba uczyc. Z panelu: przycisk "Zbierz szyszke" w tools/robot_panel.py.
 
 Uzycie (na Pi, z katalogu repo; nic innego nie moze trzymac portu ramienia):
     python tools/act_pick.py --policy ~/models/act_grasp/pretrained_model --dry-run   # tylko komendy
@@ -69,7 +70,7 @@ def with_preview(cmd: list, preview_port: int, python: str = ".venv/bin/python")
     return [python, "tools/cam_preview.py", f"--preview-port={preview_port}", entry] + cmd[1:]
 
 
-def drop_cmd(port: str = "/dev/robot-arm", motion: str = "drop_box", python: str = ".venv/bin/python") -> list:
+def drop_cmd(port: str = "/dev/robot-arm", motion: str = "sloik", python: str = ".venv/bin/python") -> list:
     """Komenda etapu 2: nagrany ruch do sloika i HOME na koniec."""
     return [python, "tools/arm_play.py", "--motion", motion, "--port", port, "--home-after"]
 
@@ -91,7 +92,7 @@ def main(argv=None, run=subprocess.run) -> int:
     parser.add_argument("--grasp-s", type=float, default=15.0, help="czas etapu 1 [s] (jak episode_time_s)")
     parser.add_argument("--port", default=os.environ.get("ROBOT_ARM_PORT", "/dev/robot-arm"))
     parser.add_argument("--fps", type=int, default=30)
-    parser.add_argument("--motion", default="drop_box", help="ruch etapu 2 (motions/<name>.json)")
+    parser.add_argument("--motion", default="sloik", help="ruch etapu 2 (motions/<name>.json)")
     parser.add_argument("--repeat", type=int, default=1)
     parser.add_argument("--skip-drop", action="store_true", help="tylko etap 1")
     parser.add_argument("--preview-port", type=int, default=8081,
