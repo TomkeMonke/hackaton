@@ -157,6 +157,27 @@ class HeadingConfig:
 
 
 @dataclass
+class NavConfig:
+    """
+    Zygzak po mapie (pinecone_bot/zygzak.py): robot staje co look_every_m, robi zdjecie i lokalizuje sie
+    w mapie RTAB-Map (pinecone_bot/localize.py). Miedzy zdjeciami: kurs z zyroskopu, droga z czasu
+    (control.search_drive_v razy speed_scale, poprawiany po kazdym zdjeciu). Pasy: control.lane_*.
+    """
+    map_features: str = "~/mapy/ogrod1/map_features.npz"
+    look_every_m: float = 1.0      # co tyle metrow jazdy stop i zdjecie
+    look_settle_s: float = 0.6     # po zatrzymaniu (rozmazanie, kamera na ramieniu sie buja)
+    look_retries: int = 3          # nieudana lokalizacja -> obrot o look_turn_deg i jeszcze raz
+    look_turn_deg: float = 30.0
+    reach_tol_m: float = 0.2       # punkt zygzaka osiagniety
+    max_jump_m: float = 1.0        # lokalizacja dalej niz tyle od przewidywania = odrzucona
+    localize_radius_m: float = 3.0
+    speed_scale_min: float = 0.3   # granice uczenia sie prawdziwej predkosci
+    speed_scale_max: float = 3.0
+    turn_timeout_s: float = 20.0
+    first_turn_left: bool = True
+
+
+@dataclass
 class SimConfig:
     """Geometria kamery i swiata dla symulatora (i do zgrubnej kalibracji na sucho)."""
     cam_height_m: float = 0.45
@@ -200,6 +221,7 @@ class Config:
     arm: ArmConfig = field(default_factory=ArmConfig)
     camera: CameraConfig = field(default_factory=CameraConfig)
     heading: HeadingConfig = field(default_factory=HeadingConfig)
+    nav: NavConfig = field(default_factory=NavConfig)
     sim: SimConfig = field(default_factory=SimConfig)
     log_csv: str = "pinecone_log.csv"
 
