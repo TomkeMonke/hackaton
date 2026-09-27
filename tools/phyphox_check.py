@@ -6,7 +6,7 @@ Telefon plasko na bazie, ekranem do gory. Obroc robota RECZNIE o 90 st w lewo: k
 Jesli maleje, wpisz "heading": {"sign": -1.0} w pinecone_config.json.
 
   python tools/phyphox_check.py                       # adres z pinecone_config.json (heading.phyphox_url)
-  python tools/phyphox_check.py --url http://172.20.10.1:8080
+  python tools/phyphox_check.py --url http://172.20.10.1   # Android: port 8080
 """
 from __future__ import annotations
 

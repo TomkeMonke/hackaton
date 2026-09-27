@@ -239,6 +239,7 @@ class WaypointArm:
         settle_s: float = 0.4,
         verify_tol_deg: float = 4.0,
         verify: bool = True,
+        home_on_empty: bool = True,
     ):
         self.cfg = cfg
         self._sleep = sleep
@@ -247,6 +248,9 @@ class WaypointArm:
         self.settle_s = settle_s
         self.verify_tol_deg = verify_tol_deg
         self.verify = verify
+        # False (panel --no-home, kamera na ramieniu): po pustym chwycie tylko otworz
+        # chwytak i przerwij ruch, bez powrotu do HOME (HOME_POSE uderzylby w kamere).
+        self.home_on_empty = home_on_empty
         self._last_cmd: dict | None = None
         self._home_pose: dict = dict(HOME_POSE)
 
@@ -350,7 +354,10 @@ class WaypointArm:
                          reading, self.cfg.arm.empty_gripper_below)
                 self._move({"gripper": GRIPPER_OPEN}, 0.8)
                 # ramie nie moze zostac wyciagniete przy ziemi: zaslania kamere i szoruje przy cofaniu
-                self.home()
+                if self.home_on_empty:
+                    self.home()
+                else:
+                    log.info("home_on_empty=False: zostaje w miejscu")
                 return False
             log.info("chwytak trzyma (odczyt %.1f)", reading)
             result = True

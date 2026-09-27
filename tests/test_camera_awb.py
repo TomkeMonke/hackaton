@@ -125,7 +125,17 @@ def test_warmup_frames_from_config(fake):
     cfg.camera.warmup_frames = 45
     RealSenseCamera(cfg, depth=False)
     assert state["waits"] == 45
-    assert sensor.calls == []  # lock_auto domyslnie wylaczone
+    assert sensor.calls == []  # lock_auto domyslnie wylaczone, auto juz wlaczone - nic do zmiany
+
+
+def test_no_lock_reenables_auto_left_off_by_previous_process(fake):
+    """Opcje zostaja w kamerze po poprzednim procesie: zamrozona ekspozycja trzeba odmrozic."""
+    sensor, _ = fake({})
+    sensor.options["enable_auto_exposure"] = 0
+    sensor.options["enable_auto_white_balance"] = 0
+    RealSenseCamera(Config(), depth=False, warmup_frames=1)
+    assert sensor.options["enable_auto_exposure"] == 1
+    assert sensor.options["enable_auto_white_balance"] == 1
 
 
 def test_warmup_frames_argument_overrides_config(fake):

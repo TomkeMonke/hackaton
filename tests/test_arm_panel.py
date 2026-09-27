@@ -338,9 +338,11 @@ def test_manual_only_never_homes_and_jogs_from_read():
     assert arm.actions == [], "manual_only nie moze ruszyc ramieniem sam z siebie"
     assert panel.snapshot()["manual_only"]
 
-    for cmd in ({"cmd": "home"}, {"cmd": "motion", "name": "grasp_mid"}):
-        ok, msg = panel.submit(cmd)
-        assert not ok and "no-home" in msg
+    ok, msg = panel.submit({"cmd": "home"})
+    assert not ok and "no-home" in msg
+    # ruchy z motions/ dozwolone (nagrywane z panelu pod biezacy montaz), ale bez powrotu do HOME
+    assert panel.submit({"cmd": "motion", "name": "grasp_mid"})[0]
+    panel.stop()
     assert panel.submit({"cmd": "jog", "joint": "shoulder_lift", "step": -5})[0]
     panel.process_one()
     assert panel.last_error is None, panel.last_error
@@ -383,3 +385,125 @@ def test_jog_blocked_when_joint_outside_calibration_range():
     panel.process_one()
     assert panel.last_error is None
     assert all(set(a) == {"elbow_flex.pos"} for a in arm.actions)
+
+
+def test_manual_only_motion_empty_gripper_does_not_go_home():
+    cfg = Config()
+    cfg.arm.motions_dir = MOTIONS_DIR
+    clock = FakeClock()
+    arm = FakeSO101()  # serwa sledza komendy idealnie: po zacisku odczyt 0 < 6 = pusty chwytak
+    limits = limits_from_calibration(FAKE_CALIBRATION, FAKE_NORM_MODES)
+    panel = ArmPanel(arm, cfg, limits, sleep=clock.sleep, clock=clock.now, manual_only=True)
+    assert panel.maybe_read()
+    assert panel.submit({"cmd": "motion", "name": "grasp_mid"})[0]
+    panel.process_one()
+    assert panel.last_error is None, panel.last_error
+    assert "False" in panel.last_result
+    full = [a for a in arm.actions if len(a) == len(JOINT_NAMES)]
+    home = {f"{j}.pos": v for j, v in HOME_POSE.items()}
+    assert not any(a == pytest.approx(home, abs=0.5) for a in full[len(full) // 2:]), \
+        "po pustym chwycie w trybie --no-home ramie nie wraca do HOME (kamera na ramieniu)"
+    assert arm.pose["gripper"] == pytest.approx(100.0)
+
+
+# ---------------------------------------------------------------------------
+# nagrywanie ruchu z panelu
+# ---------------------------------------------------------------------------
+
+def test_add_point_reads_joints_and_takes_gripper_from_command():
+    panel, arm, _ = make_panel()
+    assert panel.submit({"cmd": "close"})[0]
+    panel.process_one()
+    arm.pose["gripper"] = 12.0          # chwytak zamknal sie na szyszce: odczyt = jej szerokosc
+    arm.pose["elbow_flex"] = 42.0       # ktos przesunal staw reka
+    panel._last_read_attempt = -1e9
+    assert panel.maybe_read()
+    ok, msg = panel.submit({"cmd": "add_point", "label": "zacisk", "seconds": 1.2, "check_gripper": True})
+    assert ok, msg
+    wp = panel.draft[0]
+    assert wp.label == "zacisk" and wp.seconds == 1.2 and wp.check_gripper
+    assert wp.pose["elbow_flex"] == pytest.approx(42.0), "przeguby z odczytu serw"
+    assert wp.pose["gripper"] == pytest.approx(0.0), "chwytak z ostatniej komendy (cel zacisku), nie z odczytu"
+    snap = panel.snapshot()["draft"]
+    assert len(snap) == 1 and snap[0]["label"] == "zacisk" and snap[0]["check_gripper"]
+
+
+def test_add_point_before_any_position_is_refused():
+    panel, arm, _ = make_panel(homed=False)
+    ok, msg = panel.submit({"cmd": "add_point"})
+    assert not ok and "pozycji" in msg
+    panel, arm, _ = make_panel()
+    assert not panel.submit({"cmd": "add_point", "seconds": 99})[0]
+    assert not panel.submit({"cmd": "add_point", "seconds": "abc"})[0]
+
+
+def test_save_motion_writes_file_loadable_by_replay(tmp_path):
+    from pinecone_bot.arm import load_motion
+
+    panel, arm, _ = make_panel()
+    panel.cfg.arm.motions_dir = str(tmp_path)
+    assert not panel.submit({"cmd": "save_motion", "name": "x"})[0], "pusty szkic"
+    assert panel.submit({"cmd": "add_point", "label": "a", "seconds": 1.0})[0]
+    assert panel.submit({"cmd": "add_point", "label": "b", "seconds": 0.5})[0]
+    assert not panel.submit({"cmd": "save_motion", "name": "zla nazwa"})[0]
+    assert not panel.submit({"cmd": "save_motion", "name": "../x"})[0]
+    ok, msg = panel.submit({"cmd": "save_motion", "name": "grasp_cam", "note": "test"})
+    assert ok, msg
+    assert panel.draft == [] and panel.snapshot()["draft"] == []
+    motion = load_motion(str(tmp_path), "grasp_cam")
+    assert [wp.label for wp in motion.waypoints] == ["a", "b"]
+    assert motion.note == "test"
+    assert "grasp_cam" in panel.snapshot()["motions"]
+    with open(tmp_path / "grasp_cam.json", "rb") as fh:
+        assert all(b < 128 for b in fh.read())
+    # nadpisanie tylko jawnie
+    assert panel.submit({"cmd": "add_point", "label": "c"})[0]
+    ok, msg = panel.submit({"cmd": "save_motion", "name": "grasp_cam"})
+    assert not ok and "istnieje" in msg
+    assert panel.submit({"cmd": "save_motion", "name": "grasp_cam", "overwrite": True})[0]
+    assert [wp.label for wp in load_motion(str(tmp_path), "grasp_cam").waypoints] == ["c"]
+    # zapisany ruch da sie odtworzyc z panelu
+    assert panel.submit({"cmd": "motion", "name": "grasp_cam"})[0]
+    panel.process_one()
+    assert panel.last_error is None
+
+
+def test_drop_and_clear_points():
+    panel, _, _ = make_panel()
+    assert not panel.submit({"cmd": "drop_point"})[0]
+    for i in range(3):
+        assert panel.submit({"cmd": "add_point"})[0]
+    assert [wp.label for wp in panel.draft] == ["wp0", "wp1", "wp2"]
+    assert panel.submit({"cmd": "drop_point"})[0]
+    assert len(panel.draft) == 2
+    assert panel.submit({"cmd": "clear_points"})[0]
+    assert panel.draft == []
+
+
+def test_jog_back_into_range_allowed_when_slightly_outside():
+    # Pi 2026-09-26: wrist_roll z kamera ugina sie ~4 st za granice kalibracji; "+" (do zakresu)
+    # ma dzialac, "-" (dalej za granice) dalej zablokowany
+    cfg = Config()
+    cfg.arm.motions_dir = MOTIONS_DIR
+    clock = FakeClock()
+    limits = limits_from_calibration(FAKE_CALIBRATION, FAKE_NORM_MODES)
+    lo = limits["wrist_roll"][0]
+    pose = dict(HOME_POSE)
+    pose["wrist_roll"] = lo - 4.0
+    arm = FakeSO101(pose=pose)
+    panel = ArmPanel(arm, cfg, limits, sleep=clock.sleep, clock=clock.now, manual_only=True)
+    assert panel.maybe_read()
+    panel.submit({"cmd": "jog", "joint": "wrist_roll", "step": -5})
+    panel.process_one()
+    assert "poza zakresem" in panel.last_error
+    assert arm.actions == []
+    panel.submit({"cmd": "jog", "joint": "wrist_roll", "step": 5})
+    panel.process_one()
+    assert panel.last_error is None
+    assert lo <= arm.pose["wrist_roll"] <= lo + 5.0
+def test_default_speed_is_halved():
+    # 2026-09-26: po wjechaniu robota w ramie predkosc panelu zmniejszona o polowe
+    from pinecone_bot.arm_panel import DEFAULT_MAX_STEP
+
+    assert all(DEFAULT_MAX_STEP[j] == 1.0 for j in JOINT_NAMES if j != "gripper")
+    assert DEFAULT_MAX_STEP["gripper"] == 2.0

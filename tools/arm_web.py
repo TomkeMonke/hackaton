@@ -4,7 +4,7 @@ Uzycie (na Pi, z katalogu repo):
     python tools/arm_web.py                       # port ramienia z ROBOT_ARM_PORT albo cfg.arm.port
     python tools/arm_web.py --port /dev/robot-arm
     python tools/arm_web.py --fake                # atrapa ramienia, bez lerobot (laptop)
-    python tools/arm_web.py --no-home             # bez HOME (np. kamera na ramieniu): tylko jog i chwytak
+    python tools/arm_web.py --no-home             # bez HOME (np. kamera na ramieniu): jog, chwytak, ruchy nagrane z panelu
 
 Potem w przegladarce: http://<IP_PI>:8010 (sam panel ramienia) albo
 http://<IP_PI>:8000 (panel jazdy web_control.py z sekcja ramienia - ten sam
@@ -15,6 +15,12 @@ Po starcie ramie NAJPIERW jedzie do HOME; do tego czasu panel przyjmuje tylko
 HOME i STOP. Jedna komenda naraz (kolejka w pinecone_bot/arm_panel.py),
 zakres z kalibracji serw, max_relative_target=None + wlasny limit kroku,
 odczyt pozycji max 2 Hz i tylko gdy ramie stoi (docs/HARDWARE.md, pulapka 10).
+
+Nagrywanie ruchu z panelu: ustaw ramie jogiem, "+ PUNKT" dodaje biezaca poze do szkicu,
+"ZAPISZ do motions/" pisze motions/<nazwa>.json (format jak tools/record_waypoints.py).
+Taki ruch odtwarza sie z panelu i jako krok "arm" sekwencji w panelu jazdy (:8000).
+--no-home: HOME wylaczone, ruchy z motions/ dozwolone, ale po pustym chwycie ramie NIE wraca
+do HOME (kamera na ramieniu) - odtwarzaj tylko ruchy nagrane pod aktualny montaz.
 
 Ctrl+C rozlacza ramie i lerobot WYLACZA torque - ramie opadnie. Najpierw HOME.
 
@@ -42,6 +48,7 @@ from pinecone_bot.arm_panel import (  # noqa: E402
     limits_from_calibration,
 )
 from pinecone_bot.config import Config  # noqa: E402
+from pinecone_bot.kinematics import So101Kinematics  # noqa: E402
 
 STATIC = {
     "/": ("arm_panel.html", "text/html; charset=utf-8"),
@@ -163,7 +170,8 @@ def main() -> int:
     parser.add_argument("--http-port", type=int, default=HTTP_PORT)
     parser.add_argument("--fake", action="store_true", help="atrapa ramienia (bez lerobot i sprzetu)")
     parser.add_argument("--no-home", action="store_true",
-                        help="bez HOME przy starcie; HOME i ruchy z motions/ wylaczone, tylko jog i chwytak")
+                        help="bez HOME przy starcie i bez HOME po pustym chwycie (kamera na ramieniu); "
+                             "jog, chwytak i ruchy z motions/ dozwolone")
     args = parser.parse_args()
 
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
@@ -182,10 +190,17 @@ def main() -> int:
     for joint, (lo, hi) in limits.items():
         print(f"  zakres {joint:14s} {lo:8.1f} .. {hi:8.1f}")
 
-    panel = ArmPanel(arm, cfg, limits, manual_only=args.no_home)
+    try:
+        kin = So101Kinematics(cfg.arm.urdf_path, cfg.arm.urdf_sign, cfg.arm.urdf_offset_deg)
+        print(f"jog XYZ: URDF {cfg.arm.urdf_path}, offsety {cfg.arm.urdf_offset_deg or 'brak (ZERO URDF w panelu)'}")
+    except Exception as exc:  # noqa: BLE001 - bez URDF panel dziala dalej, tylko bez jogu XYZ
+        kin = None
+        print(f"jog XYZ wylaczony: {exc}")
+
+    panel = ArmPanel(arm, cfg, limits, manual_only=args.no_home, kinematics=kin, config_path=Config.default_path())
     panel.start(home_first=True)
     if args.no_home:
-        print("--no-home: ramie stoi, HOME i ruchy z motions/ wylaczone; jog od odczytanej pozycji")
+        print("--no-home: ramie stoi, HOME wylaczone; jog od odczytanej pozycji; ruchy z motions/ bez powrotu do HOME")
     else:
         print("ramie jedzie do HOME...")
 
