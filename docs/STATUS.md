@@ -3,8 +3,8 @@
 Jeden ekran. Aktualizuje go KAZDY PR (checkbox w szablonie PR). Historia jest w `docs/LOG.md`,
 zadania i przypisania na tablicy Projects (link nizej). Czego nie ma tutaj albo w issue, nie istnieje.
 
-**Stan na:** 2026-09-27 15:00 (ACT: dataset 50 epizodow leaderem, trening na RTX 3070, checkpointy na Pi i masterze; mapa ogrodu D435 + zygzak po mapie - `docs/MAPA.md`)
-**Robot (kto ma sprzet, do kiedy):** frane (sesja trwa)
+**Stan na:** 2026-09-27 17:00 (ACT: wagi 7000 na Pi zweryfikowane, ramie w home, act_pick z bezpiecznikiem max_relative_target - do odpalenia przez operatora; Pi padl raz przy ladowaniu modelu; kabel laptop-Pi po IPv6 link-local)
+**Robot (kto ma sprzet, do kiedy):** frane (sesja trwa; Pi po restarcie 16:55, panele NIE chodza, ramie w home bez torque)
 **Tablica zadan:** TODO wkleic link do GitHub Projects (zaklada pawel120, patrz docs/CONTRIBUTING.md)
 
 ## Dziala
@@ -49,6 +49,17 @@ zadania i przypisania na tablicy Projects (link nizej). Czego nie ma tutaj albo 
 - `motions/grasp_mid.json`: chwyt z `demo2_fixed.csv` (aktualna kalibracja). `home.json`, `drop_box.json` (placeholder).
 - `tools/record_motion.py` (commit 40a75aa): ciagle nagranie ruchu ramienia prowadzonego reka (bez jazdy do HOME, kamera na ramieniu), probki 10 Hz, 'q'+Enter konczy i oddaje torque, zapis `motions/<name>.json` (waypointy co 0.25 s w tempie prowadzenia, pierwszy z dojazdem 1.5 s); odtwarzanie `tools/arm_play.py --motion <name>`. Testy `tests/test_record_motion.py` (3). Zastapilo dla operatora `tools/record_waypoints.py` (punkt po punkcie, uciazliwe) i legacy `record_demo.py` (jazda do HOME, stala liczba sekund).
 
+- Kabel laptop-Pi wpiety BEZPOSREDNIO (bez ICS): laptop dostaje tylko APIPA 169.254.x, wiec 192.168.137.5 NIE odpowiada,
+  ale SSH idzie po IPv6 link-local eth0 Pi: `ssh robot@fe80::dff8:bbb:4a1f:2db3%<idx>`, gdzie idx = numer interfejsu
+  "Ethernet" z `netsh interface ipv6 show interfaces` (22 na laptopie frane). Sprawdzone 2026-09-27. Dla IPv4 po kablu
+  nadac laptopowi adres (admin): `netsh interface ip set address "Ethernet" static 192.168.137.1 255.255.255.0`.
+- Wagi ACT 007000 (207 MB, sha256 zgodne z masterem) sa na Pi: `~/models/act_so101_grasp2/007000/pretrained_model`
+  (komplet 7 plikow; wczesniejsze uciete kopie 007000 i 007000_full usuniete). `tools/act_pick.py --dry-run` na Pi
+  drukuje poprawna komende (lerobot-rollout, --device=cpu, kamera wrist 030522070668), testy act_pick + cam_preview 15 zielone.
+  `act_pick.py` dostal `--max-step` (domyslnie 20 -> `--robot.max_relative_target=20`, jak w SETUP; 0 = bez limitu).
+  Po restarcie Pi (16:55): `tools/arm_play.py --motion home` wykonany zdalnie - ramie stoi w `home` (torque OFF),
+  port ramienia i kamera wolne (panel zbiorczy nie wstal po restarcie).
+
 ## Nie dziala / nie sprawdzone
 
 - Jog XYZ w panelu ramienia (`pinecone_bot/kinematics.py`, sekcja JOG XYZ): testy + atrapa, NIE sprawdzony na ramieniu. Najpierw ZERO URDF (ramie prosto poziomo do przodu), potem sprawdzic, czy GORA jedzie w gore (inaczej `arm.urdf_sign`).
@@ -58,6 +69,16 @@ zadania i przypisania na tablicy Projects (link nizej). Czego nie ma tutaj albo 
   uruchomione. Prawdopodobnie dubluje `base_test.py --measure` (pawel/base-calibration), `turn_loop.py`
   (frane/gyro-rate-loop) i jazde po mapie `zygzak.py` (frane/mapa-d435) - przed uzyciem zdecydowac, co zostaje.
 
+- 2026-09-27 16:45: Pi PADL (znikl z WiFi i z kabla, ping 100% strat) w chwili ladowania ACT 7000 na CPU
+  (`ACTPolicy.from_pretrained`, ok. 200 MB) przy chodzacym panelu zbiorczym (drive + arm + vision + estop).
+  Chwile wczesniej `vcgencmd get_throttled` = 0x50000 (spadek napiecia w historii). Najpewniej zasilanie: ladowanie
+  modelu + 4 procesy + serwa. Rollout ACT NIE odpalony. Ramie stalo w pozie z jogu (pan 22, lift 25, elbow 65,
+  wrist -101, roll 88, chwytak 2), NIE w pozie startowej datasetu (srednia z 50 epizodow: pan -2, lift 88.5, elbow -8,
+  wrist -101, roll 95, chwytak 17; `motions/home.json` = -5.5/88.9/7.6/-87.9/88.9/41 lezy w zakresie startow).
+  Przed rolloutem: ruch `home` z panelu :8010, dopiero potem stop uslugi arm (stop = torque OFF, ramie opada).
+- `motions/drop_box.json` na Pi to PLACEHOLDER (nadpisany przez push_to_pi.sh, patrz LOG 2026-09-27 pawel120);
+  nagrane wersje leza obok: `drop_box_full`, `drop_box_old`, `drop_box_oneway` - sprawdzic ktora jest dobra i podac
+  `tools/act_pick.py --motion drop_box_full`. Do tego czasu tylko `--skip-drop`.
 - `pinecone_bot` NIE JECHAL jeszcze na sprzecie. Wszystko ponizej to pierwsze uruchomienie (docs/RUNBOOK.md).
 - Nowy prog HSV (branch, commit 2ba7fc9) NIE jest jeszcze wpisany na Pi - do wypchniecia razem z blokada AWB/ekspozycji (`lock_auto`, sekcja "camera" configu, PR #30), ktora jest na masterze, ale NIE na Pi (`pinecone_bot/camera.py`/`config.py` na Pi sa starsze). Reka w kadrze ma podobny odcien co szyszka (bloby 9000-31500 px, szyszka max ~4000 px) - `max_area_px` 40000 tego nie odrzuca, warto zmniejszyc do ~8000 (niezmienione).
 - 2026-09-27 popoludnie: Xiao ODPIETY - w jego USB siedzi leader SO-101 (`/dev/robot-leader`, nagrywanie ACT). Przed jazda:
@@ -142,8 +163,11 @@ Dwa tory rownolegle. Tor mapa + zygzak (frane/mapa-d435, `docs/MAPA.md`):
 3. Poza ramienia "szukaj" (kamera 38 st w dol) i szyszki w zygzaku (detektor + podjazd z `brain.py`); merge frane/mapa-d435.
 
 Tor ACT / ramie (master):
-A. (ACT) wagi `pretrained_model` na Pi, `python tools/act_pick.py --policy <katalog> --skip-drop`
-   z wylacznikiem w rece, potem bez `--skip-drop`.
+A. (ACT) Wszystko gotowe, ramie w home, nic nie trzyma portu. Z wylacznikiem w rece, w terminalu operatora:
+   `ssh -t robot@172.20.10.5 "cd ~/hackaton && .venv/bin/python tools/act_pick.py --policy /home/robot/models/act_so101_grasp2/007000/pretrained_model --skip-drop"`
+   (start ~30-60 s ladowania, podglad kamery http://172.20.10.5:8081/, Ctrl+C = stop, torque zostaje). Jesli Pi znow
+   padnie przy ladowaniu - zasilanie. Gdy panele chodza: najpierw `home` z :8010, potem
+   `curl -X POST http://127.0.0.1:8090/api/svc/vision/stop` i `.../svc/arm/stop`. Potem `--motion drop_box_full` zamiast `--skip-drop`.
 0. (sesja przy Pi, rownolegle z ACT) `docs/ARM_FRAMES.md`: `tools/frame_check.py` z wylacznikiem, potem
    `tools/hand_eye_calib.py collect/solve` z markerem ArUco -> `camera_on_arm.json` do repo.
 0. Chwytanie samym ramieniem: czyste uczenie (1 szyszka naraz, jeden styl chwytu, 12 pozycji), `fit.py`, test `pick.py`

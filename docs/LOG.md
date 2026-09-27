@@ -1008,3 +1008,20 @@ bez rsync `deploy/push_to_pi.sh` idzie przez scp i nadpisuje na Pi `motions/drop
 **Nastepny krok:** zdecydowac, ktora kalibracja/jazda zostaje (raczej zygzak po mapie z frane/mapa-d435); Xiao
 wpiac z powrotem (teraz w jego USB jest leader), test na robocie z wylacznikiem.
 **Sprzet:** nie
+
+## 2026-09-27 - frane (Claude) - wagi ACT 7000 na Pi, kabel, pad Pi
+**Zrobione:** Kabel laptop-Pi bezposrednio: laptop bez adresu 192.168.137.x (APIPA), SSH po IPv6 link-local
+`robot@fe80::dff8:bbb:4a1f:2db3%22` dziala (WiFi hotspotu rownolegle: Pi 172.20.10.5). Na Pi lezaly dwie uciete kopie
+checkpointu 7000 (2 MB i 13 MB) - usuniete, wgrany komplet `pretrained_model` z mastera (207 MB, tar|ssh po WiFi ok. 1 MB/s),
+sha256 wszystkich .safetensors zgodne z laptopem. `tools/act_pick.py --skip-drop --dry-run` na Pi OK, testy 13 zielone.
+Odczyt pozy startowej datasetu so101_grasp2 (parquet): pan -2, lift 88.5, elbow -8, wrist -101, roll 95, chwytak 17 -
+`home.json` miesci sie w zakresie startow, ramie stalo w pozie z jogu (lift 25, elbow 65) = poza rozkladem.
+**Nie dziala / otwarte:** Pi PADL (WiFi + kabel) dokladnie w chwili `ACTPolicy.from_pretrained` na CPU przy chodzacym panelu
+zbiorczym (4 procesy); wczesniej get_throttled 0x50000. Rollout NIE odpalony, ramie nie ruszone przez Claude. Stop uslugi
+vision (curl) nie zdazyl dojsc. `drop_box.json` na Pi = placeholder, nagrane sa `drop_box_full/_old/_oneway`.
+Pi wrocilo po ok. 10 min (restart, get_throttled znow 0x50000 po minucie). `act_pick.py` dostal `--max-step`
+(`--robot.max_relative_target=20`, 2 testy), skopiowany na Pi. `arm_play.py --motion home` zdalnie: ramie w home.
+Samo odpalenie `act_pick.py --skip-drop` zablokowal klasyfikator trybu auto - zostaje operatorowi (STATUS krok A).
+**Nastepny krok:** operator: `act_pick.py --skip-drop` z wylacznikiem w rece; potem `--motion drop_box_full`.
+Jesli Pi pada przy ladowaniu modelu: zasilanie (powerbank za slaby) albo ladowac model przed startem paneli.
+**Sprzet:** dotkniety (Pi: SSH, kopia plikow, ladowanie modelu na CPU; ramie: ruch do home; kamera nie)

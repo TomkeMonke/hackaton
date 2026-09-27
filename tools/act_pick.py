@@ -34,14 +34,16 @@ CAMERA_SERIAL = "030522070668"  # D435 na ramieniu (lerobot-find-cameras realsen
 
 def rollout_cmd(policy: str, seconds: float, port: str = "/dev/robot-arm", robot_id: str = "so101",
                 camera_serial: str = CAMERA_SERIAL, fps: int = 30, device: str = "cpu",
-                exe: str = ".venv/bin/lerobot-rollout") -> list:
+                exe: str = ".venv/bin/lerobot-rollout", max_step: float | None = 20.0) -> list:
     """Komenda etapu 1. Kamera musi miec ten sam klucz i rozdzielczosc co w datasecie (wrist 640x480).
 
     device jawnie: wagi z laptopa maja w configu "cuda", a na Pi jej nie ma.
+    max_step: bezpiecznik lerobot `--robot.max_relative_target` (maks. skok stawu na tick, w stopniach/%);
+    None = bez limitu. 20 jak w docs/SETUP.md; za "gumowy" ruch -> 30.
     """
     cameras = (f"{{ wrist: {{type: intelrealsense, serial_number_or_name: {camera_serial}, "
                f"width: 640, height: 480, fps: {fps}}}}}")
-    return [
+    cmd = [
         exe,
         "--strategy.type=base",
         f"--policy.path={policy}",
@@ -56,6 +58,9 @@ def rollout_cmd(policy: str, seconds: float, port: str = "/dev/robot-arm", robot
         f"--device={device}",
         "--play_sounds=false",
     ]
+    if max_step is not None:
+        cmd.append(f"--robot.max_relative_target={max_step:g}")
+    return cmd
 
 
 def with_preview(cmd: list, preview_port: int, python: str = ".venv/bin/python") -> list:
@@ -78,8 +83,9 @@ def plan(args) -> list:
     """Lista komend dla wszystkich cykli (etap 1, etap 2, etap 1, ...)."""
     steps = []
     for _ in range(args.repeat):
-        steps.append(with_preview(rollout_cmd(args.policy, args.grasp_s, port=args.port, fps=args.fps),
-                                  args.preview_port))
+        max_step = None if args.max_step <= 0 else args.max_step
+        steps.append(with_preview(rollout_cmd(args.policy, args.grasp_s, port=args.port, fps=args.fps,
+                                              max_step=max_step), args.preview_port))
         if not args.skip_drop:
             steps.append(drop_cmd(port=args.port, motion=args.motion))
     return steps
@@ -91,6 +97,8 @@ def main(argv=None, run=subprocess.run) -> int:
     parser.add_argument("--grasp-s", type=float, default=15.0, help="czas etapu 1 [s] (jak episode_time_s)")
     parser.add_argument("--port", default=os.environ.get("ROBOT_ARM_PORT", "/dev/robot-arm"))
     parser.add_argument("--fps", type=int, default=30)
+    parser.add_argument("--max-step", type=float, default=20.0,
+                        help="bezpiecznik: maks. skok stawu na tick (--robot.max_relative_target), 0 = bez limitu")
     parser.add_argument("--motion", default="drop_box", help="ruch etapu 2 (motions/<name>.json)")
     parser.add_argument("--repeat", type=int, default=1)
     parser.add_argument("--skip-drop", action="store_true", help="tylko etap 1")

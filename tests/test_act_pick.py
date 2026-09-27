@@ -19,6 +19,19 @@ def test_rollout_keeps_torque_and_matches_dataset_camera():
     assert f"--task={TASK}" in cmd
     cams = next(c for c in cmd if c.startswith("--robot.cameras="))
     assert "wrist:" in cams and "width: 640" in cams and "height: 480" in cams
+    assert "--robot.max_relative_target=20" in cmd  # bezpiecznik skoku stawu (docs/SETUP.md)
+
+
+def test_rollout_max_step_can_be_changed_or_disabled():
+    assert "--robot.max_relative_target=30" in rollout_cmd("/m/act", 12, max_step=30)
+    assert not any(c.startswith("--robot.max_relative_target") for c in rollout_cmd("/m/act", 12, max_step=None))
+
+
+def test_main_max_step_flag_reaches_rollout(capsys):
+    main(["--policy", "/m/act", "--skip-drop", "--dry-run", "--max-step", "0"])
+    assert "max_relative_target" not in capsys.readouterr().out
+    main(["--policy", "/m/act", "--skip-drop", "--dry-run"])
+    assert "--robot.max_relative_target=20" in capsys.readouterr().out
 
 
 def test_rollout_runs_through_camera_preview_by_default(capsys):
