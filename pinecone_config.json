@@ -77,7 +77,15 @@
     "arm_id": "so101",
     "motions_dir": "motions",
     "subprocess_cmd": "python legacy/arm_recordings/replay_demo.py --port {port}",
-    "empty_gripper_below": 6.0
+    "empty_gripper_below": 6.0,
+    "urdf_path": "so101_urdf/so101_new_calib.urdf",
+    "urdf_sign": {},
+    "urdf_offset_deg": {
+      "shoulder_pan": -0.79,
+      "shoulder_lift": 12.44,
+      "elbow_flex": -81.14,
+      "wrist_flex": 103.52
+    }
   },
   "camera": {
     "warmup_frames": 90,
