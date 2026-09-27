@@ -727,3 +727,20 @@ SETUP.md: sekcja "Wariant z leaderem" (kalibracja TYLKO leadera, teleop test, re
 bez placo). Jesli nie: `teleoperate.py` na Pi z podmienionym portem (`/dev/robot-arm`), `id="so101"` i kamera,
 z wylacznikiem w rece; iPhone z HEBI Mobile I/O w tej samej sieci co Pi. Potem druga (statyczna) kamera i nagranie.
 **Sprzet:** dotkniety zdalnie (tylko instalacja pakietow i odczyt pliku kalibracji na Pi; ramie i baza nie ruszane)
+
+## 2026-09-27 - frane + Claude - zera stawow vs URDF i kalibracja reka-oko (narzedzia)
+**Zrobione:** Pytanie frane "nie mamy juz ruchu ramienia dla pozycji szczeki?" - nie: IK (`legacy/ik_approach`, ikpy)
+nigdy nie zweryfikowane na sprzecie, zera lerobot vs URDF niesprawdzone (HARDWARE 12), transformata kamera-ramie
+oszacowana. GraspGenX (NVIDIA, generator poz chwytu 6-DOF z chmury punktow) odlozony: potrzebuje IK, kalibracji
+kamera-ramie i segmentacji, a rozwiazuje tylko "gdzie chwycic" (dla szyszki latwe). Zeby to nadrobic, dwa narzedzia:
+`tools/frame_check.py` (dla kazdego stawu ruch +delta, FK placo na URDF, opis przesuniecia koncowki slowami,
+werdykt operatora t/n, raport JSON; `--fake` bez sprzetu) i `tools/hand_eye_calib.py` (marker ArUco -> collect z
+torque off jak record_motion -> `cv2.calibrateHandEye` -> `camera_on_arm.json` = T_gripper_cam, residua, `predict`
+pozycji kamery z FK). Testy: `tests/test_frame_check.py` (5, atrapa ramienia i plaska kinematyka),
+`tests/test_hand_eye_calib.py` (9, syntetyczne AX=XB odzyskuje X z bledem < 0.1 mm, marker syntetyczny wykrywany).
+142 testy zielone. Instrukcja dla sesji przy Pi: `docs/ARM_FRAMES.md`. RUNBOOK: dwa wiersze w tabeli narzedzi.
+**Nie dziala / otwarte:** nic z tego nie odpalone na sprzecie. Osie X/Y podstawy URDF nieznane (Z = gora pewne),
+ustala operator na `shoulder_pan`. placo ostrzega o samokolizjach URDF w pozie neutralnej (nieszkodliwe).
+**Nastepny krok:** sesja przy Pi wg `docs/ARM_FRAMES.md`: push_to_pi, `frame_check.py --fake`, potem z ramieniem
+(wylacznik), potem marker + `hand_eye_calib.py collect/solve`; wyniki do LOG, `camera_on_arm.json` do repo.
+**Sprzet:** nie (tylko odczyt FK na Pi bez ruchu)
