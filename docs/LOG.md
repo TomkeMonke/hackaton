@@ -775,3 +775,19 @@ requests`. `act_pick.py --preview-port` (domyslnie 8081, 0 = wylacz). Testy: `te
 **Nastepny krok:** na Pi `tools/cam_preview.py lerobot-record ...`, otworzyc `http://<IP_PI>:8081/`, sprawdzic, czy
 nie ma `frame is too old` (jesli jest: `--preview-fps 5`).
 **Sprzet:** nie
+
+## 2026-09-27 - frane + Claude - trening ACT na laptopie, dataset i wagi na masterze
+**Zrobione:** Od teraz praca prosto na masterze (decyzja frane). Druga sesja nagrala na Pi `so101_grasp2`
+(50 epizodow leaderem, kamera wrist; leader skalibrowany 12:30, kamera to D435 serial 030522070668). Kopia na
+laptop `tar --exclude=tmp*` przez ssh (pierwsza kopia w trakcie nagrywania miala uciety parquet). Dataset na masterze
+w `datasets/so101_grasp2` (wideo Git LFS, 2 pliki po ~197 MB > limit 100 MB GitHuba). Laptop: `lerobot[dataset,
+training]`, CUDA OK. Trening ACT (batch 8, AMP, num_workers 0, pyav): 3 kroki/s po podpieciu zasilacza; loss 26 ->
+5.2 (100) -> 2.65 (500) -> 1.24 (2000). Checkpointy co 1000 na Pi (`~/models/act_so101_grasp2/`), 1000 na masterze
+(`models/`, LFS). Na Pi `ACTPolicy.from_pretrained` 30 s, 0.65 s na paczke 100 akcji (CPU) -> rollout lokalnie.
+`tools/train_win.py` (obejscie symlinku `checkpoints/last`, WinError 1314), pulapki w SETUP.md.
+**Nie dziala / otwarte:** rollout na robocie NIE sprawdzony w tej sesji (komenda w SETUP.md). Pierwszy trening padl
+po checkpoincie 500 (symlink). Laptop na baterii = GPU 210 MHz (krok 1.6 s zamiast 0.14 s). Zabijanie procesow po
+linii polecen trafilo wlasny push (README zawieral te slowa). LFS: 630 MB z 1 GB darmowego limitu zuzyte.
+**Nastepny krok:** rollout checkpointu koncowego na Pi z wylacznikiem; jesli ruch w zla strone - ARM_FRAMES krok 1.
+Wiecej epizodow (`--resume=true`) i druga statyczna kamera, jesli polityka nie generalizuje po polozeniu szyszki.
+**Sprzet:** dotkniety zdalnie (odczyt kamery `lerobot-find-cameras` na Pi, kopiowanie plikow; ramie nie ruszane)

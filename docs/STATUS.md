@@ -3,8 +3,8 @@
 Jeden ekran. Aktualizuje go KAZDY PR (checkbox w szablonie PR). Historia jest w `docs/LOG.md`,
 zadania i przypisania na tablicy Projects (link nizej). Czego nie ma tutaj albo w issue, nie istnieje.
 
-**Stan na:** 2026-09-27 (ACT: nagrywanie chwytu z leaderem trwa, `tools/act_pick.py`, branch pawel/act-pick)
-**Robot (kto ma sprzet, do kiedy):** frane (nagrywanie ACT)
+**Stan na:** 2026-09-27 15:00 (ACT: dataset 50 epizodow leaderem, trening na RTX 3070, checkpointy na Pi i masterze)
+**Robot (kto ma sprzet, do kiedy):** frane (sesja trwa)
 **Tablica zadan:** TODO wkleic link do GitHub Projects (zaklada pawel120, patrz docs/CONTRIBUTING.md)
 
 ## Dziala
@@ -56,10 +56,16 @@ zadania i przypisania na tablicy Projects (link nizej). Czego nie ma tutaj albo 
   (dane dla ACT i tak poprawne: akcja = cel followera). Kamera D435 serial 030522070668 (nie 105422060821 z SETUP).
   Podzial na 2 etapy: ACT uczy sie TYLKO chwytu (HOME -> szyszka -> zamkniecie -> uniesienie, 15 s), wrzut do sloika
   robi nagrany `motions/drop_box.json` (tylko na Pi: tam i z powrotem, 15 s). Datasety na Pi `~/datasets/`:
-  `so101_grasp` (7 ep.), `so101_grasp2` (w toku, cel 50). Na Pi doinstalowane `lerobot[dataset]` z torch cpu przypietym
+  `so101_grasp` (7 ep.), `so101_grasp2` (50 ep., gotowy). Na Pi doinstalowane `lerobot[dataset]` z torch cpu przypietym
   (override), spadek napiecia uszkodzil `pyarrow`/`av` - przeinstalowane. `tools/act_pick.py` = etap 1 (`lerobot-rollout`
-  z ACT, torque zostaje) + etap 2 (`arm_play drop_box --home-after`), testy 5; NIE uruchomiony (brak wag).
+  z ACT, torque zostaje) + etap 2 (`arm_play drop_box --home-after`), testy 7, podglad kamery :8081; NIE uruchomiony (wagi sa, patrz nizej).
   Laptop pawel120 (Intel Arc, bez NVIDIA, bez venv) NIE nadaje sie do treningu - trening na laptopie z RTX 3070.
+- ACT (2026-09-27 po poludniu): dataset `datasets/so101_grasp2` (50 epizodow, 22451 klatek, kamera wrist D435 serial
+  030522070668, leader skalibrowany 12:30) NAGRANY na Pi przez druga sesje i wrzucony na master (wideo w Git LFS).
+  Trening na laptopie (`tools/train_win.py`, batch 8, AMP, ~3 kroki/s po podpieciu zasilacza): loss 26 -> 1.24 przy
+  kroku 2000 (l1 0.31). Checkpointy 1000/2000 na Pi w `~/models/act_so101_grasp2/<krok>/pretrained_model`, 1000 tez
+  na masterze (`models/`, LFS). Rollout lokalnie na Pi (0.65 s na 100 akcji): komenda w SETUP.md "Rollout polityki
+  ACT na Pi". NIE sprawdzone na robocie w chwili pisania.
 - Zera stawow vs URDF i kamera na ramieniu: `tools/frame_check.py` (FK placo + werdykt operatora) i
   `tools/hand_eye_calib.py` (marker/collect/solve/predict, AX=XB) gotowe z testami (28), instrukcja `docs/ARM_FRAMES.md`.
   NIE uruchomione na sprzecie - do zrobienia przez sesje przy Pi. To warunek wstepny dla IK/GraspGenX.
