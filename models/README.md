@@ -1,4 +1,8 @@
-# models/ - wytrenowane wagi (Git LFS)
+# models/ - wytrenowane wagi
+
+WAGI NIE SA NA MASTERZE (uplink hotspotu 50 KB/s, GitHub odrzuca commity bez obiektow LFS).
+Leza na Pi w `~/models/act_so101_grasp2/<krok>/pretrained_model` i na galezi `frane/models-lfs` (LFS), gdy
+zostanie wypchnieta. Opis checkpointow:
 
 - `act_so101_grasp2/001000/pretrained_model/` - ACT po 1000 krokach (batch 8, AMP) na
   `datasets/so101_grasp2` (50 epizodow, kamera wrist), 2026-09-27 14:32, loss 2.28 przy kroku 800.
