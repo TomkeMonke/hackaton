@@ -890,3 +890,20 @@ linii polecen trafilo wlasny push (README zawieral te slowa). LFS: 630 MB z 1 GB
 **Nastepny krok:** rollout checkpointu koncowego na Pi z wylacznikiem; jesli ruch w zla strone - ARM_FRAMES krok 1.
 Wiecej epizodow (`--resume=true`) i druga statyczna kamera, jesli polityka nie generalizuje po polozeniu szyszki.
 **Sprzet:** dotkniety zdalnie (odczyt kamery `lerobot-find-cameras` na Pi, kopiowanie plikow; ramie nie ruszane)
+
+## 2026-09-27 - pawel120 + Claude - panel zbiorczy robota (wizytowka)
+**Zrobione:** `tools/robot_panel.py` (:8090) + `robot_panel.html`: jeden panel zamiast trzech okien SSH (panel.md).
+Nadzorca uslug `pinecone_bot/supervisor.py` (start/stop SIGINT -> terminate -> kill, logi w pamieci i `logs/<usluga>.log`,
+usluga odpalona recznie w SSH widoczna jako "poza panelem" i nie startowana drugi raz, zdrowie Pi z /proc i /sys,
+liczby do sekcji "co zbudowalismy": testy, linie kodu, moduly, epizody datasetow, commity). Kamera:
+`pinecone_bot/vision_feed.py` + `tools/vision_web.py` (:8020, MJPEG w 4 widokach, `/api/detections` z liczba cale/uciete,
+odlegloscia z glebi, historia 60 s, zapis klatki do `frames/panel/`; zrodlo RealSense, plik, `sim` albo URL JPEG).
+`tools/arm_web.py`: CORS wpuszcza tez :8090. `--demo` na laptopie: ramie `--fake`, kamera z symulatora z szyszkami
+w polu widzenia (prog HSV z domyslnego configu, bo prog z `pinecone_config.json` jest pod prawdziwe szyszki).
+Tryb `/show` na projektor (ciemny, bez sterowania). Testy `tests/test_vision_feed.py` (8), `tests/test_robot_panel.py` (11).
+**Nie dziala / otwarte:** nic nie odpalone na Pi. Kamere RealSense trzyma jeden proces: panel z kamera nie razem
+z `rs_mjpeg_server.py`, `pinecone_bot.main` ani `lerobot-record` (wtedy `--vision-source http://...jpg`).
+Stan maszyny stanow (SEARCH/APPROACH/...) w panelu jest schematem, nie na zywo: `brain.py` nie wystawia stanu po HTTP.
+**Nastepny krok:** na Pi `deploy/push_to_pi.sh` (po merge), `python tools/robot_panel.py --autostart`, otworzyc
+`http://<IP_PI>:8090`, sprawdzic kamere, jog i WASD z wylacznikiem w rece; potem ewentualnie jako usluga systemd.
+**Sprzet:** nie
