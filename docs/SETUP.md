@@ -65,9 +65,48 @@ Stan na 2026-09-27: laptop i Pi ZROBIONE, sprawdzone importami (na Pi tez IK pla
 na naszym URDF, klient async, pyrealsense2, pinecone_bot). Teleop telefonem i
 nagranie jeszcze nie odpalone. Tlo i decyzja: `docs/POLICIES_LEROBOT.md`.
 
-Jesli zespol ma fizyczne ramie LEADER SO-101 (`teleop_mirror.py` zaklada id `so101_leader`),
-caly teleop telefonem jest zbedny: nagrywa sie `lerobot-record --teleop.type=so101_leader`,
-bez placo, wiec rowniez z laptopa. Ponizsze dotyczy wariantu BEZ leadera.
+### Wariant z leaderem SO-101 (MAMY leader, lezy w sali 435 D) - to jest sciezka glowna
+
+Z leaderem telefon i placo sa zbedne: `lerobot-record --teleop.type=so101_leader`. Leader NIE
+ma jeszcze pliku kalibracji (ani na Pi, ani na laptopie; `teleop_mirror.py` zakladal id
+`so101_leader`, ale nigdy nie byl odpalony). Kroki, wszystkie interaktywnie w terminalu
+operatora na Pi (`ssh -t robot@<ip>`), wylacznik w rece:
+
+1. Leader ma TEN SAM kontroler CH343 (1a86:55d3) co follower, wiec stara regula udev dalaby
+   obu nazwe `/dev/robot-arm`. Nowa `deploy/99-robot.rules` rozroznia po numerze seryjnym
+   (follower = `5B41532803`, kazdy inny CH343 = `/dev/robot-leader`). Po wpieciu leadera:
+   `ls -l /dev/robot-*` musi pokazac `robot-arm`, `robot-leader`, `robot-drive`.
+2. Kalibracja TYLKO leadera (tworzy
+   `~/.cache/huggingface/lerobot/calibration/teleoperators/so_leader/so101_leader.json`;
+   plik followera `robots/so_follower/so101.json` zostaje nietkniety). NIGDY nie podawac tu
+   `--robot.*` (HARDWARE.md, pulapka 1):
+
+   ```
+   cd ~/hackaton && .venv/bin/lerobot-calibrate --teleop.type=so101_leader --teleop.port=/dev/robot-leader --teleop.id=so101_leader
+   ```
+
+3. Test teleopu bez kamer, ramie w wolnej przestrzeni, kamera na ramieniu zabezpieczona:
+
+   ```
+   .venv/bin/lerobot-teleoperate --robot.type=so101_follower --robot.port=/dev/robot-arm --robot.id=so101 \n     --teleop.type=so101_leader --teleop.port=/dev/robot-leader --teleop.id=so101_leader
+   ```
+
+   `lerobot-teleoperate` NIE kalibruje followera, jesli jego plik istnieje (sprawdza `is_calibrated`).
+   Gdyby mimo to zapytal o kalibracje followera - przerwac Ctrl+C.
+4. Nagranie datasetu lokalnie (bez wysylania na Hub; potem katalog `--dataset.root` kopiujemy
+   `scp -r` na laptop do treningu). Kamera na ramieniu jako `wrist` (RealSense, serial
+   105422060821), druga, statyczna kamera USB jako `top` (index z `lerobot-find-cameras`):
+
+   ```
+   .venv/bin/lerobot-record --robot.type=so101_follower --robot.port=/dev/robot-arm --robot.id=so101 \n     --robot.cameras="{ top: {type: opencv, index_or_path: 0, width: 640, height: 480, fps: 30}, wrist: {type: intelrealsense, serial_number_or_name: 105422060821, width: 640, height: 480, fps: 30}}" \n     --teleop.type=so101_leader --teleop.port=/dev/robot-leader --teleop.id=so101_leader \n     --dataset.repo_id=local/so101_szyszki --dataset.root=/home/robot/datasets/so101_szyszki \n     --dataset.push_to_hub=false --dataset.num_episodes=50 --dataset.episode_time_s=30 --dataset.reset_time_s=10 \n     --dataset.single_task="Pick up the pine cone and put it in the box"
+   ```
+
+   Klawisze w trakcie: `n` nastepny epizod, `r` powtorz, `q` koniec. 5 pozycji szyszki x 10
+   epizodow, kamery nieruchome, ten sam chwyt. Dodatkowe epizody: ta sama komenda z
+   `--resume=true` i `num_episodes` = ile DOLOZYC.
+5. Trening na laptopie: `lerobot-train --dataset.repo_id=local/so101_szyszki --dataset.root=<skopiowany katalog> --policy.type=act --policy.device=cuda --policy.push_to_hub=false`.
+
+Ponizsze (telefon + placo) zostaje jako wariant awaryjny, gdyby leader byl niedostepny.
 
 Podzial rol jak w async inference lerobota: laptop trenuje ACT na GPU i w czasie
 jazdy jest `policy_server`; Pi obsluguje ramie, kamere i telefon (nagranie

@@ -47,7 +47,9 @@ zadania i przypisania na tablicy Projects (link nizej). Czego nie ma tutaj albo 
   Laptop GOTOWY: torch 2.11 cu128 (CUDA na RTX 3070), lerobot 0.6.1 [phone,feetech,async], `so101.json` skopiowany z Pi.
   Pi GOTOWE: lerobot 0.6.1 + placo (IK), hebi-py/teleop (telefon), grpcio (async client), torchvision; importy i IK na URDF sprawdzone.
   `~/hackaton/examples/phone_to_so100/` na Pi (skrypty v0.6.1 + SO101 z STL, poza gitem). Teleop telefonem, druga kamera,
-  nagranie datasetu: nic nie odpalone.
+  nagranie datasetu: nic nie odpalone. JEST leader SO-101 (sala 435 D) -> sciezka glowna to `lerobot-record` z leaderem
+  (SETUP.md "Wariant z leaderem"), telefon/placo tylko awaryjnie. Leader bez kalibracji; nowa regula udev `robot-leader`
+  (po serialu CH343) w `deploy/99-robot.rules`, do wgrania na Pi.
 
 ## Nastepne 3 kroki (w tej kolejnosci)
 

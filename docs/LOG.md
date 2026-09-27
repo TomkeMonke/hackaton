@@ -718,7 +718,12 @@ branchy po kolejnych `push_to_pi.sh` - `deploy/push_to_pi.sh` kopiuje, nie synch
 Notatka Tomka `docs/STACK.md` (branch `tomek/docs-stack`) zgodna z tym opisem: zero ML w glownym stosie, lerobot
 tylko jako sterownik serw. Wspomina `teleop_mirror.py` (leader -> follower, id `so101_leader`) - jesli ramie
 leader fizycznie istnieje, nagrywamy `lerobot-record --teleop.type=so101_leader` i telefon/placo sa zbedne.
-**Nastepny krok:** ustalic, czy jest leader SO-101. Jesli tak: `lerobot-record` z leaderem (moze byc z laptopa,
+Odpowiedz frane: leader JEST (sala 435 D). Bez kalibracji (brak `so101_leader.json` na Pi i laptopie). Pulapka:
+leader ma ten sam CH343 co follower - regula udev po idVendor/idProduct dalaby obu `/dev/robot-arm`; odczytany serial
+followera `5B41532803`, `deploy/99-robot.rules` rozroznia teraz `robot-arm` (ten serial) i `robot-leader` (inny CH343).
+SETUP.md: sekcja "Wariant z leaderem" (kalibracja TYLKO leadera, teleop test, record lokalnie, train na laptopie).
+**Nastepny krok:** wgrac regule udev na Pi, wpiac leader, `lerobot-calibrate --teleop.*` (bez `--robot.*`),
+`lerobot-teleoperate` z wylacznikiem, potem `lerobot-record` (SETUP.md). Stary plan (gdyby leadera nie bylo): `lerobot-record` z leaderem (moze byc z laptopa,
 bez placo). Jesli nie: `teleoperate.py` na Pi z podmienionym portem (`/dev/robot-arm`), `id="so101"` i kamera,
 z wylacznikiem w rece; iPhone z HEBI Mobile I/O w tej samej sieci co Pi. Potem druga (statyczna) kamera i nagranie.
 **Sprzet:** dotkniety zdalnie (tylko instalacja pakietow i odczyt pliku kalibracji na Pi; ramie i baza nie ruszane)

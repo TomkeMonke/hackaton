@@ -91,8 +91,8 @@ Opcje bez leader arm:
    `examples/phone_to_so100/SO101/`. Skrypty `teleoperate.py`, `record.py`,
    `replay.py`, `evaluate.py` w `examples/phone_to_so100/`.
 2. **Klawiatura EE** (`--teleop.type=keyboard_ee`, ten sam IK) - wolniejsze.
-3. Leader SO-101 - najlepsza jakosc danych. UWAGA: `teleop_mirror.py` w repo (leader -> follower,
-   id `so101_leader`) sugeruje, ze leader moze istniec - ustalic z zespolem, zanim ktos konfiguruje telefon.
+3. Leader SO-101 - najlepsza jakosc danych. MAMY GO (sala 435 D, potwierdzone 2026-09-27) - to jest
+   sciezka glowna, komendy w SETUP.md "Wariant z leaderem". Telefon zostaje jako wariant awaryjny.
 
 Druga kamera: statyczna, patrzaca na pole chwytu z gory/boku (`top`), plus nasza
 wrist D415 jako `wrist`. Bez kamery statycznej polityka nie widzi szyszki, gdy
