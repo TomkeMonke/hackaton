@@ -912,7 +912,18 @@ training]`, CUDA OK. Trening ACT (batch 8, AMP, num_workers 0, pyav): 3 kroki/s 
 **Nie dziala / otwarte:** rollout na robocie NIE sprawdzony w tej sesji (komenda w SETUP.md). Pierwszy trening padl
 po checkpoincie 500 (symlink). Laptop na baterii = GPU 210 MHz (krok 1.6 s zamiast 0.14 s). Zabijanie procesow po
 linii polecen trafilo wlasny push (README zawieral te slowa). LFS: 630 MB z 1 GB darmowego limitu zuzyte.
-**Nastepny krok:** rollout checkpointu koncowego na Pi z wylacznikiem; jesli ruch w zla strone - ARM_FRAMES krok 1.
+**Dokonczenie (15:05):** loss 0.79 przy 3000 (l1 0.27). Sesja Claude zrestartowala sie ok. 14:55 i zabila trening
+(krok 3528), push i transfer; wznowienie z 3000 (`--config_path .../003000/pretrained_model/train_config.json
+--resume=true`) padlo na `import torch`: WinError 1114 przy `torch\lib\shm.dll`, takze bez CUDA i z PowerShell,
+RAM 21 GB wolne, pagefile pusty - przyczyna nieznana, najpewniej pomoze reboot. Checkpointy 2000 i 3000 dodane do
+`models/` (LFS) i pushowane jednym pushem. Laptop znow przeskoczyl na hacker-bloc, wiec 3000 na Pi niepotwierdzone.
+**Dokonczenie 2 (15:25):** przyczyna restartu: Windows Kernel-Power 41 o 14:55:05 (twardy reset laptopa, najpewniej
+termiczny pod GPU+CPU). Skutki: 6 DLL torcha z niezgodnym sha256 wzgledem RECORD (reinstall z cache pip, 2 min, bez
+sieci), 2 z 3 mp4 w ~/datasets uszkodzone (pyav InvalidDataError na kroku 3360; odtworzone z kopii w repo, ktora
+zgadza sie z LFS). Wznowienie `--resume=true` z config_path checkpointu 3000 dziala bez symlinku `last`.
+Koniec: krok 4000, loss 0.575. Checkpointy 1000-4000 na Pi; 2000-4000 w `models/` (LFS). Uplink hotspotu spadl do
+50 KB/s, wiec obiekty LFS na GitHub ida godzinami - Pawel bierze wagi z Pi po LAN albo odpala rollout na Pi.
+**Nastepny krok:** rollout checkpointu 4000 na Pi z wylacznikiem (SETUP.md); jesli ruch w zla strone - ARM_FRAMES krok 1.
 Wiecej epizodow (`--resume=true`) i druga statyczna kamera, jesli polityka nie generalizuje po polozeniu szyszki.
 **Sprzet:** dotkniety zdalnie (odczyt kamery `lerobot-find-cameras` na Pi, kopiowanie plikow; ramie nie ruszane)
 

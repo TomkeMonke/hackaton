@@ -112,9 +112,11 @@ zadania i przypisania na tablicy Projects (link nizej). Czego nie ma tutaj albo 
   Laptop pawel120 (Intel Arc, bez NVIDIA, bez venv) NIE nadaje sie do treningu - trening na laptopie z RTX 3070.
 - ACT (2026-09-27 po poludniu): dataset `datasets/so101_grasp2` (50 epizodow, 22451 klatek, kamera wrist D435 serial
   030522070668, leader skalibrowany 12:30) NAGRANY na Pi przez druga sesje i wrzucony na master (wideo w Git LFS).
-  Trening na laptopie (`tools/train_win.py`, batch 8, AMP, ~3 kroki/s po podpieciu zasilacza): loss 26 -> 1.24 przy
-  kroku 2000 (l1 0.31). Checkpointy 1000/2000 na Pi w `~/models/act_so101_grasp2/<krok>/pretrained_model`, 1000 tez
-  na masterze (`models/`, LFS). Rollout lokalnie na Pi (0.65 s na 100 akcji): komenda w SETUP.md "Rollout polityki
+  Trening na laptopie (`tools/train_win.py`, batch 8, AMP, ~3 kroki/s po podpieciu zasilacza): loss 26 -> 1.24 (2000)
+  -> 0.79 (3000) -> 0.575 przy kroku 4000 (KONIEC, 15:24). NAJLEPSZY: `models/act_so101_grasp2/004000/pretrained_model`
+  (master; obiekty LFS moga dojezdzac, uplink hotspotu 50 KB/s) i na Pi `~/models/act_so101_grasp2/004000/`.
+  Laptop zrestartowal sie twardo o 14:55 (Kernel-Power 41, prawdopodobnie przegrzanie): uszkodzilo torch (reinstall
+  z cache pip) i 2 z 3 mp4 datasetu w ~/datasets (odtworzone z kopii w repo). Wznowienie z 3000 dzialalo. Rollout lokalnie na Pi (0.65 s na 100 akcji): komenda w SETUP.md "Rollout polityki
   ACT na Pi". NIE sprawdzone na robocie w chwili pisania.
 - Zera stawow vs URDF i kamera na ramieniu: `tools/frame_check.py` (FK placo + werdykt operatora) i
   `tools/hand_eye_calib.py` (marker/collect/solve/predict, AX=XB) gotowe z testami (28), instrukcja `docs/ARM_FRAMES.md`.
