@@ -4,6 +4,7 @@ Uruchomienie zbieracza szyszek.
   python -m pinecone_bot.main --sim [--show] [--seed N] [--seconds S]   symulacja na laptopie
   python -m pinecone_bot.main --dry-run [--source frames/]               prawdziwa kamera (lub pliki), baza i ramie udawane
   python -m pinecone_bot.main --real [--config pinecone_config.json]     na Pi: kamera + baza + ramie z configu
+  python -m pinecone_bot.main --real --no-arm                            na Pi: jazda bez ramienia (pasy, podjazd)
 
 Kolejnosc na sprzecie: tools/calibrate_hsv.py -> tools/calibrate_target.py -> tools/record_waypoints.py -> --real
 """
@@ -95,6 +96,21 @@ def run_sim(args) -> int:
     return 0 if world.remaining() == 0 else 1
 
 
+def make_devices(cfg, dry: bool, no_arm: bool = False):
+    """
+    (base, arm) dla --dry-run / --real. no_arm: prawdziwa baza, ramie tylko drukuje - do testow jazdy
+    (pasy, podjazd), gdy ramie jest zdjete albo uszkodzone. Port ramienia nie jest wtedy w ogole otwierany.
+    """
+    if dry:
+        return PrintBase(), PrintArm()
+    from .base import make_base
+    base = make_base(cfg)
+    if no_arm:
+        return base, PrintArm()
+    from .arm import make_arm
+    return base, make_arm(cfg)
+
+
 def run_real(args, dry: bool) -> int:
     from .camera import make_camera
 
@@ -103,13 +119,9 @@ def run_real(args, dry: bool) -> int:
         cfg.heading.source = args.heading
     camera = make_camera(cfg, args.source)
     detector = HsvConeDetector(cfg.detector)
-    if dry:
-        base, arm = PrintBase(), PrintArm()
-    else:
-        from .arm import make_arm
-        from .base import make_base
-        base = make_base(cfg)
-        arm = make_arm(cfg)
+    base, arm = make_devices(cfg, dry, no_arm=args.no_arm)
+    if args.no_arm and not dry:
+        print("--no-arm: ramie nie dostaje zadnej komendy (tylko wydruk), baza jedzie naprawde")
 
     show = None
     if args.show:
@@ -160,6 +172,8 @@ def main(argv=None) -> int:
     p.add_argument("--seconds", type=float, default=None, help="limit czasu")
     p.add_argument("--log", default="pinecone_log.csv")
     p.add_argument("--show", action="store_true", help="okno z podgladem")
+    p.add_argument("--no-arm", action="store_true",
+                   help="--real bez ramienia: baza jedzie, komendy ramienia tylko drukowane")
     p.add_argument("--heading", choices=["none", "phyphox", "odometry"], default=None,
                    help="zrodlo kursu dla pasow (nadpisuje heading.source z configu)")
     args = p.parse_args(argv)

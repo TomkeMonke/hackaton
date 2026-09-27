@@ -742,3 +742,12 @@ katalogu, bo push kopiuje katalog roboczy - nieszkodliwe. Na Pi nadal prog HSV z
 **Nastepny krok:** review + merge PR, `PI_HOST=robot@172.20.10.4 bash deploy/push_to_pi.sh` z mastera, potem
 `python -m pinecone_bot.main --dry-run --heading phyphox`.
 **Sprzet:** nie (tylko odczyt plikow z Pi)
+
+## 2026-09-27 - frane + Claude - --no-arm do testow jazdy
+**Zrobione:** `python -m pinecone_bot.main --real --no-arm`: prawdziwa baza, ramie tylko drukuje (PrintArm), port ramienia
+nie jest otwierany. Powod: ramie uszkodzone 2026-09-26, a `--real` odtwarza chwyt przy kazdej brazowej detekcji (reka w
+kadrze ma odcien szyszki). `make_devices()` w `main.py`, 3 testy w `tests/test_main.py`, 181 zielonych.
+**Nie dziala / otwarte:** nic na sprzecie.
+**Nastepny krok:** po merge #44 i tego PR: push na Pi, `--dry-run --heading phyphox` (obracac recznie), `base_test.py`,
+`--real --no-arm --heading phyphox` z `lane_count` 1.
+**Sprzet:** nie

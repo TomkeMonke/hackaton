@@ -67,7 +67,7 @@ zadania i przypisania na tablicy Projects (link nizej). Czego nie ma tutaj albo 
 2. Na Pi: `python tools/arm_web.py --no-home` (:8010) + `python web_control.py` (:8000), sprawdzic jog/STOP. Potem nagrac chwyt pod kamere na ramieniu
    z panelu ("NAGRYWANIE RUCHU" -> `motions/grasp_cam.json`) i ulozyc sekwencje zbierania (jazda -> chwyt -> cofniecie) w sekcji "SEKWENCJA";
    alternatywnie `tools/record_waypoints.py`. Potem `target_row` (`tools/calibrate_target.py`).
-3. `tools/base_test.py`, `tools/phyphox_check.py` (znak kursu), potem `python -m pinecone_bot.main --dry-run --heading phyphox`, potem `--real` z wylacznikiem w rece.
+3. `tools/base_test.py` (znak skretu, PWM -> m/s), `python -m pinecone_bot.main --dry-run --heading phyphox` (obracac robota recznie), potem `--real --no-arm --heading phyphox` z `lane_count` 1, reka na STOP.
 
 ## Blokery
 
