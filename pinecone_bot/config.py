@@ -130,8 +130,7 @@ class HeadingConfig:
     """
     source: str = "none"
     # iPhone jako hotspot ma zawsze 172.20.10.1; phyphox na iOS slucha na porcie 80 (Android: 8080).
-    # Nazwy buforow jak w eksperymencie
-    # phyphox "Gyroscope (rotation rate)"
+    # Nazwy buforow jak w eksperymencie phyphox "Gyroscope (rotation rate)"
     phyphox_url: str = "http://172.20.10.1"
     gyro_buffer: str = "gyrZ"
     time_buffer: str = "gyr_time"
@@ -143,6 +142,18 @@ class HeadingConfig:
     w_min: float = 0.08        # rad/s; ponizej tego kola nie ruszaja, a obrot ma dojsc do celu
     tol_deg: float = 3.0       # obrot uznany za skonczony
     align_deg: float = 15.0    # na prostej: blad wiekszy -> najpierw obrot w miejscu
+    # Petla predkosci obrotu (pinecone_bot/turn_loop.py, tylko Xiao): PWM skretu dobierany z zyroskopu, bo
+    # hover rusza od b ~100 (kreci sie) do ~160 (stal), a 10 jednostek wyzej to juz +0.5 rad/s.
+    rate_loop: bool = True
+    rate_pwm_start: int = 100  # |b| na start kazdego obrotu (ponizej robot na pewno stoi)
+    rate_pwm_max: int = 200    # |b| nigdy wiecej (przy 200 bylo 1.6 rad/s)
+    rate_ki: float = 250.0     # PWM/s na rad/s bledu predkosci
+    rate_ramp: float = 150.0   # PWM/s: tak szybko rosnie |b|, gdy robot ma sie krecic, a stoi
+    rate_move: float = 0.05    # rad/s; ponizej tego zyroskop "nie widzi ruchu"
+    rate_break_margin: float = 15.0  # rampa startuje tyle ponizej PWM, przy ktorym ostatnio ruszyl
+    rate_lag_s: float = 0.2    # opoznienie zmierzonej predkosci (telefon ~0.1 s + pol okna pomiaru)
+    rate_window_s: float = 0.25  # z tylu sekund kursu liczona zmierzona predkosc
+    rate_hz: float = 20.0
 
 
 @dataclass
@@ -162,6 +173,15 @@ class SimConfig:
     # a przy jezdzie do przodu robot sam skreca z drift_w rad/s (rozne silniki przy tym samym PWM)
     turn_gain: float = 1.0
     drift_w: float = 0.0
+    # hover: model skretu jak zmierzony 2026-09-27 (tools/calibrate_turn.py) zamiast idealnego napedu.
+    # Tarcie statyczne (ruszenie z miejsca) i kinetyczne (utrzymanie obrotu) w |b|, strome wzmocnienie,
+    # opoznienie silnikow i telefonu.
+    hover: bool = False
+    hover_static_pwm: float = 155.0
+    hover_kinetic_pwm: float = 100.0
+    hover_rate_per_pwm: float = 0.028   # rad/s na jednostke b ponad tarcie kinetyczne
+    hover_tau_s: float = 0.15
+    gyro_delay_s: float = 0.10
 
 
 @dataclass

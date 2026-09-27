@@ -17,7 +17,8 @@ import time
 from .brain import Brain, WallClock
 from .config import Config
 from .detector import HsvConeDetector
-from .heading import OdometryHeading, make_heading
+from .heading import make_heading
+from .turn_loop import GyroTurnBase, wrap_with_turn_loop
 
 
 class PrintBase:
@@ -54,22 +55,20 @@ class PrintArm:
 
 
 def run_sim(args) -> int:
-    from .sim import SimArmSimple, SimCamera, SimClock, SimDrive, SimWorld, calibrate_grasps
+    from .sim import SimArmSimple, SimCamera, build_sim_robot, calibrate_grasps
 
     cfg = Config.load(args.config) if args.config else Config()
     if args.heading:
         cfg.heading.source = args.heading
+    if args.hover:
+        cfg.sim.hover = True
     if args.seed is not None:
         cfg.sim.seed = args.seed
-    base = SimDrive(cfg)
-    world = SimWorld(cfg, base.odometry)
+    base, world, clock, heading = build_sim_robot(cfg)
     calibrate_grasps(cfg, world)
-    clock = SimClock(base)
     camera = SimCamera(world)
     arm = SimArmSimple(world, clock)
     detector = HsvConeDetector(cfg.detector)
-    # w symulacji kazde zrodlo kursu to prawdziwy kat robota (idealny zyroskop)
-    heading = OdometryHeading(base) if cfg.heading.source != "none" else None
 
     show = None
     if args.show:
@@ -143,6 +142,9 @@ def run_real(args, dry: bool) -> int:
             time.sleep(0.1)
         ok = heading.yaw() is not None
         print(f"kurs: {cfg.heading.source} " + ("OK" if ok else "BRAK DANYCH - pasy z czasu, jesli sie nie pojawi"))
+        base = wrap_with_turn_loop(base, heading, cfg)
+        if isinstance(base, GyroTurnBase):
+            print("obrot: petla predkosci na zyroskopie (heading.rate_*)")
     brain = Brain(cfg, camera, detector, base, arm, clock=WallClock(), log_path=args.log, on_frame=show,
                   heading=heading)
     print("Start. Ctrl+C zatrzymuje baze. Trzymaj wylacznik w rece.")
@@ -174,6 +176,8 @@ def main(argv=None) -> int:
     p.add_argument("--show", action="store_true", help="okno z podgladem")
     p.add_argument("--no-arm", action="store_true",
                    help="--real bez ramienia: baza jedzie, komendy ramienia tylko drukowane")
+    p.add_argument("--hover", action="store_true",
+                   help="sim: naped jak zmierzony hover (martwa strefa skretu, opozniony zyroskop)")
     p.add_argument("--heading", choices=["none", "phyphox", "odometry"], default=None,
                    help="zrodlo kursu dla pasow (nadpisuje heading.source z configu)")
     args = p.parse_args(argv)
