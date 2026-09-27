@@ -745,3 +745,8 @@ ustala operator na `shoulder_pan`. placo ostrzega o samokolizjach URDF w pozie n
 **Nastepny krok:** sesja przy Pi wg `docs/ARM_FRAMES.md`: push_to_pi, `frame_check.py --fake`, potem z ramieniem
 (wylacznik), potem marker + `hand_eye_calib.py collect/solve`; wyniki do LOG, `camera_on_arm.json` do repo.
 **Sprzet:** nie (tylko odczyt FK na Pi bez ruchu)
+## 2026-09-27 - frane + Claude - wolniejszy skret w panelu
+**Zrobione:** `web_control.py`: `MAX_STEER` 400 -> 200 (A/D w panelu jazdy skreca o polowe wolniej). `MAX_PWM` bez zmian (500).
+**Nie dziala / otwarte:** na branchach `frane/*` jest `MAX_PWM = 100`, na master dalej 500 - do ustalenia, co ma byc na master.
+**Nastepny krok:** sprawdzic skret na robocie, ewentualnie dostroic `MAX_STEER`.
+**Sprzet:** nie
