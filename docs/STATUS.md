@@ -51,6 +51,10 @@ zadania i przypisania na tablicy Projects (link nizej). Czego nie ma tutaj albo 
 
 ## Nie dziala / nie sprawdzone
 
+- Teleop przez siec `tools/teleop_net.py` (leader na laptopie, follower na Pi, UDP :5005, instrukcja SETUP.md
+  "Teleop przez siec"): 8 testow, klient `--fake` -> serwer `--dry-run` sprawdzone po UDP na localhost.
+  NIE uruchomione z prawdziwym leaderem ani na Pi; na laptopie potrzebne lerobot[feetech] + kopia `so101_leader.json` z Pi.
+
 - Jog XYZ w panelu ramienia (`pinecone_bot/kinematics.py`, sekcja JOG XYZ): testy + atrapa, NIE sprawdzony na ramieniu. Najpierw ZERO URDF (ramie prosto poziomo do przodu), potem sprawdzic, czy GORA jedzie w gore (inaczej `arm.urdf_sign`).
 - 2026-09-26: ROBOT WJECHAL W RAMIE I JE USZKODZIL (panel jazdy po hotspocie z duzym opoznieniem). Stan ramienia do oceny, serwa nie zasilac przed ogledzinami. Pi przestal odpowiadac (ping 100% strat).
 - `tools/drive_calib.py` (branch pawel/drive-calib, draft PR): kalibracja jazdy bez miarki - droga z glebi RealSense

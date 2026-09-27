@@ -106,6 +106,36 @@ operatora na Pi (`ssh -t robot@<ip>`), wylacznik w rece:
    `--resume=true` i `num_episodes` = ile DOLOZYC.
 5. Trening na laptopie: `lerobot-train --dataset.repo_id=local/so101_szyszki --dataset.root=<skopiowany katalog> --policy.type=act --policy.device=cuda --policy.push_to_hub=false`.
 
+### Teleop przez siec: leader na laptopie, follower na Pi (`tools/teleop_net.py`)
+
+Gdy leadera nie da sie wpiac do Pi (jedyny wolny USB zajmuje Xiao), leader idzie do laptopa,
+a cele stawow leca po WiFi (UDP, port 5005). Normalizacja ta sama co `lerobot-teleoperate`.
+
+1. Laptop: `pip install "lerobot[feetech]==0.6.1"` (w `.venv`) i KOPIA kalibracji leadera z Pi
+   (NIE kalibrowac od nowa, ACT byl nagrany z ta kalibracja; w git-bash):
+   ```
+   mkdir -p ~/.cache/huggingface/lerobot/calibration/teleoperators/so_leader
+   scp robot@robot.local:~/.cache/huggingface/lerobot/calibration/teleoperators/so_leader/so101_leader.json \
+       ~/.cache/huggingface/lerobot/calibration/teleoperators/so_leader/
+   ```
+   Port leadera na Windows: Menedzer urzadzen albo `lerobot-find-port` (COM3/5/7/8 to Bluetooth).
+2. Najpierw samo lacze, bez ramion: na Pi `.venv/bin/python tools/teleop_net.py server --dry-run`,
+   na laptopie `python tools/teleop_net.py client --host robot.local --fake`. Klient co sekunde
+   drukuje RTT; serwer drukuje cele. (`--fake` z serwerem bez `--dry-run` jest odrzucany.)
+3. Na serio, wylacznik w rece, nic innego nie trzyma portu ramienia na Pi (`pkill -f arm_web.py; pkill -f lerobot`):
+   ```
+   # Pi
+   .venv/bin/python tools/teleop_net.py server
+   # laptop, leader w pozie zblizonej do followera
+   python tools/teleop_net.py client --host robot.local --leader-port COM9
+   ```
+   Follower rusza sie max 5 st/tick na staw (`--max-step`), wiec po starcie dojezdza do leadera
+   plynnie. Brak pakietu > 0.5 s (`--timeout`) = ramie trzyma pozycje. Ctrl+C na kliencie = trzyma
+   od razu; Ctrl+C na serwerze = koniec, torque zostaje (ramie nie opada).
+   Przy hotspocie RTT skacze do 240 ms - ramie bedzie sie wtedy spozniac albo przystawac.
+
+To jest tylko teleop. Nagrywanie datasetu (`lerobot-record`) nadal wymaga leadera na Pi.
+
 Ponizsze (telefon + placo) zostaje jako wariant awaryjny, gdyby leader byl niedostepny.
 
 Podzial rol jak w async inference lerobota: laptop trenuje ACT na GPU i w czasie

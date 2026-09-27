@@ -978,3 +978,9 @@ bez rsync `deploy/push_to_pi.sh` idzie przez scp i nadpisuje na Pi `motions/drop
 **Nastepny krok:** zdecydowac, ktora kalibracja/jazda zostaje (raczej zygzak po mapie z frane/mapa-d435); Xiao
 wpiac z powrotem (teraz w jego USB jest leader), test na robocie z wylacznikiem.
 **Sprzet:** nie
+
+## 2026-09-27 - Tomek (Claude) - teleop leader-follower przez siec
+**Zrobione:** `tools/teleop_net.py`: `client` na laptopie czyta leadera SO-101 (lerobot SOLeader, ta sama normalizacja co lerobot-teleoperate) i wysyla cele stawow po UDP; `server` na Pi zadaje je followerowi. Bezpieczniki po stronie Pi: limit kroku 5 st/tick na staw (wlasny, bez max_relative_target - HARDWARE pkt 10), timeout 0.5 s -> trzyma pozycje, odrzuca stare pakiety, "bye" przy Ctrl+C klienta, torque zostaje po zamknieciu serwera, pakiety `--fake` tylko do serwera `--dry-run`. Klient drukuje RTT. `tests/test_teleop_net.py` (8, w tym klient<->serwer po UDP na localhost), cale tests 308 zielonych. Instrukcja: SETUP.md "Teleop przez siec".
+**Nie dziala / otwarte:** nie uruchomione z leaderem ani na Pi. Na laptopie Tomka nie ma lerobot (trzeba `lerobot[feetech]==0.6.1` + kopia `so101_leader.json` z Pi). Nagrywanie datasetu dalej tylko z leaderem na Pi.
+**Nastepny krok:** Pi: `server --dry-run`, laptop: `client --fake` (sprawdzic RTT po hotspocie), potem prawdziwy leader z wylacznikiem w rece.
+**Sprzet:** nie
