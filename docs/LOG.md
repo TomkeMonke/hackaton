@@ -751,3 +751,31 @@ kadrze ma odcien szyszki). `make_devices()` w `main.py`, 3 testy w `tests/test_m
 **Nastepny krok:** po merge #44 i tego PR: push na Pi, `--dry-run --heading phyphox` (obracac recznie), `base_test.py`,
 `--real --no-arm --heading phyphox` z `lane_count` 1.
 **Sprzet:** nie
+
+## 2026-09-27 - frane + Claude - zyroskop z telefonu, petla obrotu, kalibracja glebia (branch frane/lidar)
+**Zrobione:**
+- `--dry-run --heading phyphox` na Pi z pustym obrazem (`--source ~/pusty.png`), telefon obracany recznie: obrot 360 st
+  konczy sie na 358, prosta trzyma kurs, skret liczy kat. Na Pi byl `config.py` z portem 8080 (bez #43) -> tymczasowo
+  `heading.phyphox_url` w configu na Pi.
+- `tools/calibrate_turn.py` (skan PWM skretu i `--response PWM`): skret hovera ma martwa strefe 100-160 zaleznie od tego,
+  czy robot stal, predkosc przy tym samym PWM rozrzut 2.5x, opoznienie 0.15-0.4 s, wybieg 3-10 st. Pulapka 37.
+- `pinecone_bot/turn_loop.py`: petla predkosci obrotu na zyroskopie (rampa, gdy stoi; skok do PWM, ktory ostatnio trzymal
+  predkosc, gdy ruszy; calka, gdy kreci). `XiaoBase.set_raw`. Symulator `--hover` (SimXiaoDrive + SimGyro, model z
+  pomiarow). Pasy na modelu: 0.01-0.07 m od idealu przy wzmocnieniu 0.007-0.018 i opoznieniu telefonu 0.1-0.2 s;
+  bez petli robot sie nie obraca. Szyszki: 24/25 na bazowym modelu, ale przy innych parametrach podjazd oscyluje.
+- `tools/calibrate_drive.py`: predkosc do przodu z glebi (odleglosc do sciany przed i po jezdzie, powrot tylem, stop
+  przy scianie < 0.5 m). Pierwsze odpalenie: kamera patrzyla w sufit -> +-2 cm, choc robot jechal 40 cm. Dodane
+  zdjecie widoku i ostrzezenie. Kamera ustawiona poziomo jogiem nadgarstka przez panel.
+- Ramie przez panel `arm_web.py --no-home` + `/api/cmd`: wszystkie stawy i chwytak ruszaja sie, powrot do pozycji.
+  `shoulder_pan` przy granicy -23 ucina krok (skonczyl 6 st obok startu).
+- Kod na Pi: wypchniety z brancha `frane/gyro-rate-loop` (PUSH_ANY_BRANCH), nie z mastera. Kopie configu z Pi:
+  `~/pinecone_config.json.bak-*`.
+**Nie dziala / otwarte:** pomiar jazdy do przodu do powtorzenia (kamera na sciane); petla obrotu nie jechala na robocie;
+podjazd do szyszki na hoverze wrazliwy (pomysl: celowanie krokami); `landmarks.py` na Pi uszkodzony.
+**Nastepny krok:** `calibrate_drive.py --write`, potem pasy `--real --no-arm --heading phyphox` z `lane_count` 1.
+**Sprzet:** tak (baza: obroty i jazda testowe; ramie: jog przez panel; telefon; kamera)
+
+Do polaczenia z druga sesja o glebi/lidarze: branch `frane/lidar` (= `frane/gyro-rate-loop`, wychodzi z `frane/no-arm`
+<- `frane/pi-sync`). Pliki o glebi: `tools/calibrate_drive.py`, `tests/test_calibrate_drive.py`; o kursie/obrocie:
+`pinecone_bot/heading.py`, `pinecone_bot/turn_loop.py`, `tools/calibrate_turn.py`, `tools/phyphox_check.py`,
+`pinecone_bot/sim.py` (SimXiaoDrive, SimGyro), `heading.*` w `pinecone_bot/config.py`.

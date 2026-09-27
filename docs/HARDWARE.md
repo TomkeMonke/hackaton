@@ -308,3 +308,21 @@ dziala stabilnie. Szczegoly i decyzje - patrz issue #8.
     pojdzie w tlo albo zgasnie ekran (`Connection refused`) - Blokada
     automatyczna ekranu: Nigdy, phyphox na wierzchu. Pomiar startuje sam
     (`/control?cmd=start`). Test: `python tools/phyphox_check.py`.
+
+37. **Skret hovera: martwa strefa zalezy od tego, czy robot stal.** Zmierzone
+    zyroskopem telefonu (`tools/calibrate_turn.py`): z miejsca rusza dopiero od
+    |b| ~160, a juz krecacy sie kreci od ~100; 10 jednostek wyzej to +0.3..0.7
+    rad/s, przy tym samym b 160 raz 0.43, raz 1.08 rad/s. Stala tabela
+    `xiao_steer_min/max` tego nie opisze - obrot po zyroskopie
+    (`pinecone_bot/turn_loop.py`). `xiao_steer_min` 60 z configu nie rusza
+    robota wcale.
+
+38. **Przed pomiarem kamera sprawdz, gdzie patrzy.** Kamera siedzi na ramieniu;
+    raz patrzyla w sufit i `calibrate_drive.py` "zmierzyl" 2 cm, choc robot
+    przejechal 40 cm. Narzedzie zapisuje teraz `frames/calibrate_drive.jpg` i
+    ostrzega, gdy glebia sie nie zmienia.
+
+39. **`./arm.sh move` po ruchu wylacza moment w serwach** (lerobot
+    `disconnect`), ramie opada. Do trzymania pozycji (np. kamera poziomo) -
+    `tools/arm_web.py --no-home` i jog przez panel albo `POST /api/cmd`
+    `{"cmd":"jog","joint":"wrist_flex","step":5}`.

@@ -3,7 +3,7 @@
 Jeden ekran. Aktualizuje go KAZDY PR (checkbox w szablonie PR). Historia jest w `docs/LOG.md`,
 zadania i przypisania na tablicy Projects (link nizej). Czego nie ma tutaj albo w issue, nie istnieje.
 
-**Stan na:** 2026-09-27 (pasy po kursie z zyroskopu telefonu, branch frane/zyroskop-pasy)
+**Stan na:** 2026-09-27 (kurs z telefonu, petla obrotu na zyroskopie, kalibracja glebia; branch frane/lidar)
 **Robot (kto ma sprzet, do kiedy):** frane (sesja trwa)
 **Tablica zadan:** TODO wkleic link do GitHub Projects (zaklada pawel120, patrz docs/CONTRIBUTING.md)
 
@@ -26,6 +26,10 @@ zadania i przypisania na tablicy Projects (link nizej). Czego nie ma tutaj albo 
   `--no-home`: bez HOME przy starcie (kamera siedzi teraz na ramieniu - HOME w nia uderzy); jog, chwytak i ruchy z `motions/` dzialaja,
   po pustym chwycie ramie zostaje w miejscu zamiast wracac do HOME.
 - Pasy po kursie (`cfg.heading`, `pinecone_bot/heading.py`, RUNBOOK "Pasy po kursie"): obroty do kata z zyroskopu telefonu (phyphox, remote access), na prostej regulator P kursu, bezpieczniki -> pasy z czasu. W symulacji z poslizgiem 15% koniec wzorca 0.10 m od idealu (bez kursu 3.5 m). `--heading phyphox|odometry|none`. Telefon sprawdzony 2026-09-27: iPhone-hotspot, phyphox na `http://172.20.10.1` (iOS: port 80, nie 8080), Pi dostaje kurs, obrot recznie 90 st w lewo -> +90 (`sign` 1.0 dobry). Jazda po kursie NIE sprawdzona.
+- `--dry-run --heading phyphox --source ~/pusty.png` na Pi (telefon obracany recznie): pelny obrot konczy sie na 358 st, prosta trzyma kurs, skret liczy kat; wolny obrot reczny (28 s) wlacza bezpiecznik -> pasy z czasu. Pusty obraz, bo prawdziwa kamera widziala 2 falszywe szyszki i mozg nie wchodzil w SEARCH.
+- Skret hovera zmierzony zyroskopem (`tools/calibrate_turn.py`): ujemne b = w lewo (`steer_sign` +1 dobry); rusza od |b| 100-160 (160, gdy stal), 10 wyzej = +0.3..0.7 rad/s; `--response 160`: opoznienie 0.15-0.4 s, rozpedzanie 0.15 s, 0.43-1.08 rad/s przy tym samym b, wybieg 3-10 st. Stala tabela `xiao_steer_min/max` tego nie opisze.
+- Petla obrotu na zyroskopie (`pinecone_bot/turn_loop.py`, `heading.rate_*`): PWM skretu z predkosci mierzonej telefonem. Symulator `--hover` (model z pomiarow): pasy 0.01-0.07 m od idealu w calym zmierzonym rozrzucie; bez petli robot sie nie obraca. Na robocie NIE sprawdzona.
+- Ramie przez panel (`tools/arm_web.py --no-home`, API `/api/cmd`): jog wszystkich stawow i chwytaka dziala (2026-09-27).
 - Zbieranie szyszek "na sztywno" z panelu (:8000), bez kodu: (1) sekcja ramienia "NAGRYWANIE RUCHU": ustaw stawami, "+ PUNKT" (chwytak z ostatniej
   komendy, wiec przed punktem zacisku "Zamknij chwytak"), "ZAPISZ do motions/" -> `motions/<nazwa>.json`; (2) sekcja "SEKWENCJA": kroki jazda
   (speed/steer/sekundy, bez limitu z suwaka) / ramie (ruch z motions/) / czekaj, "TEST TEGO KROKU", szkic w przegladarce, zapis do `sequences/<nazwa>.json`,
@@ -49,7 +53,9 @@ zadania i przypisania na tablicy Projects (link nizej). Czego nie ma tutaj albo 
 - Hotspot: ping do Pi skacze do 240 ms i gubi pakiety, heartbeat panelu jazdy (1 s) co chwile wpada w failsafe (robot staje na chwile).
 - Chwyty `grasp_far`, `drop_box` nie nagrane (config ma na razie tylko `grasp_mid`).
 - `motions/grasp_near.json` nagrany NA PI (`tools/record_motion.py`, 112 waypointow, 33 s; chwytak 34 -> 1.3; `shoulder_lift` od -42 st przy chwycie do 121.7 st w pozie spoczynkowej - POZA zakresem kalibracji +-91.6, ticki 1006..3089, homing_offset 1977). Plik jest tylko na Pi (NIE w repo). NIE odtworzony - przed pierwszym `tools/arm_play.py --motion grasp_near` sprawdzic odczytem Min/Max_Position_Limit z serwa, czy limit pozycji w EEPROM nie utnie celu (bark moglby skoczyc ~30 st do granicy na starcie).
-- Znak skretu Xiao i mapowanie PWM -> m/s niezmierzone (`cfg.base.xiao_*`, `cfg.control.steer_sign`).
+- Jazda do przodu: mapowanie PWM -> m/s niezmierzone (`xiao_pwm_min/max`). `tools/calibrate_drive.py` (glebia do sciany przed i po jezdzie) raz odpalone z kamera patrzaca w sufit - wynik bez sensu; kamera ustawiona poziomo, pomiar do powtorzenia.
+- Podjazd do szyszki na modelu hovera: regulator P w obrazie + tarcie + opoznienie telefonu oscyluje (1-5/5 zaleznie od parametrow). Pomysl: celowanie krokami (kat z obrazu, obrot o kat po zyroskopie, stop, patrz). Nie zaczete.
+- `pinecone_bot/landmarks.py` na Pi to same zera (uszkodzony); oryginal w lokalnym commicie dafd481 (`pawel/base-calibration`).
 - Bipropellant na plycie hovera: plyta jest przerobiona i niedostepna (2026-09-27), wiec hallotronow nie bedzie; kurs z telefonu zamiast nich. Stary test (nieaktualny):
   `python tools/bip_probe.py --port /dev/ttyAMA0` (nie rusza silnikow, sprawdza ASCII i protokol binarny na 3 baudach).
 - WiFi na Pi DZIALA (wczesniej ten plik mowil, ze nie): eth0 192.168.137.5 (kabel) i wlan0 172.20.10.4 (hotspot "iPhone pawel", DHCP - adres moze sie zmienic). Kod na Pi nadal wchodzi przez `deploy/push_to_pi.sh` / scp (internet/`git pull` na Pi niesprawdzone).
@@ -62,12 +68,10 @@ zadania i przypisania na tablicy Projects (link nizej). Czego nie ma tutaj albo 
 
 ## Nastepne 3 kroki (w tej kolejnosci)
 
-1. Merge `frane/pi-sync` (kod z Pi + master) i `deploy/push_to_pi.sh` - od tego momentu Pi = master.
-   Nowy prog HSV jedzie wtedy na Pi; sprawdzic na zywo.
-2. Na Pi: `python tools/arm_web.py --no-home` (:8010) + `python web_control.py` (:8000), sprawdzic jog/STOP. Potem nagrac chwyt pod kamere na ramieniu
-   z panelu ("NAGRYWANIE RUCHU" -> `motions/grasp_cam.json`) i ulozyc sekwencje zbierania (jazda -> chwyt -> cofniecie) w sekcji "SEKWENCJA";
-   alternatywnie `tools/record_waypoints.py`. Potem `target_row` (`tools/calibrate_target.py`).
-3. `tools/base_test.py` (znak skretu, PWM -> m/s), `python -m pinecone_bot.main --dry-run --heading phyphox` (obracac robota recznie), potem `--real --no-arm --heading phyphox` z `lane_count` 1, reka na STOP.
+1. `tools/calibrate_drive.py` na Pi: robot przodem do pustej sciany 2-3 m, kamera poziomo (sprawdzic `frames/calibrate_drive.jpg`), potem `--write`.
+2. Pierwsza jazda pasami: `python -m pinecone_bot.main --real --no-arm --heading phyphox --source ~/pusty.png` z `lane_count` 1,
+   `lane_length_m` 1.0; STOP `tools/estop_server.py` (:8001). Sprawdza petle obrotu na robocie.
+3. Merge #44, #46 i `frane/lidar` (po polaczeniu z druga sesja o glebi/lidarze), push na Pi z mastera.
 
 ## Blokery
 
