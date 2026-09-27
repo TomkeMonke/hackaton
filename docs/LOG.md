@@ -588,6 +588,37 @@ Panel jazdy i ramienia w jednym miejscu: UI ramienia w `arm_panel.js`, montowane
 **Nastepny krok:** restart obu serwerow na Pi z nowym kodem (ramie trzymane - connect zdejmuje na chwile torque); test jazdy W.
 **Sprzet:** dotkniety (Pi: serwery paneli; ramie i baza nie ruszane przez Claude)
 
+## 2026-09-26 - Kajud (Claude) - panel: nagrywanie ruchu i sekwencje jazda+ramie
+**Zrobione:** Zbieranie szyszek "na sztywno" z panelu jazdy (:8000), bez pisania kodu. Ramie: `pinecone_bot/arm_panel.py` dostal szkic waypointow (`add_point` = biezaca poza: przeguby z odczytu serw, chwytak z ostatniej komendy; `drop_point`, `clear_points`, `save_motion` -> `motions/<nazwa>.json` w formacie `record_waypoints.py`, nadpisanie tylko jawne), UI w `arm_panel.js` (sekcja "NAGRYWANIE RUCHU"). `--no-home` pozwala teraz odtwarzac ruchy z motions/ (do sekwencji), ale `WaypointArm(home_on_empty=False)`: po pustym chwycie tylko otwarcie chwytaka, bez HOME (kamera na ramieniu). Sekwencje: nowy `pinecone_bot/sequence.py` (kroki drive/arm/wait, walidacja, `sequences/<nazwa>.json`, `SequenceRunner` z wstrzykiwanymi funkcjami, STOP w <=0.1 s), `web_control.py` tryb "sequence" (runner w watku, kroki ramienia przez HTTP do `tools/arm_web.py`, env `ROBOT_ARM_PANEL`; failsafe/STOP/zmiana trybu przerywa, zeruje jazde i wysyla STOP do ramienia; `drive_step` do testu pojedynczego kroku), sekcja "SEKWENCJA" w `frontend.html` (szkic w localStorage, zapis/odtworz/edytuj/usun, podglad biezacego kroku). `deploy/push_to_pi.sh` kopiuje `sequences/`. Testy: `tests/test_sequence.py` (12), +5 w `test_arm_panel.py`, +1 w `test_arm.py`; razem 135 zielonych. Sprawdzone w przegladarce na atrapie (`arm_web.py --fake` + `web_control.py` bez Xiao): nagranie 2-punktowego ruchu, sekwencja jazda 2 s -> ruch -> czekaj przeszla, STOP w trakcie kroku ramienia przerwal obie strony.
+**Nie dziala / otwarte:** nic z tego nie ruszalo na sprzecie. Kroki jazdy sa "na czas" (open-loop): powtarzalnosc zalezy od baterii i podloza, PWM -> m/s nadal niezmierzone. Stare ruchy (`grasp_mid`, `home`, `drop_box`) koncza w HOME - w trybie `--no-home` odtwarzac tylko ruchy nagrane pod obecny montaz (UI ostrzega). Przy hotspocie failsafe heartbeatu przerwie sekwencje tak samo jak jazde reczna.
+**Nastepny krok:** na Pi restart obu serwerow z mastera, jog + nagranie `grasp_cam` z panelu (czlowiek przy wylaczniku), potem sekwencja: podjazd 1-2 s -> `grasp_cam` -> cofniecie; zmierzyc ile cm daje 0.3 x 2 s.
+**Sprzet:** nie
+
+## 2026-09-26 - pawel120 (Claude) - jog XYZ ramienia w panelu
+**Zrobione:** `pinecone_bot/kinematics.py`: FK z URDF `so101_new_calib.urdf` (numpy, bez ikpy) i krok IK (DLS) dla TCP (gripper_frame_link): przesuniecie o 5/10/20 mm w osiach bazy, pochylenie chwytaka bez zmian. Panel ramienia: sekcja JOG XYZ (GORA/DOL/PRZOD/TYL/LEWO/PRAWO), odczyt TCP, przycisk ZERO URDF (biezacy odczyt = zero URDF, offsety do `pinecone_config.json`: `arm.urdf_offset_deg`, znaki `arm.urdf_sign`). 150 testow zielonych, sekcja widoczna w przegladarce na atrapie.
+**Nie dziala / otwarte:** nie sprawdzone na ramieniu. Zero lerobot to srodek nagranego zakresu, nie zero URDF (HARDWARE pulapka 12) - bez ZERO URDF jog pojedzie krzywo. Znaki przegubow niezmierzone (domyslnie +1).
+**Nastepny krok:** na Pi: ramie prosto poziomo do przodu -> ZERO URDF -> GORA 10 mm, sprawdzic kierunek.
+**Sprzet:** nie
+## 2026-09-26 - pawel120 (Claude) - robot wjechal w ramie; cofniety heartbeat z klawiszami, predkosc /2
+**Zrobione:** Po wdrozeniu PR #33 (heartbeat niosl stan klawiszy) robot przy duzym opoznieniu hotspotu wjechal w ramie i je uszkodzil. Prawdopodobna przyczyna (Claude): opoznione heartbeaty dochodza seriami, stare "W wcisniete" po failsafe znow uruchamialy jazde, a puszczenie W przychodzilo pozniej. Dead-man mierzy czas DOTARCIA wiadomosci, wiec spoznione wiadomosci wygladaja na swieze. Cofniete: heartbeat to znow goly ping (po failsafe trzeba wcisnac klawisz od nowa). `web_control.py` MAX_PWM 500 -> 250, panel ramienia krok 2 -> 1 st/tick (chwytak 4 -> 2). Zdalny STOP po awarii nie doszedl: Pi przestal odpowiadac (ping 100% strat).
+**Nie dziala / otwarte:** ramie uszkodzone - ocena. `shoulder_lift` czyta 116-128 st przy zakresie +-91.6, a wedlug uzytkownika staw jest fizycznie w zakresie -> podejrzenie rozjazdu Homing_Offset w serwie vs so101.json. Narzedzie do kalibracji jednego stawu (tools/calibrate_joint.py) zablokowane przez uprawnienia sesji - czeka na decyzje uzytkownika. Jazda po hotspocie z opoznieniem > 1 s jest niebezpieczna niezaleznie od kodu: dead-man nie odroznia spoznionych komend.
+**Nastepny krok:** ogledziny ramienia; Pi na dobrym zasilaniu; zanim ktos pojedzie zdalnie - znaczniki czasu w komendach jazdy (odrzucac spoznione) albo jazda tylko w zasiegu wzroku z wylacznikiem.
+**Sprzet:** dotkniety (robot wjechal w ramie - uszkodzenie)
+## 2026-09-26 - tomek - sciezka S w POKRYCIU
+**Zrobione:** tryb POKRYCIE w `web_control.py` zawsze skrecal w te sama strone, wiec po drugim nawrocie
+wracal na pierwszy pas i jezdzil tam i z powrotem po dwoch pasach. Teraz kierunek nawrotu zmienia sie po
+kazdym `turn2` (L, P, L...), wiec pasy ida w poprzek pola. Logika fazy wydzielona do `coverage_advance()`,
+test `tests/test_web_control_coverage.py` (websockets podstawiony stubem, bo nie ma go w CI).
+**Nie dziala / otwarte:** nie jechane na sprzecie. Czasy otwarte (bez odometrii), wiec 90 st zalezy od
+`cov_turn_seconds`. Znak skretu Xiao niezmierzony: pierwszy nawrot moze pojsc w prawo - wtedy start z drugiego rogu.
+**Nastepny krok:** na trawie nastroic `cov_turn_seconds` do 90 st, potem dlugosc pasa i odstep; zmierzone
+predkosci przepisac do `search_drive_v` / `search_w` w `pinecone_config.json`.
+**Sprzet:** nie
+## 2026-09-26 - pawel120 (Claude) - wylacznik STOP na telefon
+**Zrobione:** Strona `/stop` (`stop.html`) w `web_control.py`: jeden duzy przycisk na caly ekran telefonu (pointerdown, bez przewijania). POST `/api/estop` zatrzaskuje STOP: petla sterowania co tick robi `hard_stop()` (zero bez rampy, tryb manual, koniec sekwencji/nagrywania, klawisze zerowane), `start_sequence` odmawia; watek wysyla STOP do ramienia (:8010). ODBLOKUJ (`/api/estop_release`) wymaga numeru zatrzasku - spozniony ODBLOKUJ nie zdejmie nowszego STOP. HTTP zamiast WebSocket celowo: /stop nie jest heartbeatem operatora, wiec telefon z ta strona nie trzyma robota przy zyciu po utracie panelu jazdy. Strona ponawia STOP do potwierdzenia, pokazuje lacze w ms i "BRAK LACZA" po 2 s. Panel jazdy pokazuje stan E-STOP i link do /stop. `tests/test_web_control_estop.py` (8), razem 163 zielone. Sprawdzone w przegladarce (widok telefonu) na `web_control.py` bez Xiao: zatrzask blokuje W, po ODBLOKUJ jedzie, STOP w trakcie jazdy zeruje.
+**Nie dziala / otwarte:** nie wdrozone na Pi. Zatrzask dotyczy jazdy; panel ramienia dostaje jeden STOP, jog ramienia dalej mozliwy. Przy duzym lagu hotspotu STOP tez dojdzie pozno.
+**Nastepny krok:** skopiowac `web_control.py`, `stop.html`, `frontend.html` na Pi, restart `web_control.py`, test STOP z telefonu przy jadacym robocie (kola w powietrzu).
+
 ## 2026-09-26 - frane (Claude) - polaczenie z Pi po WiFi + kalibracja HSV V/H
 **Zrobione:**
 - Polaczenie z Pi: `robot.local` (mDNS, dziala w git-bash, nie w PowerShell) odpowiada, Pi ma dwa adresy -
@@ -660,6 +691,12 @@ Panel jazdy i ramienia w jednym miejscu: UI ramienia w `arm_panel.js`, montowane
   nagrac `drop_box` (`tools/record_motion.py --name drop_box`), dopisac chwyty do `cfg.grasps`,
   `tools/calibrate_target.py`; potem `tools/base_test.py`, `--dry-run`, `--real` z wylacznikiem.
 **Sprzet:** dotkniety (tylko odczyt kamery i plik configu na Pi; ramie i baza nie ruszane)
+## 2026-09-26 - pawel120 (Claude) - podglad glebi jak RealSense Viewer
+**Zrobione:** Uzytkownik: glebia w `rs_mjpeg_server.py` "zupelnie inna niz w RealSense Viewer". Klatka ze strumienia: dane glebi ciagle (podloga bez dziur, szyszki widoczne jako slabe wybrzuszenia), winna skala liniowa 0-1500 mm - podloga to jeden gradient, szyszki (kilka cm) nie odrozniaja sie. Domyslnie teraz `rs.colorizer` (Jet z wyrownaniem histogramu, brak danych = czarny, jak w Viewerze); stara skala pod `--colormap fixed`. Podglad uruchomiony na Pi (:8080), D435 na USB3, zasilanie bez throttlingu.
+**Nie dziala / otwarte:** nowa wersja nie wdrozona na Pi (sesja nie miala zgody na zapis na Pi). Viewer ma tez filtry (spatial/temporal) i domyslnie 848x480 - tu ich nie ma.
+**Nastepny krok:** scp `rs_mjpeg_server.py` na Pi, restart podgladu, porownac z Viewerem. Jesli szyszki dalej slabo widac: kolor = wysokosc nad plaszczyzna podlogi (jak w `scan_cones.py`).
+**Sprzet:** nie (tylko odczyt kamery)
+
 
 ## 2026-09-27 - frane + Claude - pasy po kursie z telefonu
 **Zrobione:** Decyzja: plyta hovera jest przerobiona i niedostepna, wiec hallotronow (bipropellant) nie bedzie;
@@ -676,6 +713,93 @@ poslizgu: 0.10 m od idealu z kursem, 3.5 m bez. 128 testow zielonych.
 odpowiada pod 172.20.10.1:8080, znak kursu, czy ekran nie gasnie. Dlugosc pasa dalej z czasu (zyroskop nie mierzy drogi).
 **Nastepny krok:** phyphox na telefonie, `python tools/phyphox_check.py` na Pi, obrot recznie o 90 st w lewo -> ~+90.
 **Sprzet:** nie
+
+## 2026-09-27 - frane + Claude - telefon jako zyroskop dziala
+**Zrobione:** phyphox na iPhonie (tym samym, ktory robi hotspot) odpowiada Pi pod `http://172.20.10.1` - port 80,
+nie 8080 jak w dokumentacji phyphox (to port Androida). Znalezione skanem portow z Pi (`GCDWebServer` na :80).
+Bufory `gyrZ`/`gyr_time` zgodne z kodem. Obrot robota recznie o 90 st w lewo -> kurs +90, `heading.sign` 1.0 dobry.
+Domyslny `phyphox_url` poprawiony, pulapka 36 w HARDWARE.md. Test na Pi szedl z osobnego katalogu `~/phyphox_test`
+(config.py, heading.py, phyphox_check.py z mastera), bo na Pi jest kod z `pawel/arm-xyz-jog`, nie master.
+**Nie dziala / otwarte:** serwer phyphox znika po zgaszeniu ekranu. Jazda po kursie nie sprawdzona: `brain.py`/`main.py`
+na Pi nie maja kursu, dopoki `pawel/arm-xyz-jog` nie polaczy sie z masterem (push mastera cofnalby panel XYZ).
+**Nastepny krok:** merge `pawel/arm-xyz-jog` z masterem, push na Pi, `--dry-run --heading phyphox`.
+**Sprzet:** tak (telefon, Pi; baza i ramie nie ruszane)
+
+## 2026-09-27 - frane + Claude - kod z Pi z powrotem w repo (frane/pi-sync)
+**Zrobione:** Na Pi byl nie master, tylko mieszanka branchy: `web_control.py`/`frontend.html`/`arm_panel.py` z
+`pawel/drive-s-path`, reszta `pinecone_bot/` z `pawel/arm-xyz-jog` (przez PR #35), `rs_mjpeg_server.py` z
+`pawel/rs-viewer-colormap`, `tools/calibrate_joint.py` z `pawel/drive-revert-heartbeat-half-speed`, plus pliki tylko
+na Pi (`tools/estop_server.py`, `tools/raw_drive.py`, offsety URDF w `pinecone_config.json`). `push_to_pi.sh` z mastera
+cofnalby panel XYZ i zgubil offsety. Branch `frane/pi-sync` = master + `pawel/phone-estop` (zawiera drive-s-path i
+arm-xyz-jog) + PR #35 + `pawel/rs-viewer-colormap` + `frane/phyphox-ios` + pliki z Pi. Porownanie md5 (bez CR) wszystkich
+plikow kopiowanych przez `push_to_pi.sh`: na Pi nic nie zostaje cofniete, roznice to tylko nowsze wersje (master, /stop,
+kurs). Prog HSV i sekcja camera z mastera (nowszy prog, dwa swiatla; PR #30), offsety URDF z Pi. 178 testow zielonych,
+symulacja 5/5 z kursem i bez.
+**Nie dziala / otwarte:** `pinecone_bot/landmarks.py` na Pi to same bajty zerowe (uszkodzony, pewnie pad pendrive'a przy
+zasilaniu z powerbanku); nic go nie importuje, oryginal jest w lokalnym commicie dafd481 (branch `pawel/base-calibration`,
+niewypchniety). `tools/live_grasp/` (niezacommitowany eksperyment z `pawel/arm-home-cam`) poleci na Pi przy pushu z tego
+katalogu, bo push kopiuje katalog roboczy - nieszkodliwe. Na Pi nadal prog HSV z phone-estop (sztuczna trawa) do pushu.
+**Nastepny krok:** review + merge PR, `PI_HOST=robot@172.20.10.4 bash deploy/push_to_pi.sh` z mastera, potem
+`python -m pinecone_bot.main --dry-run --heading phyphox`.
+**Sprzet:** nie (tylko odczyt plikow z Pi)
+
+## 2026-09-27 - frane + Claude - --no-arm do testow jazdy
+**Zrobione:** `python -m pinecone_bot.main --real --no-arm`: prawdziwa baza, ramie tylko drukuje (PrintArm), port ramienia
+nie jest otwierany. Powod: ramie uszkodzone 2026-09-26, a `--real` odtwarza chwyt przy kazdej brazowej detekcji (reka w
+kadrze ma odcien szyszki). `make_devices()` w `main.py`, 3 testy w `tests/test_main.py`, 181 zielonych.
+**Nie dziala / otwarte:** nic na sprzecie.
+**Nastepny krok:** po merge #44 i tego PR: push na Pi, `--dry-run --heading phyphox` (obracac recznie), `base_test.py`,
+`--real --no-arm --heading phyphox` z `lane_count` 1.
+**Sprzet:** nie
+
+## 2026-09-27 - frane + Claude - zyroskop z telefonu, petla obrotu, kalibracja glebia (branch frane/lidar)
+**Zrobione:**
+- `--dry-run --heading phyphox` na Pi z pustym obrazem (`--source ~/pusty.png`), telefon obracany recznie: obrot 360 st
+  konczy sie na 358, prosta trzyma kurs, skret liczy kat. Na Pi byl `config.py` z portem 8080 (bez #43) -> tymczasowo
+  `heading.phyphox_url` w configu na Pi.
+- `tools/calibrate_turn.py` (skan PWM skretu i `--response PWM`): skret hovera ma martwa strefe 100-160 zaleznie od tego,
+  czy robot stal, predkosc przy tym samym PWM rozrzut 2.5x, opoznienie 0.15-0.4 s, wybieg 3-10 st. Pulapka 37.
+- `pinecone_bot/turn_loop.py`: petla predkosci obrotu na zyroskopie (rampa, gdy stoi; skok do PWM, ktory ostatnio trzymal
+  predkosc, gdy ruszy; calka, gdy kreci). `XiaoBase.set_raw`. Symulator `--hover` (SimXiaoDrive + SimGyro, model z
+  pomiarow). Pasy na modelu: 0.01-0.07 m od idealu przy wzmocnieniu 0.007-0.018 i opoznieniu telefonu 0.1-0.2 s;
+  bez petli robot sie nie obraca. Szyszki: 24/25 na bazowym modelu, ale przy innych parametrach podjazd oscyluje.
+- `tools/calibrate_drive.py`: predkosc do przodu z glebi (odleglosc do sciany przed i po jezdzie, powrot tylem, stop
+  przy scianie < 0.5 m). Pierwsze odpalenie: kamera patrzyla w sufit -> +-2 cm, choc robot jechal 40 cm. Dodane
+  zdjecie widoku i ostrzezenie. Kamera ustawiona poziomo jogiem nadgarstka przez panel.
+- Ramie przez panel `arm_web.py --no-home` + `/api/cmd`: wszystkie stawy i chwytak ruszaja sie, powrot do pozycji.
+  `shoulder_pan` przy granicy -23 ucina krok (skonczyl 6 st obok startu).
+- Kod na Pi: wypchniety z brancha `frane/gyro-rate-loop` (PUSH_ANY_BRANCH), nie z mastera. Kopie configu z Pi:
+  `~/pinecone_config.json.bak-*`.
+**Nie dziala / otwarte:** pomiar jazdy do przodu do powtorzenia (kamera na sciane); petla obrotu nie jechala na robocie;
+podjazd do szyszki na hoverze wrazliwy (pomysl: celowanie krokami); `landmarks.py` na Pi uszkodzony.
+**Nastepny krok:** `calibrate_drive.py --write`, potem pasy `--real --no-arm --heading phyphox` z `lane_count` 1.
+**Sprzet:** tak (baza: obroty i jazda testowe; ramie: jog przez panel; telefon; kamera)
+
+Do polaczenia z druga sesja o glebi/lidarze: branch `frane/lidar` (= `frane/gyro-rate-loop`, wychodzi z `frane/no-arm`
+<- `frane/pi-sync`). Pliki o glebi: `tools/calibrate_drive.py`, `tests/test_calibrate_drive.py`; o kursie/obrocie:
+`pinecone_bot/heading.py`, `pinecone_bot/turn_loop.py`, `tools/calibrate_turn.py`, `tools/phyphox_check.py`,
+`pinecone_bot/sim.py` (SimXiaoDrive, SimGyro), `heading.*` w `pinecone_bot/config.py`.
+
+## 2026-09-27 - frane + Claude - mapa ogrodu D435, zygzak po mapie (branch frane/mapa-d435)
+**Zrobione:**
+- Polaczone sesje o "lidarze": lidara nie ma, to glebia RealSense; kamera to D435 (nie D415).
+- `tools/record_rgbd.py`: nagranie na Pi prosto w formacie RTAB-Map (kolor + glebia wyrownana, ostrzezenia o szybkim
+  obrocie, malej glebi, dziurach). `tools/rtabmap_build.py`: mapa jedna komenda na laptopie (RTAB-Map 0.23.8 win64;
+  0xC0000135 = brak msvcr110/msvcp110 - skopiowane x64 z Office do bin).
+- `pinecone_bot/localize.py`: lokalizacja z jednego zdjecia (ORB + PnP do klatek kluczowych mapy), na Pi 0.5 s.
+- `pinecone_bot/zygzak.py`: pasy od miejsca startu, obrot na zyroskopie, co 1 m stop + zdjecie + poprawka, uczenie
+  prawdziwej predkosci; `--first-turn`, poza ramienia `motions/patrz.json` na start. Symulacja: robot 0.6x wolniejszy
+  trafia w punkty < 0.3 m, bez zdjec chybia > 0.5 m.
+- `camera.py`: bez `lock_auto` odmraza auto-ekspozycje (kamera pamietala 166 -> bialy obraz na sloncu).
+- `estop_server.py`: zabija tez zygzak i calibrate_drive. `tools/arm_hold.py`: poza trzymana do Ctrl+C.
+- Nagrania ogrod1 (329 s) i ogrod2 (235 s), mapy z obu.
+**Nie dziala / otwarte:** mapy rozpadaja sie na kawalki (5-9), ok. 1/3 nagrania poza mapa; ze startu przy plocie brak
+lokalizacji (ogrod1). ogrod2 na zywo niesprawdzona. Zygzak nie jechal. Szyszki w zygzaku niepodpiete. Pi padl raz.
+**Nastepny krok:** zdjecie ze startu na ogrod2; jesli nie lapie - strojenie odometrii RTAB-Map / krotsze nagranie pola.
+**Sprzet:** tak (kamera, ramie w pozie patrz, jazda panelem przy nagraniu; Pi restart)
+Koniec sesji (frane przechodzi na inny laptop): mapy RTAB-Map skopiowane na Pi `~/mapy` (bez raw.db), opis w
+`docs/MAPA.md` ("Na innym laptopie"). PR #50 czeka na review. Kod testowy na Pi w `~/mapa_test` (nie w `~/hackaton`).
+Przekazanie z sesji "Dostep do kamer": Xiao odpiety (leader w jego USB), pulapka 43 (push_to_pi nadpisuje pliki z Pi).
 
 ## 2026-09-27 - frane + Claude - research gotowych polityk lerobot
 **Zrobione:** Przegladniete z polki: lerobot (ACT, SmolVLA, MolmoAct2, Flux3), DOT (IliaLarchenko), MolmoAct
@@ -771,3 +895,20 @@ RAM 21 GB wolne, pagefile pusty - przyczyna nieznana, najpewniej pomoze reboot. 
 **Nastepny krok:** rollout checkpointu 3000 na Pi z wylacznikiem (SETUP.md); jesli ruch w zla strone - ARM_FRAMES krok 1.
 Wiecej epizodow (`--resume=true`) i druga statyczna kamera, jesli polityka nie generalizuje po polozeniu szyszki.
 **Sprzet:** dotkniety zdalnie (odczyt kamery `lerobot-find-cameras` na Pi, kopiowanie plikow; ramie nie ruszane)
+
+## 2026-09-27 - pawel120 + Claude - panel zbiorczy robota (wizytowka)
+**Zrobione:** `tools/robot_panel.py` (:8090) + `robot_panel.html`: jeden panel zamiast trzech okien SSH (panel.md).
+Nadzorca uslug `pinecone_bot/supervisor.py` (start/stop SIGINT -> terminate -> kill, logi w pamieci i `logs/<usluga>.log`,
+usluga odpalona recznie w SSH widoczna jako "poza panelem" i nie startowana drugi raz, zdrowie Pi z /proc i /sys,
+liczby do sekcji "co zbudowalismy": testy, linie kodu, moduly, epizody datasetow, commity). Kamera:
+`pinecone_bot/vision_feed.py` + `tools/vision_web.py` (:8020, MJPEG w 4 widokach, `/api/detections` z liczba cale/uciete,
+odlegloscia z glebi, historia 60 s, zapis klatki do `frames/panel/`; zrodlo RealSense, plik, `sim` albo URL JPEG).
+`tools/arm_web.py`: CORS wpuszcza tez :8090. `--demo` na laptopie: ramie `--fake`, kamera z symulatora z szyszkami
+w polu widzenia (prog HSV z domyslnego configu, bo prog z `pinecone_config.json` jest pod prawdziwe szyszki).
+Tryb `/show` na projektor (ciemny, bez sterowania). Testy `tests/test_vision_feed.py` (8), `tests/test_robot_panel.py` (11).
+**Nie dziala / otwarte:** nic nie odpalone na Pi. Kamere RealSense trzyma jeden proces: panel z kamera nie razem
+z `rs_mjpeg_server.py`, `pinecone_bot.main` ani `lerobot-record` (wtedy `--vision-source http://...jpg`).
+Stan maszyny stanow (SEARCH/APPROACH/...) w panelu jest schematem, nie na zywo: `brain.py` nie wystawia stanu po HTTP.
+**Nastepny krok:** na Pi `deploy/push_to_pi.sh` (po merge), `python tools/robot_panel.py --autostart`, otworzyc
+`http://<IP_PI>:8090`, sprawdzic kamere, jog i WASD z wylacznikiem w rece; potem ewentualnie jako usluga systemd.
+**Sprzet:** nie

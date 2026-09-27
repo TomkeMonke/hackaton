@@ -12,3 +12,8 @@ frames/
 
 # klatki z tools/snap_frames.py
 frames*/
+
+# logi uslug z panelu zbiorczego (tools/robot_panel.py)
+logs/
+# sekwencje tymczasowe z panelu (szkic / test kroku)
+sequences/_*.json
