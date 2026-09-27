@@ -949,3 +949,9 @@ Stan maszyny stanow (SEARCH/APPROACH/...) w panelu jest schematem, nie na zywo: 
 **Nie dziala / otwarte:** 0 udanych autonomicznych chwytow (ok. 15 prob): model ma blad ok. 6 cm (zostaw-jedna), szczeki trafiaja obok albo spychaja szyszke. Kamera na przedramieniu nie widzi szyszki, gdy szczeki sa nad nia. Etykiety sesji 1-2 niepewne (znikalo kilka szyszek naraz), rozne style chwytu. Kinematyka URDF nie zgadza sie z ramieniem (wysokosc szczek przy ziemi rozrzucona o 5 cm). Podstawa: limit EEPROM +-23 st. Pi raz sie zrestartowal (zasilanie z powerbanku).
 **Nastepny krok:** `docs/LIVE_GRASP.md`: czyste uczenie `teach_clean.py` (1 szyszka naraz, jeden styl, 12 pozycji, swiatlo), `fit.py`, test `pick.py`. Alternatywa: kamera na maszt.
 **Sprzet:** dotkniety (ramie: ruchy na zywo, torque wlaczony w HOME na koniec; kamera tylko odczyt)
+
+## 2026-09-26 - pawel120 (Claude) - poradnik odpalania panelu (docs/PANEL.md)
+**Zrobione:** Polaczenie z Pi krok po kroku i odpalenie paneli spisane w `docs/PANEL.md` (hotspot iPhone / kabel, szukanie IP, dwa terminale SSH: `web_control.py` + `tools/arm_web.py`, przegladarka, konczenie pracy, tabela bledow z dzisiejszej sesji). Link w README, notka w `docs/SETUP.md`, ze WiFi na Pi juz dziala. Na Pi: 136 testow zielonych, `./arm.sh status` OK.
+**Nie dziala / otwarte:** `robot-web.service` nie zainstalowany (brak autostartu). Na Pi lezy `tests/test_calibrate_target.py` z niezmergowanego brancha `claude/robot-pinecone-test-plan-e4ca8e` (6 bledow, pomijac `--ignore`). `push_to_pi.sh` bez rsync nie usuwa starych plikow.
+**Nastepny krok:** zainstalowac autostart (`deploy/setup_pi.sh` krok 7) albo zostac przy recznym starcie w tmux.
+**Sprzet:** dotkniety (Pi: SSH, testy, start paneli przez uzytkownika; Claude tylko odczyt stanu)
