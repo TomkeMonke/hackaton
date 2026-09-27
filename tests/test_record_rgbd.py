@@ -79,3 +79,33 @@ def test_writer_and_meta_layout(tmp_path):
     assert lines == ["10.000000", "10.500000"]
     readme = open(os.path.join(out, "README_rtabmap.txt")).read()
     assert "2 par" in readme and "D435" in readme and "2.0 Hz" in readme
+
+
+# --- tools/rtabmap_build.py ---
+
+from rtabmap_build import graph_summary, lost_frames, source_ini  # noqa: E402
+
+
+def test_source_ini_absolute_paths(tmp_path):
+    ini = source_ini(str(tmp_path))
+    d = str(tmp_path).replace("\\", "/")
+    assert ini.startswith("[Camera]\n")
+    assert r"RGBD\driver=7" in ini
+    assert "calibrationName=%s/calib/rs_color.yaml" % d in ini
+    assert r"RGBDImages\path_depth=%s/depth" % d in ini
+    assert r"Images\stamps=%s/stamps.txt" % d in ini
+
+
+def test_lost_frames_parses_reprocess_log():
+    log = ("Processed 1/3 frames (visual=599/707 lidar=NA lost=false)... odometry = 45ms\n"
+           "Processed 2/3 frames (visual=3/707 lidar=NA lost=true)... odometry = 45ms\n"
+           "Processed 3/3 frames (visual=615/727 lidar=NA lost=false)... odometry = 40ms\n")
+    assert lost_frames(log) == (1, 3)
+    assert lost_frames("") == (0, 0)
+
+
+def test_graph_summary():
+    info = ("WM:                 5 nodes and 1333 words\n"
+            "Global graph:       5 poses and 8 links\n"
+            "Maps in graph:      1/4 [0(5)]\n")
+    assert graph_summary(info) == {"nodes": 5, "poses": 5, "maps": 4}
