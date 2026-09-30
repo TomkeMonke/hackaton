@@ -1,27 +1,5 @@
 <section id="teach" data-transition="fade" style="background:#F5F2EA;color:#1B2620;font-family:'IBM Plex Sans', Arial, sans-serif;padding:128px 128px 160px;display:flex;flex-direction:column;gap:48px">
-<div style="display:flex;flex-direction:column;gap:16px">
-<p style="font-size:24px;color:#A45A1C;letter-spacing:3px;text-transform:uppercase;font-weight:600">03 - Grab</p>
-<h2 style="font-family:'Space Grotesk', Arial, sans-serif;font-size:72px;font-weight:700;line-height:1.1">Teaching by demonstration</h2>
-</div>
-<p style="font-size:32px;color:#4A5550;line-height:1.4;width:1500px">A person moves a second "leader" arm by hand. The robot arm copies it live, while its camera and joint sensors record everything 30 times a second.</p>
-<div style="display:flex;gap:32px">
-<div style="flex:1;display:flex;flex-direction:column;gap:12px;background:#FFFDF8;border:1px solid #E2DCCF;border-radius:16px;padding:40px">
-<p style="font-family:'Space Grotesk', Arial, sans-serif;font-size:72px;font-weight:700;color:#A45A1C;line-height:1.1">50</p>
-<p style="font-size:24px;color:#4A5550">grabs recorded</p>
-</div>
-<div style="flex:1;display:flex;flex-direction:column;gap:12px;background:#FFFDF8;border:1px solid #E2DCCF;border-radius:16px;padding:40px">
-<p style="font-family:'Space Grotesk', Arial, sans-serif;font-size:72px;font-weight:700;color:#A45A1C;line-height:1.1">5 x 10</p>
-<p style="font-size:24px;color:#4A5550">cone positions x grabs each</p>
-</div>
-<div style="flex:1;display:flex;flex-direction:column;gap:12px;background:#FFFDF8;border:1px solid #E2DCCF;border-radius:16px;padding:40px">
-<p style="font-family:'Space Grotesk', Arial, sans-serif;font-size:72px;font-weight:700;color:#A45A1C;line-height:1.1">15 s</p>
-<p style="font-size:24px;color:#4A5550">per grab: reach, close, lift</p>
-</div>
-<div style="flex:1;display:flex;flex-direction:column;gap:12px;background:#FFFDF8;border:1px solid #E2DCCF;border-radius:16px;padding:40px">
-<p style="font-family:'Space Grotesk', Arial, sans-serif;font-size:72px;font-weight:700;color:#A45A1C;line-height:1.1">22,451</p>
-<p style="font-size:24px;color:#4A5550">frames of training data</p>
-</div>
-</div>
-<div style="position:absolute;left:128px;bottom:64px;width:1664px;display:flex;justify-content:space-between"><p style="font-size:24px;color:#6B736E">Pinecone robot - how the software works</p><p style="font-size:24px;color:#6B736E">07</p></div>
-<aside>Each frame stores three things: the camera image, the 6 joint angles, and the move the human made next. Recorded with LeRobot's lerobot-record tool on the Raspberry Pi.</aside>
+<div style="display:flex;flex-direction:column;gap:16px"><p style="font-size:24px;color:#A45A1C;letter-spacing:3px;text-transform:uppercase;font-weight:600">04 - Grab</p><h2 style="font-family:'Space Grotesk', Arial, sans-serif;font-size:72px;font-weight:700;line-height:1.1;color:#1B2620">The dataset: 50 grabs</h2></div><div style="display:flex;gap:48px"><div style="width:1280px;display:flex;flex-direction:column;gap:16px"><img src="/_blob/5ce0ad41e5ed2ea32b0fae3b6035df39" alt="The first camera frame of each of the 50 recorded grabs" style="width:1280px;height:480px;object-fit:cover;border-radius:12px"><p style="font-size:24px;color:#4A5550;line-height:1.4">The first frame of every grab. Sun, shade, hands and different cone spots: this variety is what lets a model cope with new situations.</p></div><div style="flex:1;display:flex;flex-direction:column;gap:28px"><div style="display:flex;flex-direction:column;gap:8px"><p style="font-family:'Space Grotesk', Arial, sans-serif;font-size:56px;font-weight:700;line-height:1.05;color:#A45A1C">50</p><p style="font-size:24px;color:#4A5550;line-height:1.4">grabs recorded</p></div><div style="display:flex;flex-direction:column;gap:8px"><p style="font-family:'Space Grotesk', Arial, sans-serif;font-size:56px;font-weight:700;line-height:1.05;color:#A45A1C">5 x 10</p><p style="font-size:24px;color:#4A5550;line-height:1.4">cone spots x grabs each</p></div><div style="display:flex;flex-direction:column;gap:8px"><p style="font-family:'Space Grotesk', Arial, sans-serif;font-size:56px;font-weight:700;line-height:1.05;color:#A45A1C">15 s</p><p style="font-size:24px;color:#4A5550;line-height:1.4">per grab, at 30 fps</p></div><div style="display:flex;flex-direction:column;gap:8px"><p style="font-family:'Space Grotesk', Arial, sans-serif;font-size:56px;font-weight:700;line-height:1.05;color:#A45A1C">22,451</p><p style="font-size:24px;color:#4A5550;line-height:1.4">frames in total</p></div></div></div>
+<div style="position:absolute;left:128px;bottom:64px;width:1664px;display:flex;justify-content:space-between"><p style="font-size:24px;color:#6B736E">Pinecone robot - how the software works</p><p style="font-size:24px;color:#6B736E">21</p></div>
+<aside>Recorded with lerobot-record on the Raspberry Pi, with the leader arm plugged in where the motor controller normally goes. Each grab starts at HOME and ends with the cone lifted.</aside>
 </section>

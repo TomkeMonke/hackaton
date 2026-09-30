@@ -1,39 +1,5 @@
 <section id="drive" data-transition="fade" style="background:#F5F2EA;color:#1B2620;font-family:'IBM Plex Sans', Arial, sans-serif;padding:128px 128px 160px;display:flex;flex-direction:column;gap:48px">
-<div style="display:flex;flex-direction:column;gap:16px">
-<p style="font-size:24px;color:#A45A1C;letter-spacing:3px;text-transform:uppercase;font-weight:600">02 - Drive</p>
-<h2 style="font-family:'Space Grotesk', Arial, sans-serif;font-size:72px;font-weight:700;line-height:1.1">Steering by the image, not by metres</h2>
-</div>
-<div style="display:flex;gap:32px">
-<div style="flex:1;display:flex;flex-direction:column;gap:12px;background:#FFFDF8;border:1px solid #E2DCCF;border-radius:16px;padding:40px">
-<h3 style="font-family:'Space Grotesk', Arial, sans-serif;font-size:32px;font-weight:700">1. Centre it</h3>
-<p style="font-size:24px;color:#4A5550;line-height:1.4">Turn until the cone sits in the middle column of the image</p>
-</div>
-<div style="flex:1;display:flex;flex-direction:column;gap:12px;background:#FFFDF8;border:1px solid #E2DCCF;border-radius:16px;padding:40px">
-<h3 style="font-family:'Space Grotesk', Arial, sans-serif;font-size:32px;font-weight:700">2. Close in</h3>
-<p style="font-size:24px;color:#4A5550;line-height:1.4">Drive until the cone reaches row 360 of the image: about 0.33 m ahead, exactly where the arm grabs</p>
-</div>
-</div>
-<div style="display:flex;flex-direction:column;gap:16px">
-<div style="display:flex;align-items:center;gap:16px">
-<p style="width:272px;font-size:32px;font-weight:600;text-align:center;background:#14211B;color:#F5F2EA;border-radius:999px;padding:16px">SEARCH</p>
-<x-shape kind="arrow-right" style="width:40px;height:20px;background:#A45A1C"></x-shape>
-<p style="width:272px;font-size:32px;font-weight:600;text-align:center;background:#14211B;color:#F5F2EA;border-radius:999px;padding:16px">APPROACH</p>
-<x-shape kind="arrow-right" style="width:40px;height:20px;background:#A45A1C"></x-shape>
-<p style="width:272px;font-size:32px;font-weight:600;text-align:center;background:#14211B;color:#F5F2EA;border-radius:999px;padding:16px">ALIGN</p>
-<x-shape kind="arrow-right" style="width:40px;height:20px;background:#A45A1C"></x-shape>
-<p style="width:272px;font-size:32px;font-weight:600;text-align:center;background:#C8742E;color:#14211B;border-radius:999px;padding:16px">GRASP</p>
-<x-shape kind="arrow-right" style="width:40px;height:20px;background:#A45A1C"></x-shape>
-<p style="width:272px;font-size:32px;font-weight:600;text-align:center;background:#14211B;color:#F5F2EA;border-radius:999px;padding:16px">DROP</p>
-</div>
-<div style="display:flex;gap:72px">
-<p style="width:272px;font-size:24px;color:#4A5550;text-align:center">drive in lanes</p>
-<p style="width:272px;font-size:24px;color:#4A5550;text-align:center">steer on the image</p>
-<p style="width:272px;font-size:24px;color:#4A5550;text-align:center">stop, confirm over 3 frames</p>
-<p style="width:272px;font-size:24px;color:#4A5550;text-align:center">arm picks it up</p>
-<p style="width:272px;font-size:24px;color:#4A5550;text-align:center">into the jar</p>
-</div>
-</div>
-<p style="font-size:24px;color:#4A5550;line-height:1.4"><b>Heading:</b> a phone's gyro (phyphox app) on the base tells the robot which way it faces - the hoverboard's own sensors weren't accessible.</p>
-<div style="position:absolute;left:128px;bottom:64px;width:1664px;display:flex;justify-content:space-between"><p style="font-size:24px;color:#6B736E">Pinecone robot - how the software works</p><p style="font-size:24px;color:#6B736E">05</p></div>
-<aside>This is visual servoing: a simple P-controller. The target row was calibrated once so that when the cone sits there, it is exactly where the recorded grab lands. No distance maths is needed while driving.</aside>
+<div style="display:flex;flex-direction:column;gap:16px"><p style="font-size:24px;color:#A45A1C;letter-spacing:3px;text-transform:uppercase;font-weight:600">03 - Drive</p><h2 style="font-family:'Space Grotesk', Arial, sans-serif;font-size:72px;font-weight:700;line-height:1.1;color:#1B2620">Steering by the image</h2></div><div style="display:flex;gap:56px"><div style="width:560px;display:flex;flex-direction:column;gap:16px"><div style="position:relative;width:560px;height:420px"><svg aria-label="Camera frame with target column, target row and the cone offset" width="560" height="420" viewBox="0 0 560 420"><rect x="1" y="1" width="558" height="418" rx="12" fill="#DCE3D3" stroke="#E2DCCF" stroke-width="2"/><line x1="280.0" y1="0" x2="280.0" y2="420" stroke="#2F6B4F" stroke-width="3" stroke-dasharray="10 8"/><line x1="0" y1="315.0" x2="560" y2="315.0" stroke="#2F6B4F" stroke-width="3" stroke-dasharray="10 8"/><circle cx="280.0" cy="315.0" r="22" fill="none" stroke="#2F6B4F" stroke-width="4"/><line x1="280.0" y1="175.0" x2="334.0" y2="175.0" stroke="#A45A1C" stroke-width="4"/><polygon points="334.0,175.0 322.0,166.6 322.0,183.4" fill="#A45A1C"/><line x1="350.0" y1="193.0" x2="350.0" y2="315.0" stroke="#A45A1C" stroke-width="4"/><polygon points="350.0,193.0 341.6,205.0 358.4,205.0" fill="#A45A1C"/><ellipse cx="350.0" cy="175.0" rx="20" ry="15" fill="#7A5230"/></svg><p style="position:absolute;left:290px;top:116px;width:200px;font-size:24px;color:#A45A1C;text-align:left;font-weight:600;line-height:1.3">err_x = +80 px</p><p style="position:absolute;left:360px;top:240px;width:190px;font-size:24px;color:#A45A1C;text-align:left;font-weight:600;line-height:1.3">err_y = +160 px</p><p style="position:absolute;left:306px;top:330px;width:240px;font-size:24px;color:#2F6B4F;text-align:left;font-weight:600;line-height:1.3">target: column 320, row 360</p></div><p style="font-size:24px;color:#4A5550;line-height:1.4">Row 360 was calibrated so a cone there is about 0.33 m ahead - exactly where the recorded grab lands.</p></div><div style="flex:1;display:flex;flex-direction:column;gap:24px"><div style="background:#14211B;border-radius:16px;padding:32px;"><p style="font-family:'JetBrains Mono', 'Courier New', monospace;font-size:24px;line-height:1.6;color:#E3EDE7">err_x = px - 320<br>err_y = 360 - py<br>turn&#160;&#160;w = -0.004 * err_x<br>speed v = 0.0025 * err_y * max(0, 1 - |err_x| / 80)</p></div><div style="display:flex;flex-direction:column;gap:12px;background:#FFFDF8;border:1px solid #E2DCCF;border-radius:16px;padding:32px;"><h3 style="font-family:'Space Grotesk', Arial, sans-serif;font-size:32px;font-weight:700;line-height:1.2;color:#1B2620">Worked example: cone at (400, 200)</h3><p style="font-size:24px;color:#4A5550;line-height:1.4">err_x = 80, err_y = 160. Turn w = -0.32 toward the cone; speed 0.4 x (1 - 80/80) = 0. It turns on the spot first, and only drives once the cone is roughly centred.</p></div><p style="font-size:24px;color:#4A5550;line-height:1.4">Errors under 3 px are ignored. Done when within 8 px for 3 frames in a row. The loop runs 15 times a second; speed is capped at 0.25, turn at 0.6.</p></div></div>
+<div style="position:absolute;left:128px;bottom:64px;width:1664px;display:flex;justify-content:space-between"><p style="font-size:24px;color:#6B736E">Pinecone robot - how the software works</p><p style="font-size:24px;color:#6B736E">14</p></div>
+<aside>This is image-based visual servoing with a proportional (P) controller: the correction is proportional to the error. Scaling speed down while the cone is off-centre stops the robot from driving past it in an arc.</aside>
 </section>

@@ -1,31 +1,5 @@
 <section id="cycle" data-transition="fade" style="background:#F5F2EA;color:#1B2620;font-family:'IBM Plex Sans', Arial, sans-serif;padding:128px 128px 160px;display:flex;flex-direction:column;gap:48px">
-<div style="display:flex;flex-direction:column;gap:16px">
-<p style="font-size:24px;color:#A45A1C;letter-spacing:3px;text-transform:uppercase;font-weight:600">At run time</p>
-<h2 style="font-family:'Space Grotesk', Arial, sans-serif;font-size:72px;font-weight:700;line-height:1.1">One press: grab, drop, home</h2>
-</div>
-<div style="display:flex;align-items:center;gap:24px">
-<div style="flex:1;display:flex;flex-direction:column;gap:12px;background:#C8742E;border-radius:16px;padding:40px">
-<p style="font-size:24px;letter-spacing:2px;text-transform:uppercase;font-weight:600;color:#14211B">Stage 1 - learned</p>
-<h3 style="font-family:'Space Grotesk', Arial, sans-serif;font-size:44px;font-weight:700;color:#14211B">AI grab</h3>
-<p style="font-size:32px;color:#14211B;line-height:1.4">Reach, close the gripper, lift. Motors stay on so the cone stays put.</p>
-</div>
-<x-shape kind="arrow-right" style="width:56px;height:28px;background:#A45A1C"></x-shape>
-<div style="flex:1;display:flex;flex-direction:column;gap:12px;background:#FFFDF8;border:1px solid #E2DCCF;border-radius:16px;padding:40px">
-<p style="font-size:24px;letter-spacing:2px;text-transform:uppercase;font-weight:600;color:#A45A1C">Stage 2 - recorded</p>
-<h3 style="font-family:'Space Grotesk', Arial, sans-serif;font-size:44px;font-weight:700">Drop</h3>
-<p style="font-size:32px;color:#4A5550;line-height:1.4">Hand-recorded path over the jar, then open. The jar never moves.</p>
-</div>
-<x-shape kind="arrow-right" style="width:56px;height:28px;background:#A45A1C"></x-shape>
-<div style="flex:1;display:flex;flex-direction:column;gap:12px;background:#FFFDF8;border:1px solid #E2DCCF;border-radius:16px;padding:40px">
-<p style="font-size:24px;letter-spacing:2px;text-transform:uppercase;font-weight:600;color:#A45A1C">Stage 3 - recorded</p>
-<h3 style="font-family:'Space Grotesk', Arial, sans-serif;font-size:44px;font-weight:700">Home</h3>
-<p style="font-size:32px;color:#4A5550;line-height:1.4">The arm returns to its start pose, ready for the next cone.</p>
-</div>
-</div>
-<div style="display:flex;flex-direction:column;gap:8px;background:#14211B;border-radius:16px;padding:32px 40px">
-<p style="font-size:24px;color:#E0955A;font-weight:600">Why use AI for the grab?</p>
-<p style="font-size:24px;color:#C9D6CE;line-height:1.4">Our first try was a simple formula from cone pixel to joint angles, fitted on 8 hand-taught grabs. It missed by about 6 cm: 0 of about 15 autonomous grabs worked.</p>
-</div>
-<div style="position:absolute;left:128px;bottom:64px;width:1664px;display:flex;justify-content:space-between"><p style="font-size:24px;color:#6B736E">Pinecone robot - how the software works</p><p style="font-size:24px;color:#6B736E">11</p></div>
-<aside>The "Collect cone" button in the web panel runs this whole cycle. Stage 1 runs the ACT model for 15 seconds. Only the grab is learned: the jar sits in a fixed place on the robot, so dropping and returning home are replayed recordings.</aside>
+<div style="display:flex;flex-direction:column;gap:16px"><p style="font-size:24px;color:#A45A1C;letter-spacing:3px;text-transform:uppercase;font-weight:600">At run time</p><h2 style="font-family:'Space Grotesk', Arial, sans-serif;font-size:72px;font-weight:700;line-height:1.1;color:#1B2620">One press: grab, drop, home</h2></div><div style="display:flex;align-items:center;gap:20px"><div style="display:flex;flex-direction:column;gap:12px;background:#C8742E;border-radius:16px;padding:40px;flex:1"><p style="font-size:24px;letter-spacing:2px;text-transform:uppercase;font-weight:600;color:#14211B">Stage 1 - learned</p><h3 style="font-family:'Space Grotesk', Arial, sans-serif;font-size:44px;font-weight:700;line-height:1.2;color:#14211B">AI grab</h3><p style="font-size:24px;color:#14211B;line-height:1.4">lerobot-rollout runs ACT on the Pi CPU for 15 s: reach, close, lift. Motors stay on so the cone stays put.</p></div><x-shape kind="arrow-right" style="width:48px;height:24px;background:#A45A1C"></x-shape><div style="display:flex;flex-direction:column;gap:12px;background:#FFFDF8;border:1px solid #E2DCCF;border-radius:16px;padding:40px;flex:1"><p style="font-size:24px;letter-spacing:2px;text-transform:uppercase;font-weight:600;color:#A45A1C">Stage 2 - recorded</p><h3 style="font-family:'Space Grotesk', Arial, sans-serif;font-size:44px;font-weight:700;line-height:1.2;color:#1B2620">Drop</h3><p style="font-size:24px;color:#4A5550;line-height:1.4">A hand-recorded path over the jar, then open the jaws. The jar never moves, so nothing to learn.</p></div><x-shape kind="arrow-right" style="width:48px;height:24px;background:#A45A1C"></x-shape><div style="display:flex;flex-direction:column;gap:12px;background:#FFFDF8;border:1px solid #E2DCCF;border-radius:16px;padding:40px;flex:1"><p style="font-size:24px;letter-spacing:2px;text-transform:uppercase;font-weight:600;color:#A45A1C">Stage 3 - recorded</p><h3 style="font-family:'Space Grotesk', Arial, sans-serif;font-size:44px;font-weight:700;line-height:1.2;color:#1B2620">Home</h3><p style="font-size:24px;color:#4A5550;line-height:1.4">The arm returns to its start pose, ready for the next cone.</p></div></div><div style="display:flex;flex-direction:column;gap:8px;background:#14211B;border-radius:16px;padding:32px 40px"><p style="font-size:24px;color:#E0955A;font-weight:600">One button in the web panel</p><p style="font-size:24px;color:#C9D6CE;line-height:1.4">"Collect cone" runs tools/act_pick.py and shows the arm camera live. STOP (space bar) kills the whole process group, AI included.</p></div>
+<div style="position:absolute;left:128px;bottom:64px;width:1664px;display:flex;justify-content:space-between"><p style="font-size:24px;color:#6B736E">Pinecone robot - how the software works</p><p style="font-size:24px;color:#6B736E">29</p></div>
+<aside>Splitting the job keeps the learned part small: only the grab depends on where the cone is. The drop and the return are always the same, so a recording is simpler and safer than a network.</aside>
 </section>

@@ -1,7 +1,8 @@
 """Sklada prezentacje z src/ w jeden plik index.html (otwiera sie w przegladarce, bez serwera).
 
 Zrodlo: src/deck.json (kolejnosc slajdow, fonty) + src/slides/<id>.html (jeden <section> na slajd,
-format Slides z claude.ai). Tagi x-shape / x-icon zamieniane na zwykly HTML/SVG.
+format Slides z claude.ai) + src/assets.json (/_blob/<id> -> img/<plik>). Tagi x-shape / x-icon
+zamieniane na zwykly HTML/SVG.
 
 Uzycie:
     python docs/presentation/build.py
@@ -56,7 +57,10 @@ def _icon(m: re.Match) -> str:
             f'{ICONS[name]}</svg>')
 
 
-def convert(html: str) -> str:
+def convert(html: str, assets: dict) -> str:
+    # Obrazki: w claude.ai slajd wskazuje /_blob/<id>, tutaj lokalny plik z img/ (mapa w src/assets.json).
+    for blob, local in assets.items():
+        html = html.replace(f'src="{blob}"', f'src="{local}"')
     html = re.sub(r"<x-shape([^>]*)></x-shape>", _shape, html)
     html = re.sub(r"<x-icon([^>]*)></x-icon>", _icon, html)
     return html
@@ -75,6 +79,10 @@ html, body {{ margin: 0; height: 100%; background: #0b120e; overflow: hidden; }}
 section {{ position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; box-sizing: border-box; overflow: hidden; }}
 section.off {{ display: none !important; }}
 h1, h2, h3, p, ul, hr {{ margin: 0; }}
+table {{ border-collapse: collapse; width: 100%; }}
+th, td {{ text-align: left; vertical-align: top; padding: 0.35em 0.6em; border-bottom: 1px solid rgba(128,128,128,0.35); }}
+th {{ font-weight: 600; }}
+img {{ display: block; }}
 h1 {{ font-size: 96px; font-weight: 600; line-height: 1.1; }}
 h2 {{ font-size: 64px; font-weight: 600; line-height: 1.15; }}
 h3 {{ font-size: 44px; font-weight: 600; line-height: 1.2; }}
@@ -121,10 +129,14 @@ fit(); show((parseInt(location.hash.slice(1), 10) || 1) - 1);
 def main() -> None:
     with open(os.path.join(SRC, "deck.json"), encoding="utf-8") as f:
         deck = json.load(f)
+    assets = {}
+    if os.path.exists(os.path.join(SRC, "assets.json")):
+        with open(os.path.join(SRC, "assets.json"), encoding="utf-8") as f:
+            assets = json.load(f)
     slides = []
     for sid in deck["order"]:
         with open(os.path.join(SRC, "slides", sid + ".html"), encoding="utf-8") as f:
-            slides.append(convert(f.read().strip()))
+            slides.append(convert(f.read().strip(), assets))
     fonts = "\n".join(f'<link rel="stylesheet" href="{face["href"]}">'
                       for face in deck["faces"].values() if "href" in face)
     out = PAGE.format(title=deck["title"], fonts=fonts, slides="\n".join(slides))

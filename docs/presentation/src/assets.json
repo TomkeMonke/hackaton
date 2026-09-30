@@ -1,0 +1,12 @@
+{
+ "/_blob/6e622af91091ded87c7ff407cfc5b124": "img/det_1_raw.jpg",
+ "/_blob/22368b147cdede4bf30448c71a6beb8a": "img/det_2_mask.png",
+ "/_blob/c0256708d8c9d827bb85758e23842dc3": "img/det_3_clean.png",
+ "/_blob/7127ee67018e2c663489714cda5b5b5f": "img/det_4_result.jpg",
+ "/_blob/d23b1af01283ccc324bffe6042469f56": "img/film_0.5.jpg",
+ "/_blob/b2934da99abf3daf9c989e1a66706b60": "img/film_5.jpg",
+ "/_blob/4634b86aaae255ee3d991394f0e101d0": "img/film_10.5.jpg",
+ "/_blob/2c68389d8c9376b07f8ecec988499be6": "img/film_13.jpg",
+ "/_blob/5ce0ad41e5ed2ea32b0fae3b6035df39": "img/starts_grid.jpg",
+ "/_blob/61184e5e5f8509c72d399bdf38f5768a": "img/team_threshold_grid.jpg"
+}
