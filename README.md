@@ -5,6 +5,9 @@ Jezdzi po trawniku, znajduje szyszki, chwyta je i wrzuca do pojemnika na sobie.
 Sterowanie jest deterministyczne (`pinecone_bot/`): ramie odtwarza nagrane ruchy, baza ustawia szyszke
 w miejscu chwytu na podstawie obrazu, calosc spina prosta maszyna stanow. Bez ML, bez LLM w petli.
 
+**Prezentacja (EN):** jak dziala software - detekcja, odleglosc z glebi, jazda, chwyt ACT:
+[docs/presentation/index.html](docs/presentation/index.html) (pobierz i otworz w przegladarce; strzalki = slajdy).
+
 ## Zacznij tutaj (kazda sesja)
 
 1. `git checkout master && git pull`

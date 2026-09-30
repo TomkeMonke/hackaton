@@ -1,0 +1,29 @@
+<section id="status" data-section="What works today and what is next" data-transition="fade" style="background:#14211B;color:#F5F2EA;font-family:'IBM Plex Sans', Arial, sans-serif;padding:128px 128px 160px;display:flex;flex-direction:column;gap:48px">
+<div style="display:flex;flex-direction:column;gap:16px">
+<p style="font-size:24px;color:#E0955A;letter-spacing:3px;text-transform:uppercase;font-weight:600">Status</p>
+<h2 style="font-family:'Space Grotesk', Arial, sans-serif;font-size:72px;font-weight:700;line-height:1.1">Where we are</h2>
+</div>
+<div style="display:flex;gap:32px">
+<div style="flex:1;display:flex;flex-direction:column;gap:24px;background:#1F3028;border-radius:16px;padding:40px">
+<h3 style="font-family:'Space Grotesk', Arial, sans-serif;font-size:44px;font-weight:700;color:#E0955A">Working</h3>
+<ul style="font-size:32px;color:#C9D6CE;line-height:1.5">
+<li>Cone detection: 0 errors in two lights</li>
+<li>Depth distance + ground-plane scanner</li>
+<li>ACT trained on 50 demos, loss 0.30</li>
+<li>Full loop in simulation: 5 of 5 cones</li>
+<li>Web panel with a one-press grab button</li>
+</ul>
+</div>
+<div style="flex:1;display:flex;flex-direction:column;gap:24px;background:#1F3028;border-radius:16px;padding:40px">
+<h3 style="font-family:'Space Grotesk', Arial, sans-serif;font-size:44px;font-weight:700;color:#F5F2EA">Next</h3>
+<ul style="font-size:32px;color:#C9D6CE;line-height:1.5">
+<li>First ACT grabs on the real robot</li>
+<li>Check the grab worked before the drop</li>
+<li>First full drive-and-grab run on hardware</li>
+<li>Move the camera out of the depth blind spot</li>
+</ul>
+</div>
+</div>
+<div style="position:absolute;left:128px;bottom:64px;width:1664px;display:flex;justify-content:space-between"><p style="font-size:24px;color:#8FA398">Status as recorded in the repo, 27 Sep 2026</p><p style="font-size:24px;color:#8FA398">12</p></div>
+<aside>Honest status: the ACT model is trained but hadn't been tested on the real arm yet, and the full drive-and-grab loop has only run in simulation. The grab spot currently sits inside the camera's 0.31 m depth blind spot, so the camera needs to move.</aside>
+</section>

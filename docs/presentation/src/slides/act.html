@@ -1,0 +1,36 @@
+<section id="act" data-transition="fade" style="background:#F5F2EA;color:#1B2620;font-family:'IBM Plex Sans', Arial, sans-serif;padding:128px 128px 160px;display:flex;flex-direction:column;gap:48px">
+<div style="display:flex;flex-direction:column;gap:16px">
+<p style="font-size:24px;color:#A45A1C;letter-spacing:3px;text-transform:uppercase;font-weight:600">ACT - Action Chunking with Transformers</p>
+<h2 style="font-family:'Space Grotesk', Arial, sans-serif;font-size:72px;font-weight:700;line-height:1.1">What the AI model sees and does</h2>
+</div>
+<div style="display:flex;align-items:center;gap:24px">
+<div style="width:300px;display:flex;flex-direction:column;gap:24px">
+<div style="display:flex;flex-direction:column;gap:12px;background:#FFFDF8;border:1px solid #E2DCCF;border-radius:16px;padding:32px">
+<h3 style="font-family:'Space Grotesk', Arial, sans-serif;font-size:32px;font-weight:700">Camera image</h3>
+<p style="font-size:24px;color:#4A5550;line-height:1.4">640 x 480, from the arm</p>
+</div>
+<div style="display:flex;flex-direction:column;gap:12px;background:#FFFDF8;border:1px solid #E2DCCF;border-radius:16px;padding:32px">
+<h3 style="font-family:'Space Grotesk', Arial, sans-serif;font-size:32px;font-weight:700">Joint angles</h3>
+<p style="font-size:24px;color:#4A5550;line-height:1.4">5 joints + gripper</p>
+</div>
+</div>
+<x-shape kind="arrow-right" style="width:56px;height:28px;background:#A45A1C"></x-shape>
+<div style="width:360px;display:flex;flex-direction:column;gap:12px;background:#2F6B4F;border-radius:16px;padding:32px">
+<h3 style="font-family:'Space Grotesk', Arial, sans-serif;font-size:32px;font-weight:700;color:#F5F2EA">ResNet18</h3>
+<p style="font-size:24px;color:#E3EDE7;line-height:1.4">The eyes: turns the photo into features - edges, shapes, where the cone is</p>
+</div>
+<x-shape kind="arrow-right" style="width:56px;height:28px;background:#A45A1C"></x-shape>
+<div style="width:360px;display:flex;flex-direction:column;gap:12px;background:#14211B;border-radius:16px;padding:32px">
+<h3 style="font-family:'Space Grotesk', Arial, sans-serif;font-size:32px;font-weight:700;color:#F5F2EA">Transformer</h3>
+<p style="font-size:24px;color:#C9D6CE;line-height:1.4">The brain: combines what it sees with where the arm is and decides the motion</p>
+</div>
+<x-shape kind="arrow-right" style="width:56px;height:28px;background:#A45A1C"></x-shape>
+<div style="width:300px;display:flex;flex-direction:column;gap:12px;background:#C8742E;border-radius:16px;padding:32px">
+<h3 style="font-family:'Space Grotesk', Arial, sans-serif;font-size:32px;font-weight:700;color:#14211B">Next 100 moves</h3>
+<p style="font-size:24px;color:#14211B;line-height:1.4">About 3.3 s of motion, re-planned after each chunk</p>
+</div>
+</div>
+<p style="font-size:24px;color:#4A5550;line-height:1.4">Runs on the Raspberry Pi's processor, no GPU needed: about 0.65 s to plan 100 moves.</p>
+<div style="position:absolute;left:128px;bottom:64px;width:1664px;display:flex;justify-content:space-between"><p style="font-size:24px;color:#6B736E">Pinecone robot - how the software works</p><p style="font-size:24px;color:#6B736E">08</p></div>
+<aside>ACT came out of Stanford's ALOHA project in 2023. The transformer is the same kind of network as ChatGPT, but it predicts arm positions instead of words. Model size: 512-wide, 4 encoder layers, 1 decoder layer, 8 attention heads.</aside>
+</section>

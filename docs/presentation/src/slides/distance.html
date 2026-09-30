@@ -1,0 +1,24 @@
+<section id="distance" data-transition="fade" style="background:#F5F2EA;color:#1B2620;font-family:'IBM Plex Sans', Arial, sans-serif;padding:128px 128px 160px;display:flex;flex-direction:column;gap:48px">
+<div style="display:flex;flex-direction:column;gap:16px">
+<p style="font-size:24px;color:#A45A1C;letter-spacing:3px;text-transform:uppercase;font-weight:600">01 - See</p>
+<h2 style="font-family:'Space Grotesk', Arial, sans-serif;font-size:72px;font-weight:700;line-height:1.1">Measuring distance with depth</h2>
+</div>
+<div style="display:flex;gap:48px">
+<div style="flex:1;display:flex;flex-direction:column;gap:32px">
+<div style="display:flex;gap:24px"><p style="font-family:'Space Grotesk', Arial, sans-serif;font-size:32px;font-weight:700;color:#A45A1C;width:56px">1</p><div style="flex:1;display:flex;flex-direction:column;gap:4px"><p style="font-size:32px;font-weight:600">Depth for every pixel</p><p style="font-size:24px;color:#4A5550;line-height:1.4">The RealSense camera measures distance per pixel, lined up with the colour image</p></div></div>
+<div style="display:flex;gap:24px"><p style="font-family:'Space Grotesk', Arial, sans-serif;font-size:32px;font-weight:700;color:#A45A1C;width:56px">2</p><div style="flex:1;display:flex;flex-direction:column;gap:4px"><p style="font-size:32px;font-weight:600">Median of a small patch</p><p style="font-size:24px;color:#4A5550;line-height:1.4">The middle value of a 9 x 9 pixel square at the cone's centre; missing readings are skipped</p></div></div>
+<div style="display:flex;flex-direction:column;gap:12px;background:#FFFDF8;border:1px solid #E2DCCF;border-radius:16px;padding:40px">
+<p style="font-size:32px;font-weight:600">Backup: depth-only scanner</p>
+<p style="font-size:24px;color:#4A5550;line-height:1.4">Fits the ground plane (RANSAC), then anything standing above it and cone-sized is a cone. Median of 15 frames, under 2 mm spread, no colour needed.</p>
+</div>
+</div>
+<div style="width:600px;display:flex;flex-direction:column;gap:20px;background:#14211B;border-radius:16px;padding:48px">
+<p style="font-size:24px;color:#E0955A;letter-spacing:3px;text-transform:uppercase;font-weight:600">The catch</p>
+<p style="font-family:'Space Grotesk', Arial, sans-serif;font-size:120px;font-weight:700;line-height:1;color:#F5F2EA">0.31 m</p>
+<p style="font-family:'Space Grotesk', Arial, sans-serif;font-size:44px;font-weight:700;color:#F5F2EA">blind spot</p>
+<p style="font-size:24px;color:#C9D6CE;line-height:1.4">Closer than this, the camera can't measure depth. At grabbing range the cone is already too close, so the robot drives in on the cone's image position instead.</p>
+</div>
+</div>
+<div style="position:absolute;left:128px;bottom:64px;width:1664px;display:flex;justify-content:space-between"><p style="font-size:24px;color:#6B736E">Pinecone robot - how the software works</p><p style="font-size:24px;color:#6B736E">04</p></div>
+<aside>Depth runs at 424 x 240 instead of 640 x 480 because the lower resolution shrinks the minimum range. Sanity check on the scanner: the fitted plane's offset equals the camera height, so a wrong number instantly shows the plane was fitted to a wall or a desk.</aside>
+</section>

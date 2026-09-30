@@ -1,0 +1,25 @@
+<section id="tricks" data-transition="fade" style="background:#F5F2EA;color:#1B2620;font-family:'IBM Plex Sans', Arial, sans-serif;padding:128px 128px 160px;display:flex;flex-direction:column;gap:48px">
+<div style="display:flex;flex-direction:column;gap:16px">
+<p style="font-size:24px;color:#A45A1C;letter-spacing:3px;text-transform:uppercase;font-weight:600">Why it works</p>
+<h2 style="font-family:'Space Grotesk', Arial, sans-serif;font-size:72px;font-weight:700;line-height:1.1">Three ideas behind the model</h2>
+</div>
+<div style="display:flex;gap:32px">
+<div style="flex:1;display:flex;flex-direction:column;gap:20px;background:#FFFDF8;border:1px solid #E2DCCF;border-radius:16px;padding:40px">
+<x-icon name="Activity" style="width:56px;height:56px;color:#A45A1C"></x-icon>
+<h3 style="font-family:'Space Grotesk', Arial, sans-serif;font-size:44px;font-weight:700">Action chunking</h3>
+<p style="font-size:32px;color:#4A5550;line-height:1.4">Planning one tiny move at a time lets errors pile up. Planning 100 at once gives smooth, confident motion.</p>
+</div>
+<div style="flex:1;display:flex;flex-direction:column;gap:20px;background:#FFFDF8;border:1px solid #E2DCCF;border-radius:16px;padding:40px">
+<x-icon name="Search" style="width:56px;height:56px;color:#A45A1C"></x-icon>
+<h3 style="font-family:'Space Grotesk', Arial, sans-serif;font-size:44px;font-weight:700">Pretrained eyes</h3>
+<p style="font-size:32px;color:#4A5550;line-height:1.4">ResNet18 already learned to see from over a million ImageNet photos. Our 50 demos only tune it to cones.</p>
+</div>
+<div style="flex:1;display:flex;flex-direction:column;gap:20px;background:#FFFDF8;border:1px solid #E2DCCF;border-radius:16px;padding:40px">
+<x-icon name="Users" style="width:56px;height:56px;color:#A45A1C"></x-icon>
+<h3 style="font-family:'Space Grotesk', Arial, sans-serif;font-size:44px;font-weight:700">Grab styles</h3>
+<p style="font-size:32px;color:#4A5550;line-height:1.4">People never grab the same way twice. The model learns separate styles instead of averaging them into one bad motion.</p>
+</div>
+</div>
+<div style="position:absolute;left:128px;bottom:64px;width:1664px;display:flex;justify-content:space-between"><p style="font-size:24px;color:#6B736E">Pinecone robot - how the software works</p><p style="font-size:24px;color:#6B736E">09</p></div>
+<aside>Grab styles are handled by a VAE (variational autoencoder), used only during training. At run time the style is fixed to the average, so the arm commits to one consistent way of grabbing. Learning vision from zero with only 50 demos would have been impossible, which is why the pretrained ResNet18 matters.</aside>
+</section>

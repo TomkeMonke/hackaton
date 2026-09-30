@@ -1,0 +1,359 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pinecone Robot: How It Works</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400..700&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;600&display=swap">
+<style>
+html, body { margin: 0; height: 100%; background: #0b120e; overflow: hidden; }
+#stage { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; transform-origin: 0 0; }
+section { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; box-sizing: border-box; overflow: hidden; }
+section.off { display: none !important; }
+h1, h2, h3, p, ul, hr { margin: 0; }
+h1 { font-size: 96px; font-weight: 600; line-height: 1.1; }
+h2 { font-size: 64px; font-weight: 600; line-height: 1.15; }
+h3 { font-size: 44px; font-weight: 600; line-height: 1.2; }
+p { line-height: 1.4; }
+ul { padding-left: 1.2em; }
+hr { border: none; }
+div { box-sizing: border-box; }
+aside { display: none; }
+#count { position: fixed; right: 12px; bottom: 8px; font: 14px sans-serif; color: #8fa398; }
+</style>
+</head>
+<body>
+<div id="stage">
+<section id="cover" data-transition="fade" style="background:#14211B;color:#F5F2EA;font-family:'IBM Plex Sans', Arial, sans-serif;padding:128px;display:flex;flex-direction:column;justify-content:end;gap:40px">
+<div style="position:absolute;left:1392px;top:128px;width:400px;height:400px;background:#C8742E;opacity:0.9;border-radius:50%"></div>
+<div style="position:absolute;left:1312px;top:448px;width:160px;height:160px;background:#2F6B4F;border-radius:50%"></div>
+<p style="font-size:24px;color:#E0955A;letter-spacing:3px;text-transform:uppercase;font-weight:600">Hackathon 2026 - Pinecone robot</p>
+<h1 style="font-family:'Space Grotesk', Arial, sans-serif;font-size:120px;font-weight:700;line-height:1.05;width:1300px">A robot that picks up pine cones</h1>
+<p style="font-size:44px;color:#C9D6CE">How the software works: see, drive, grab</p>
+<aside>This deck walks through the three layers of the robot's software: how it sees cones, how it drives to them, and how a trained AI model grabs them.</aside>
+</section>
+<section id="pipeline" data-transition="fade" style="background:#F5F2EA;color:#1B2620;font-family:'IBM Plex Sans', Arial, sans-serif;padding:128px 128px 160px;display:flex;flex-direction:column;gap:48px">
+<div style="display:flex;flex-direction:column;gap:16px">
+<p style="font-size:24px;color:#A45A1C;letter-spacing:3px;text-transform:uppercase;font-weight:600">The big picture</p>
+<h2 style="font-family:'Space Grotesk', Arial, sans-serif;font-size:72px;font-weight:700;line-height:1.1">Three layers: see, drive, grab</h2>
+</div>
+<div style="display:flex;gap:32px">
+<div style="flex:1;display:flex;flex-direction:column;gap:16px;background:#FFFDF8;border:1px solid #E2DCCF;border-radius:16px;padding:40px">
+<p style="font-family:'Space Grotesk', Arial, sans-serif;font-size:44px;font-weight:700;color:#A45A1C">01</p>
+<h3 style="font-family:'Space Grotesk', Arial, sans-serif;font-size:44px;font-weight:700">See</h3>
+<p style="font-size:32px;color:#4A5550;line-height:1.4">Find cones by colour, measure their distance with depth</p>
+</div>
+<div style="flex:1;display:flex;flex-direction:column;gap:16px;background:#FFFDF8;border:1px solid #E2DCCF;border-radius:16px;padding:40px">
+<p style="font-family:'Space Grotesk', Arial, sans-serif;font-size:44px;font-weight:700;color:#A45A1C">02</p>
+<h3 style="font-family:'Space Grotesk', Arial, sans-serif;font-size:44px;font-weight:700">Drive</h3>
+<p style="font-size:32px;color:#4A5550;line-height:1.4">Search the field in lanes, then steer until the cone sits where the arm reaches</p>
+</div>
+<div style="flex:1;display:flex;flex-direction:column;gap:16px;background:#14211B;border-radius:16px;padding:40px">
+<p style="font-family:'Space Grotesk', Arial, sans-serif;font-size:44px;font-weight:700;color:#E0955A">03</p>
+<h3 style="font-family:'Space Grotesk', Arial, sans-serif;font-size:44px;font-weight:700;color:#F5F2EA">Grab</h3>
+<p style="font-size:32px;color:#C9D6CE;line-height:1.4">A trained AI model picks the cone up, a recorded motion drops it in the jar</p>
+</div>
+</div>
+<p style="font-size:24px;color:#4A5550;line-height:1.4"><b>Hardware:</b> Raspberry Pi 5 - hoverboard base - SO-101 robot arm - RealSense depth camera on the arm - phone gyro for heading</p>
+<div style="position:absolute;left:128px;bottom:64px;width:1664px;display:flex;justify-content:space-between"><p style="font-size:24px;color:#6B736E">Pinecone robot - how the software works</p><p style="font-size:24px;color:#6B736E">02</p></div>
+<aside>Only the grab uses machine learning. Seeing and driving are classic computer vision and control code.</aside>
+</section>
+<section id="detect" data-section="How the robot finds cones, measures distance and drives to them" data-transition="fade" style="background:#F5F2EA;color:#1B2620;font-family:'IBM Plex Sans', Arial, sans-serif;padding:128px 128px 160px;display:flex;flex-direction:column;gap:48px">
+<div style="display:flex;flex-direction:column;gap:16px">
+<p style="font-size:24px;color:#A45A1C;letter-spacing:3px;text-transform:uppercase;font-weight:600">01 - See</p>
+<h2 style="font-family:'Space Grotesk', Arial, sans-serif;font-size:72px;font-weight:700;line-height:1.1">Finding cones by colour</h2>
+</div>
+<div style="display:flex;gap:48px">
+<div style="flex:1;display:flex;flex-direction:column;gap:20px">
+<div style="display:flex;gap:24px"><p style="font-family:'Space Grotesk', Arial, sans-serif;font-size:32px;font-weight:700;color:#A45A1C;width:56px">1</p><div style="flex:1;display:flex;flex-direction:column"><p style="font-size:32px;font-weight:600">Blur</p><p style="font-size:24px;color:#4A5550">Smooth out the camera's noise</p></div></div>
+<div style="display:flex;gap:24px"><p style="font-family:'Space Grotesk', Arial, sans-serif;font-size:32px;font-weight:700;color:#A45A1C;width:56px">2</p><div style="flex:1;display:flex;flex-direction:column"><p style="font-size:32px;font-weight:600">Convert to HSV</p><p style="font-size:24px;color:#4A5550">Separate colour (hue) from brightness</p></div></div>
+<div style="display:flex;gap:24px"><p style="font-family:'Space Grotesk', Arial, sans-serif;font-size:32px;font-weight:700;color:#A45A1C;width:56px">3</p><div style="flex:1;display:flex;flex-direction:column"><p style="font-size:32px;font-weight:600">Threshold hue + saturation</p><p style="font-size:24px;color:#4A5550">Keep only cone-coloured pixels</p></div></div>
+<div style="display:flex;gap:24px"><p style="font-family:'Space Grotesk', Arial, sans-serif;font-size:32px;font-weight:700;color:#A45A1C;width:56px">4</p><div style="flex:1;display:flex;flex-direction:column"><p style="font-size:32px;font-weight:600">Clean up</p><p style="font-size:24px;color:#4A5550">Remove specks, fill holes</p></div></div>
+<div style="display:flex;gap:24px"><p style="font-family:'Space Grotesk', Arial, sans-serif;font-size:32px;font-weight:700;color:#A45A1C;width:56px">5</p><div style="flex:1;display:flex;flex-direction:column"><p style="font-size:32px;font-weight:600">Find blobs, filter by size</p><p style="font-size:24px;color:#4A5550">Lowest in the frame = closest cone = the target</p></div></div>
+</div>
+<div style="width:600px;display:flex;flex-direction:column;gap:20px;background:#14211B;border-radius:16px;padding:48px">
+<p style="font-size:24px;color:#E0955A;letter-spacing:3px;text-transform:uppercase;font-weight:600">Result</p>
+<p style="font-family:'Space Grotesk', Arial, sans-serif;font-size:120px;font-weight:700;line-height:1;color:#F5F2EA">0</p>
+<p style="font-family:'Space Grotesk', Arial, sans-serif;font-size:44px;font-weight:700;color:#F5F2EA">detection errors</p>
+<p style="font-size:24px;color:#C9D6CE;line-height:1.4">in two lighting setups, after searching 20,160 threshold combinations</p>
+<hr style="border-top:1px solid #3A4D43">
+<p style="font-size:24px;color:#C9D6CE;line-height:1.4"><b>Key choice:</b> split by hue, not brightness. The old brightness rule lost half the cones when the light changed.</p>
+</div>
+</div>
+<div style="position:absolute;left:128px;bottom:64px;width:1664px;display:flex;justify-content:space-between"><p style="font-size:24px;color:#6B736E">Pinecone robot - how the software works</p><p style="font-size:24px;color:#6B736E">03</p></div>
+<aside>Plain OpenCV, no trained model. The detector sorts blobs so the lowest one in the image comes first: the ground is flat and the camera looks down, so lower in the frame means closer to the robot. Blobs cut off by the top or side edge are marked partial and only used for direction.</aside>
+</section>
+<section id="distance" data-transition="fade" style="background:#F5F2EA;color:#1B2620;font-family:'IBM Plex Sans', Arial, sans-serif;padding:128px 128px 160px;display:flex;flex-direction:column;gap:48px">
+<div style="display:flex;flex-direction:column;gap:16px">
+<p style="font-size:24px;color:#A45A1C;letter-spacing:3px;text-transform:uppercase;font-weight:600">01 - See</p>
+<h2 style="font-family:'Space Grotesk', Arial, sans-serif;font-size:72px;font-weight:700;line-height:1.1">Measuring distance with depth</h2>
+</div>
+<div style="display:flex;gap:48px">
+<div style="flex:1;display:flex;flex-direction:column;gap:32px">
+<div style="display:flex;gap:24px"><p style="font-family:'Space Grotesk', Arial, sans-serif;font-size:32px;font-weight:700;color:#A45A1C;width:56px">1</p><div style="flex:1;display:flex;flex-direction:column;gap:4px"><p style="font-size:32px;font-weight:600">Depth for every pixel</p><p style="font-size:24px;color:#4A5550;line-height:1.4">The RealSense camera measures distance per pixel, lined up with the colour image</p></div></div>
+<div style="display:flex;gap:24px"><p style="font-family:'Space Grotesk', Arial, sans-serif;font-size:32px;font-weight:700;color:#A45A1C;width:56px">2</p><div style="flex:1;display:flex;flex-direction:column;gap:4px"><p style="font-size:32px;font-weight:600">Median of a small patch</p><p style="font-size:24px;color:#4A5550;line-height:1.4">The middle value of a 9 x 9 pixel square at the cone's centre; missing readings are skipped</p></div></div>
+<div style="display:flex;flex-direction:column;gap:12px;background:#FFFDF8;border:1px solid #E2DCCF;border-radius:16px;padding:40px">
+<p style="font-size:32px;font-weight:600">Backup: depth-only scanner</p>
+<p style="font-size:24px;color:#4A5550;line-height:1.4">Fits the ground plane (RANSAC), then anything standing above it and cone-sized is a cone. Median of 15 frames, under 2 mm spread, no colour needed.</p>
+</div>
+</div>
+<div style="width:600px;display:flex;flex-direction:column;gap:20px;background:#14211B;border-radius:16px;padding:48px">
+<p style="font-size:24px;color:#E0955A;letter-spacing:3px;text-transform:uppercase;font-weight:600">The catch</p>
+<p style="font-family:'Space Grotesk', Arial, sans-serif;font-size:120px;font-weight:700;line-height:1;color:#F5F2EA">0.31 m</p>
+<p style="font-family:'Space Grotesk', Arial, sans-serif;font-size:44px;font-weight:700;color:#F5F2EA">blind spot</p>
+<p style="font-size:24px;color:#C9D6CE;line-height:1.4">Closer than this, the camera can't measure depth. At grabbing range the cone is already too close, so the robot drives in on the cone's image position instead.</p>
+</div>
+</div>
+<div style="position:absolute;left:128px;bottom:64px;width:1664px;display:flex;justify-content:space-between"><p style="font-size:24px;color:#6B736E">Pinecone robot - how the software works</p><p style="font-size:24px;color:#6B736E">04</p></div>
+<aside>Depth runs at 424 x 240 instead of 640 x 480 because the lower resolution shrinks the minimum range. Sanity check on the scanner: the fitted plane's offset equals the camera height, so a wrong number instantly shows the plane was fitted to a wall or a desk.</aside>
+</section>
+<section id="drive" data-transition="fade" style="background:#F5F2EA;color:#1B2620;font-family:'IBM Plex Sans', Arial, sans-serif;padding:128px 128px 160px;display:flex;flex-direction:column;gap:48px">
+<div style="display:flex;flex-direction:column;gap:16px">
+<p style="font-size:24px;color:#A45A1C;letter-spacing:3px;text-transform:uppercase;font-weight:600">02 - Drive</p>
+<h2 style="font-family:'Space Grotesk', Arial, sans-serif;font-size:72px;font-weight:700;line-height:1.1">Steering by the image, not by metres</h2>
+</div>
+<div style="display:flex;gap:32px">
+<div style="flex:1;display:flex;flex-direction:column;gap:12px;background:#FFFDF8;border:1px solid #E2DCCF;border-radius:16px;padding:40px">
+<h3 style="font-family:'Space Grotesk', Arial, sans-serif;font-size:32px;font-weight:700">1. Centre it</h3>
+<p style="font-size:24px;color:#4A5550;line-height:1.4">Turn until the cone sits in the middle column of the image</p>
+</div>
+<div style="flex:1;display:flex;flex-direction:column;gap:12px;background:#FFFDF8;border:1px solid #E2DCCF;border-radius:16px;padding:40px">
+<h3 style="font-family:'Space Grotesk', Arial, sans-serif;font-size:32px;font-weight:700">2. Close in</h3>
+<p style="font-size:24px;color:#4A5550;line-height:1.4">Drive until the cone reaches row 360 of the image: about 0.33 m ahead, exactly where the arm grabs</p>
+</div>
+</div>
+<div style="display:flex;flex-direction:column;gap:16px">
+<div style="display:flex;align-items:center;gap:16px">
+<p style="width:272px;font-size:32px;font-weight:600;text-align:center;background:#14211B;color:#F5F2EA;border-radius:999px;padding:16px">SEARCH</p>
+<svg viewBox="0 0 100 50" preserveAspectRatio="none" style="width:40px;height:20px;flex:none"><polygon points="0,15 60,15 60,0 100,25 60,50 60,35 0,35" fill="#A45A1C"/></svg>
+<p style="width:272px;font-size:32px;font-weight:600;text-align:center;background:#14211B;color:#F5F2EA;border-radius:999px;padding:16px">APPROACH</p>
+<svg viewBox="0 0 100 50" preserveAspectRatio="none" style="width:40px;height:20px;flex:none"><polygon points="0,15 60,15 60,0 100,25 60,50 60,35 0,35" fill="#A45A1C"/></svg>
+<p style="width:272px;font-size:32px;font-weight:600;text-align:center;background:#14211B;color:#F5F2EA;border-radius:999px;padding:16px">ALIGN</p>
+<svg viewBox="0 0 100 50" preserveAspectRatio="none" style="width:40px;height:20px;flex:none"><polygon points="0,15 60,15 60,0 100,25 60,50 60,35 0,35" fill="#A45A1C"/></svg>
+<p style="width:272px;font-size:32px;font-weight:600;text-align:center;background:#C8742E;color:#14211B;border-radius:999px;padding:16px">GRASP</p>
+<svg viewBox="0 0 100 50" preserveAspectRatio="none" style="width:40px;height:20px;flex:none"><polygon points="0,15 60,15 60,0 100,25 60,50 60,35 0,35" fill="#A45A1C"/></svg>
+<p style="width:272px;font-size:32px;font-weight:600;text-align:center;background:#14211B;color:#F5F2EA;border-radius:999px;padding:16px">DROP</p>
+</div>
+<div style="display:flex;gap:72px">
+<p style="width:272px;font-size:24px;color:#4A5550;text-align:center">drive in lanes</p>
+<p style="width:272px;font-size:24px;color:#4A5550;text-align:center">steer on the image</p>
+<p style="width:272px;font-size:24px;color:#4A5550;text-align:center">stop, confirm over 3 frames</p>
+<p style="width:272px;font-size:24px;color:#4A5550;text-align:center">arm picks it up</p>
+<p style="width:272px;font-size:24px;color:#4A5550;text-align:center">into the jar</p>
+</div>
+</div>
+<p style="font-size:24px;color:#4A5550;line-height:1.4"><b>Heading:</b> a phone's gyro (phyphox app) on the base tells the robot which way it faces - the hoverboard's own sensors weren't accessible.</p>
+<div style="position:absolute;left:128px;bottom:64px;width:1664px;display:flex;justify-content:space-between"><p style="font-size:24px;color:#6B736E">Pinecone robot - how the software works</p><p style="font-size:24px;color:#6B736E">05</p></div>
+<aside>This is visual servoing: a simple P-controller. The target row was calibrated once so that when the cone sits there, it is exactly where the recorded grab lands. No distance maths is needed while driving.</aside>
+</section>
+<section id="learned" data-section="The learned grab: data, model, training and the full cycle" data-transition="fade" style="background:#C8742E;color:#14211B;font-family:'IBM Plex Sans', Arial, sans-serif;padding:128px;display:flex;flex-direction:column;justify-content:center;gap:40px">
+<p style="font-size:24px;letter-spacing:3px;text-transform:uppercase;font-weight:600">03 - Grab</p>
+<h1 style="font-family:'Space Grotesk', Arial, sans-serif;font-size:120px;font-weight:700;line-height:1.05;width:1500px">The grab is learned, not programmed</h1>
+<p style="font-size:44px;width:1400px;line-height:1.3">We showed the robot 50 grabs. A neural network learned to copy them.</p>
+<aside>Nobody wrote the arm's grab motion by hand. It was learned from demonstrations, which is called imitation learning.</aside>
+</section>
+<section id="teach" data-transition="fade" style="background:#F5F2EA;color:#1B2620;font-family:'IBM Plex Sans', Arial, sans-serif;padding:128px 128px 160px;display:flex;flex-direction:column;gap:48px">
+<div style="display:flex;flex-direction:column;gap:16px">
+<p style="font-size:24px;color:#A45A1C;letter-spacing:3px;text-transform:uppercase;font-weight:600">03 - Grab</p>
+<h2 style="font-family:'Space Grotesk', Arial, sans-serif;font-size:72px;font-weight:700;line-height:1.1">Teaching by demonstration</h2>
+</div>
+<p style="font-size:32px;color:#4A5550;line-height:1.4;width:1500px">A person moves a second "leader" arm by hand. The robot arm copies it live, while its camera and joint sensors record everything 30 times a second.</p>
+<div style="display:flex;gap:32px">
+<div style="flex:1;display:flex;flex-direction:column;gap:12px;background:#FFFDF8;border:1px solid #E2DCCF;border-radius:16px;padding:40px">
+<p style="font-family:'Space Grotesk', Arial, sans-serif;font-size:72px;font-weight:700;color:#A45A1C;line-height:1.1">50</p>
+<p style="font-size:24px;color:#4A5550">grabs recorded</p>
+</div>
+<div style="flex:1;display:flex;flex-direction:column;gap:12px;background:#FFFDF8;border:1px solid #E2DCCF;border-radius:16px;padding:40px">
+<p style="font-family:'Space Grotesk', Arial, sans-serif;font-size:72px;font-weight:700;color:#A45A1C;line-height:1.1">5 x 10</p>
+<p style="font-size:24px;color:#4A5550">cone positions x grabs each</p>
+</div>
+<div style="flex:1;display:flex;flex-direction:column;gap:12px;background:#FFFDF8;border:1px solid #E2DCCF;border-radius:16px;padding:40px">
+<p style="font-family:'Space Grotesk', Arial, sans-serif;font-size:72px;font-weight:700;color:#A45A1C;line-height:1.1">15 s</p>
+<p style="font-size:24px;color:#4A5550">per grab: reach, close, lift</p>
+</div>
+<div style="flex:1;display:flex;flex-direction:column;gap:12px;background:#FFFDF8;border:1px solid #E2DCCF;border-radius:16px;padding:40px">
+<p style="font-family:'Space Grotesk', Arial, sans-serif;font-size:72px;font-weight:700;color:#A45A1C;line-height:1.1">22,451</p>
+<p style="font-size:24px;color:#4A5550">frames of training data</p>
+</div>
+</div>
+<div style="position:absolute;left:128px;bottom:64px;width:1664px;display:flex;justify-content:space-between"><p style="font-size:24px;color:#6B736E">Pinecone robot - how the software works</p><p style="font-size:24px;color:#6B736E">07</p></div>
+<aside>Each frame stores three things: the camera image, the 6 joint angles, and the move the human made next. Recorded with LeRobot's lerobot-record tool on the Raspberry Pi.</aside>
+</section>
+<section id="act" data-transition="fade" style="background:#F5F2EA;color:#1B2620;font-family:'IBM Plex Sans', Arial, sans-serif;padding:128px 128px 160px;display:flex;flex-direction:column;gap:48px">
+<div style="display:flex;flex-direction:column;gap:16px">
+<p style="font-size:24px;color:#A45A1C;letter-spacing:3px;text-transform:uppercase;font-weight:600">ACT - Action Chunking with Transformers</p>
+<h2 style="font-family:'Space Grotesk', Arial, sans-serif;font-size:72px;font-weight:700;line-height:1.1">What the AI model sees and does</h2>
+</div>
+<div style="display:flex;align-items:center;gap:24px">
+<div style="width:300px;display:flex;flex-direction:column;gap:24px">
+<div style="display:flex;flex-direction:column;gap:12px;background:#FFFDF8;border:1px solid #E2DCCF;border-radius:16px;padding:32px">
+<h3 style="font-family:'Space Grotesk', Arial, sans-serif;font-size:32px;font-weight:700">Camera image</h3>
+<p style="font-size:24px;color:#4A5550;line-height:1.4">640 x 480, from the arm</p>
+</div>
+<div style="display:flex;flex-direction:column;gap:12px;background:#FFFDF8;border:1px solid #E2DCCF;border-radius:16px;padding:32px">
+<h3 style="font-family:'Space Grotesk', Arial, sans-serif;font-size:32px;font-weight:700">Joint angles</h3>
+<p style="font-size:24px;color:#4A5550;line-height:1.4">5 joints + gripper</p>
+</div>
+</div>
+<svg viewBox="0 0 100 50" preserveAspectRatio="none" style="width:56px;height:28px;flex:none"><polygon points="0,15 60,15 60,0 100,25 60,50 60,35 0,35" fill="#A45A1C"/></svg>
+<div style="width:360px;display:flex;flex-direction:column;gap:12px;background:#2F6B4F;border-radius:16px;padding:32px">
+<h3 style="font-family:'Space Grotesk', Arial, sans-serif;font-size:32px;font-weight:700;color:#F5F2EA">ResNet18</h3>
+<p style="font-size:24px;color:#E3EDE7;line-height:1.4">The eyes: turns the photo into features - edges, shapes, where the cone is</p>
+</div>
+<svg viewBox="0 0 100 50" preserveAspectRatio="none" style="width:56px;height:28px;flex:none"><polygon points="0,15 60,15 60,0 100,25 60,50 60,35 0,35" fill="#A45A1C"/></svg>
+<div style="width:360px;display:flex;flex-direction:column;gap:12px;background:#14211B;border-radius:16px;padding:32px">
+<h3 style="font-family:'Space Grotesk', Arial, sans-serif;font-size:32px;font-weight:700;color:#F5F2EA">Transformer</h3>
+<p style="font-size:24px;color:#C9D6CE;line-height:1.4">The brain: combines what it sees with where the arm is and decides the motion</p>
+</div>
+<svg viewBox="0 0 100 50" preserveAspectRatio="none" style="width:56px;height:28px;flex:none"><polygon points="0,15 60,15 60,0 100,25 60,50 60,35 0,35" fill="#A45A1C"/></svg>
+<div style="width:300px;display:flex;flex-direction:column;gap:12px;background:#C8742E;border-radius:16px;padding:32px">
+<h3 style="font-family:'Space Grotesk', Arial, sans-serif;font-size:32px;font-weight:700;color:#14211B">Next 100 moves</h3>
+<p style="font-size:24px;color:#14211B;line-height:1.4">About 3.3 s of motion, re-planned after each chunk</p>
+</div>
+</div>
+<p style="font-size:24px;color:#4A5550;line-height:1.4">Runs on the Raspberry Pi's processor, no GPU needed: about 0.65 s to plan 100 moves.</p>
+<div style="position:absolute;left:128px;bottom:64px;width:1664px;display:flex;justify-content:space-between"><p style="font-size:24px;color:#6B736E">Pinecone robot - how the software works</p><p style="font-size:24px;color:#6B736E">08</p></div>
+<aside>ACT came out of Stanford's ALOHA project in 2023. The transformer is the same kind of network as ChatGPT, but it predicts arm positions instead of words. Model size: 512-wide, 4 encoder layers, 1 decoder layer, 8 attention heads.</aside>
+</section>
+<section id="tricks" data-transition="fade" style="background:#F5F2EA;color:#1B2620;font-family:'IBM Plex Sans', Arial, sans-serif;padding:128px 128px 160px;display:flex;flex-direction:column;gap:48px">
+<div style="display:flex;flex-direction:column;gap:16px">
+<p style="font-size:24px;color:#A45A1C;letter-spacing:3px;text-transform:uppercase;font-weight:600">Why it works</p>
+<h2 style="font-family:'Space Grotesk', Arial, sans-serif;font-size:72px;font-weight:700;line-height:1.1">Three ideas behind the model</h2>
+</div>
+<div style="display:flex;gap:32px">
+<div style="flex:1;display:flex;flex-direction:column;gap:20px;background:#FFFDF8;border:1px solid #E2DCCF;border-radius:16px;padding:40px">
+<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:56px;height:56px;color:#A45A1C;flex:none"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+<h3 style="font-family:'Space Grotesk', Arial, sans-serif;font-size:44px;font-weight:700">Action chunking</h3>
+<p style="font-size:32px;color:#4A5550;line-height:1.4">Planning one tiny move at a time lets errors pile up. Planning 100 at once gives smooth, confident motion.</p>
+</div>
+<div style="flex:1;display:flex;flex-direction:column;gap:20px;background:#FFFDF8;border:1px solid #E2DCCF;border-radius:16px;padding:40px">
+<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:56px;height:56px;color:#A45A1C;flex:none"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+<h3 style="font-family:'Space Grotesk', Arial, sans-serif;font-size:44px;font-weight:700">Pretrained eyes</h3>
+<p style="font-size:32px;color:#4A5550;line-height:1.4">ResNet18 already learned to see from over a million ImageNet photos. Our 50 demos only tune it to cones.</p>
+</div>
+<div style="flex:1;display:flex;flex-direction:column;gap:20px;background:#FFFDF8;border:1px solid #E2DCCF;border-radius:16px;padding:40px">
+<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:56px;height:56px;color:#A45A1C;flex:none"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+<h3 style="font-family:'Space Grotesk', Arial, sans-serif;font-size:44px;font-weight:700">Grab styles</h3>
+<p style="font-size:32px;color:#4A5550;line-height:1.4">People never grab the same way twice. The model learns separate styles instead of averaging them into one bad motion.</p>
+</div>
+</div>
+<div style="position:absolute;left:128px;bottom:64px;width:1664px;display:flex;justify-content:space-between"><p style="font-size:24px;color:#6B736E">Pinecone robot - how the software works</p><p style="font-size:24px;color:#6B736E">09</p></div>
+<aside>Grab styles are handled by a VAE (variational autoencoder), used only during training. At run time the style is fixed to the average, so the arm commits to one consistent way of grabbing. Learning vision from zero with only 50 demos would have been impossible, which is why the pretrained ResNet18 matters.</aside>
+</section>
+<section id="training" data-transition="fade" style="background:#F5F2EA;color:#1B2620;font-family:'IBM Plex Sans', Arial, sans-serif;padding:128px 128px 160px;display:flex;flex-direction:column;gap:48px">
+<div style="display:flex;flex-direction:column;gap:16px">
+<p style="font-size:24px;color:#A45A1C;letter-spacing:3px;text-transform:uppercase;font-weight:600">Training</p>
+<h2 style="font-family:'Space Grotesk', Arial, sans-serif;font-size:72px;font-weight:700;line-height:1.1">Error fell from 26 to 0.30</h2>
+</div>
+<div style="display:flex;gap:64px;align-items:end">
+<div style="width:560px;display:flex;flex-direction:column;gap:28px">
+<div style="display:flex;flex-direction:column;gap:4px"><p style="font-size:32px;font-weight:600">Laptop GPU</p><p style="font-size:24px;color:#4A5550">NVIDIA RTX 3070, about 3 steps a second</p></div>
+<div style="display:flex;flex-direction:column;gap:4px"><p style="font-size:32px;font-weight:600">7,000 training steps</p><p style="font-size:24px;color:#4A5550">8 frames per step, from the 50 demos</p></div>
+<div style="display:flex;flex-direction:column;gap:4px"><p style="font-size:32px;font-weight:600">One crash survived</p><p style="font-size:24px;color:#4A5550;line-height:1.4">The laptop overheated; training resumed from the step 3,000 checkpoint</p></div>
+</div>
+<div style="flex:1;display:flex;flex-direction:column;gap:24px">
+<p style="font-size:24px;color:#4A5550">Loss at each saved checkpoint (lower is better; it started at 26)</p>
+<div style="display:flex;gap:48px;align-items:end;border-bottom:2px solid #C9C0AE">
+<div style="width:170px;display:flex;flex-direction:column;align-items:center;gap:12px"><p style="font-size:32px;font-weight:600">1.24</p><div style="width:170px;height:400px;background:#2F6B4F;border-radius:8px 8px 0 0"></div></div>
+<div style="width:170px;display:flex;flex-direction:column;align-items:center;gap:12px"><p style="font-size:32px;font-weight:600">0.79</p><div style="width:170px;height:255px;background:#2F6B4F;border-radius:8px 8px 0 0"></div></div>
+<div style="width:170px;display:flex;flex-direction:column;align-items:center;gap:12px"><p style="font-size:32px;font-weight:600">0.58</p><div style="width:170px;height:185px;background:#2F6B4F;border-radius:8px 8px 0 0"></div></div>
+<div style="width:170px;display:flex;flex-direction:column;align-items:center;gap:12px"><p style="font-size:32px;font-weight:600;color:#A45A1C">0.30 final</p><div style="width:170px;height:97px;background:#C8742E;border-radius:8px 8px 0 0"></div></div>
+</div>
+<div style="display:flex;gap:48px">
+<p style="width:170px;font-size:24px;color:#4A5550;text-align:center">step 2,000</p>
+<p style="width:170px;font-size:24px;color:#4A5550;text-align:center">step 3,000</p>
+<p style="width:170px;font-size:24px;color:#4A5550;text-align:center">step 4,000</p>
+<p style="width:170px;font-size:24px;color:#4A5550;text-align:center">step 7,000</p>
+</div>
+</div>
+</div>
+<div style="position:absolute;left:128px;bottom:64px;width:1664px;display:flex;justify-content:space-between"><p style="font-size:24px;color:#6B736E">Pinecone robot - how the software works</p><p style="font-size:24px;color:#6B736E">10</p></div>
+<aside>Loss measures how far the model's predicted moves are from what the human actually did. Exact values: 1.24 at step 2,000, 0.79 at 3,000, 0.575 at 4,000, 0.301 at 7,000. The final weights are the step 7,000 checkpoint.</aside>
+</section>
+<section id="cycle" data-transition="fade" style="background:#F5F2EA;color:#1B2620;font-family:'IBM Plex Sans', Arial, sans-serif;padding:128px 128px 160px;display:flex;flex-direction:column;gap:48px">
+<div style="display:flex;flex-direction:column;gap:16px">
+<p style="font-size:24px;color:#A45A1C;letter-spacing:3px;text-transform:uppercase;font-weight:600">At run time</p>
+<h2 style="font-family:'Space Grotesk', Arial, sans-serif;font-size:72px;font-weight:700;line-height:1.1">One press: grab, drop, home</h2>
+</div>
+<div style="display:flex;align-items:center;gap:24px">
+<div style="flex:1;display:flex;flex-direction:column;gap:12px;background:#C8742E;border-radius:16px;padding:40px">
+<p style="font-size:24px;letter-spacing:2px;text-transform:uppercase;font-weight:600;color:#14211B">Stage 1 - learned</p>
+<h3 style="font-family:'Space Grotesk', Arial, sans-serif;font-size:44px;font-weight:700;color:#14211B">AI grab</h3>
+<p style="font-size:32px;color:#14211B;line-height:1.4">Reach, close the gripper, lift. Motors stay on so the cone stays put.</p>
+</div>
+<svg viewBox="0 0 100 50" preserveAspectRatio="none" style="width:56px;height:28px;flex:none"><polygon points="0,15 60,15 60,0 100,25 60,50 60,35 0,35" fill="#A45A1C"/></svg>
+<div style="flex:1;display:flex;flex-direction:column;gap:12px;background:#FFFDF8;border:1px solid #E2DCCF;border-radius:16px;padding:40px">
+<p style="font-size:24px;letter-spacing:2px;text-transform:uppercase;font-weight:600;color:#A45A1C">Stage 2 - recorded</p>
+<h3 style="font-family:'Space Grotesk', Arial, sans-serif;font-size:44px;font-weight:700">Drop</h3>
+<p style="font-size:32px;color:#4A5550;line-height:1.4">Hand-recorded path over the jar, then open. The jar never moves.</p>
+</div>
+<svg viewBox="0 0 100 50" preserveAspectRatio="none" style="width:56px;height:28px;flex:none"><polygon points="0,15 60,15 60,0 100,25 60,50 60,35 0,35" fill="#A45A1C"/></svg>
+<div style="flex:1;display:flex;flex-direction:column;gap:12px;background:#FFFDF8;border:1px solid #E2DCCF;border-radius:16px;padding:40px">
+<p style="font-size:24px;letter-spacing:2px;text-transform:uppercase;font-weight:600;color:#A45A1C">Stage 3 - recorded</p>
+<h3 style="font-family:'Space Grotesk', Arial, sans-serif;font-size:44px;font-weight:700">Home</h3>
+<p style="font-size:32px;color:#4A5550;line-height:1.4">The arm returns to its start pose, ready for the next cone.</p>
+</div>
+</div>
+<div style="display:flex;flex-direction:column;gap:8px;background:#14211B;border-radius:16px;padding:32px 40px">
+<p style="font-size:24px;color:#E0955A;font-weight:600">Why use AI for the grab?</p>
+<p style="font-size:24px;color:#C9D6CE;line-height:1.4">Our first try was a simple formula from cone pixel to joint angles, fitted on 8 hand-taught grabs. It missed by about 6 cm: 0 of about 15 autonomous grabs worked.</p>
+</div>
+<div style="position:absolute;left:128px;bottom:64px;width:1664px;display:flex;justify-content:space-between"><p style="font-size:24px;color:#6B736E">Pinecone robot - how the software works</p><p style="font-size:24px;color:#6B736E">11</p></div>
+<aside>The "Collect cone" button in the web panel runs this whole cycle. Stage 1 runs the ACT model for 15 seconds. Only the grab is learned: the jar sits in a fixed place on the robot, so dropping and returning home are replayed recordings.</aside>
+</section>
+<section id="status" data-section="What works today and what is next" data-transition="fade" style="background:#14211B;color:#F5F2EA;font-family:'IBM Plex Sans', Arial, sans-serif;padding:128px 128px 160px;display:flex;flex-direction:column;gap:48px">
+<div style="display:flex;flex-direction:column;gap:16px">
+<p style="font-size:24px;color:#E0955A;letter-spacing:3px;text-transform:uppercase;font-weight:600">Status</p>
+<h2 style="font-family:'Space Grotesk', Arial, sans-serif;font-size:72px;font-weight:700;line-height:1.1">Where we are</h2>
+</div>
+<div style="display:flex;gap:32px">
+<div style="flex:1;display:flex;flex-direction:column;gap:24px;background:#1F3028;border-radius:16px;padding:40px">
+<h3 style="font-family:'Space Grotesk', Arial, sans-serif;font-size:44px;font-weight:700;color:#E0955A">Working</h3>
+<ul style="font-size:32px;color:#C9D6CE;line-height:1.5">
+<li>Cone detection: 0 errors in two lights</li>
+<li>Depth distance + ground-plane scanner</li>
+<li>ACT trained on 50 demos, loss 0.30</li>
+<li>Full loop in simulation: 5 of 5 cones</li>
+<li>Web panel with a one-press grab button</li>
+</ul>
+</div>
+<div style="flex:1;display:flex;flex-direction:column;gap:24px;background:#1F3028;border-radius:16px;padding:40px">
+<h3 style="font-family:'Space Grotesk', Arial, sans-serif;font-size:44px;font-weight:700;color:#F5F2EA">Next</h3>
+<ul style="font-size:32px;color:#C9D6CE;line-height:1.5">
+<li>First ACT grabs on the real robot</li>
+<li>Check the grab worked before the drop</li>
+<li>First full drive-and-grab run on hardware</li>
+<li>Move the camera out of the depth blind spot</li>
+</ul>
+</div>
+</div>
+<div style="position:absolute;left:128px;bottom:64px;width:1664px;display:flex;justify-content:space-between"><p style="font-size:24px;color:#8FA398">Status as recorded in the repo, 27 Sep 2026</p><p style="font-size:24px;color:#8FA398">12</p></div>
+<aside>Honest status: the ACT model is trained but hadn't been tested on the real arm yet, and the full drive-and-grab loop has only run in simulation. The grab spot currently sits inside the camera's 0.31 m depth blind spot, so the camera needs to move.</aside>
+</section>
+</div>
+<div id="count"></div>
+<script>
+var s = document.querySelectorAll('#stage > section'), i = 0;
+function show(n) {
+  i = Math.max(0, Math.min(s.length - 1, n));
+  for (var k = 0; k < s.length; k++) s[k].classList.toggle('off', k !== i);
+  document.getElementById('count').textContent = (i + 1) + ' / ' + s.length + '  (arrows / click)';
+  location.hash = i + 1;
+}
+function fit() {
+  var k = Math.min(innerWidth / 1920, innerHeight / 1080), st = document.getElementById('stage');
+  st.style.transform = 'translate(' + (innerWidth - 1920 * k) / 2 + 'px,' + (innerHeight - 1080 * k) / 2 + 'px) scale(' + k + ')';
+}
+addEventListener('resize', fit);
+addEventListener('keydown', function (e) {
+  if (['ArrowRight', 'PageDown', ' '].indexOf(e.key) >= 0) show(i + 1);
+  if (['ArrowLeft', 'PageUp'].indexOf(e.key) >= 0) show(i - 1);
+  if (e.key === 'Home') show(0);
+  if (e.key === 'End') show(s.length - 1);
+});
+addEventListener('click', function (e) { show(e.clientX < innerWidth / 3 ? i - 1 : i + 1); });
+fit(); show((parseInt(location.hash.slice(1), 10) || 1) - 1);
+</script>
+</body>
+</html>
