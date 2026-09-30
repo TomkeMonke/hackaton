@@ -6,7 +6,7 @@ Sterowanie jest deterministyczne (`pinecone_bot/`): ramie odtwarza nagrane ruchy
 w miejscu chwytu na podstawie obrazu, calosc spina prosta maszyna stanow. Bez ML, bez LLM w petli.
 
 **Prezentacja (EN):** jak dziala software - detekcja, odleglosc z glebi, jazda, chwyt ACT:
-[docs/presentation/index.html](docs/presentation/index.html) (pobierz i otworz w przegladarce; strzalki = slajdy).
+**https://tomkemonke.github.io/hackaton/docs/presentation/** (strzalki = slajdy; zrodlo: [docs/presentation/](docs/presentation/)).
 
 ## Zacznij tutaj (kazda sesja)
 
